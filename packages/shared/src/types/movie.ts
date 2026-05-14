@@ -10,7 +10,7 @@ export interface Source {
 export interface CastMember {
   name: string
   character: string
-  photo: string
+  photo?: string
 }
 
 export interface Movie {
