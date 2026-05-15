@@ -3,7 +3,7 @@ export interface ScrapeJob {
   site: string
   status: 'running' | 'completed' | 'failed'
   moviesFound: number
-  errors: string[]
+  scrapeErrors: string[]
   startedAt: string
   completedAt?: string
 }

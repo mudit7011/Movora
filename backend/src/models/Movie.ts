@@ -52,7 +52,7 @@ const movieSchema = new Schema<IMovie>(
     title: { type: String, required: true },
     titleHindi: String,
     slug: { type: String, required: true, unique: true },
-    type: { type: String, default: 'movie' },
+    type: { type: String, enum: ['movie'], default: 'movie' },
     language: [String],
     genres: [String],
     releaseYear: Number,
