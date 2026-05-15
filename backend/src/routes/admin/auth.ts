@@ -13,6 +13,12 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+}
+
 router.post('/login', loginRateLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -20,33 +26,31 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     return
   }
 
-  const { email, password } = parsed.data
-  const admin = await Admin.findOne({ email: email.toLowerCase() })
-  if (!admin) {
-    res.status(401).json({ error: 'Invalid credentials' })
-    return
+  try {
+    const { email, password } = parsed.data
+    const admin = await Admin.findOne({ email: email.toLowerCase() })
+    if (!admin) {
+      res.status(401).json({ error: 'Invalid credentials' })
+      return
+    }
+
+    const valid = await bcrypt.compare(password, admin.passwordHash)
+    if (!valid) {
+      res.status(401).json({ error: 'Invalid credentials' })
+      return
+    }
+
+    const token = jwt.sign({ adminId: admin._id.toString() }, env.JWT_SECRET, { expiresIn: '24h' })
+
+    res.cookie('token', token, { ...cookieOptions, maxAge: 24 * 60 * 60 * 1000 })
+    res.json({ message: 'Logged in' })
+  } catch {
+    res.status(500).json({ error: 'Server error' })
   }
-
-  const valid = await bcrypt.compare(password, admin.passwordHash)
-  if (!valid) {
-    res.status(401).json({ error: 'Invalid credentials' })
-    return
-  }
-
-  const token = jwt.sign({ adminId: admin._id.toString() }, env.JWT_SECRET, { expiresIn: '24h' })
-
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 24 * 60 * 60 * 1000,
-  })
-
-  res.json({ message: 'Logged in' })
 })
 
 router.post('/logout', (_req, res) => {
-  res.clearCookie('token')
+  res.clearCookie('token', cookieOptions)
   res.json({ message: 'Logged out' })
 })
 

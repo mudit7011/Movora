@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import mongoose from 'mongoose'
 import { Movie } from '../../models/Movie'
 import { authenticate } from '../../middleware/authenticate'
 
@@ -57,13 +58,21 @@ router.post('/', async (req, res) => {
 })
 
 router.patch('/:id', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: 'Invalid movie id' })
+    return
+  }
   const parsed = movieSchema.partial().safeParse(req.body)
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues })
     return
   }
   try {
-    const movie = await Movie.findByIdAndUpdate(req.params.id, parsed.data, { new: true })
+    const movie = await Movie.findByIdAndUpdate(
+      req.params.id,
+      { $set: parsed.data },
+      { new: true, runValidators: true }
+    )
     if (!movie) {
       res.status(404).json({ error: 'Movie not found' })
       return
@@ -75,6 +84,10 @@ router.patch('/:id', async (req, res) => {
 })
 
 router.delete('/:id', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: 'Invalid movie id' })
+    return
+  }
   try {
     const movie = await Movie.findByIdAndDelete(req.params.id)
     if (!movie) {
