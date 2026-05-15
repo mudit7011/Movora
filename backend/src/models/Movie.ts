@@ -69,7 +69,7 @@ const movieSchema = new Schema<IMovie>(
   { timestamps: true }
 )
 
-movieSchema.index({ title: 'text', synopsis: 'text' })
+movieSchema.index({ title: 'text', synopsis: 'text' }, { language_override: 'lang' })
 movieSchema.index({ genres: 1 })
 movieSchema.index({ language: 1 })
 movieSchema.index({ releaseYear: 1 })
