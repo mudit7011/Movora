@@ -1,7 +1,15 @@
 import dotenv from 'dotenv'
+import path from 'path'
 import { z } from 'zod'
 
-dotenv.config()
+// In test mode the runner injects env vars directly; skip file loading so that
+// tests that deliberately delete a var (to test validation) still throw.
+if (process.env.NODE_ENV !== 'test') {
+  // Load .env from project root (one level above backend/), then fall back to cwd.
+  // Never override vars that are already set (e.g. CI secrets).
+  dotenv.config({ path: path.resolve(__dirname, '../../../.env'), override: false })
+  dotenv.config({ override: false }) // fallback: cwd .env
+}
 
 const envSchema = z.object({
   PORT: z.string().default('3001'),
