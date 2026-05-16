@@ -36,12 +36,7 @@ export default function MoviesPage({ searchParams }: Props) {
   return (
     <div className="min-h-screen pt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Browse Movies</h1>
-          <Suspense>
-            <FilterSidebar />
-          </Suspense>
-        </div>
+        <h1 className="text-2xl font-semibold mb-6">Browse Movies</h1>
 
         <div className="flex gap-8">
           <Suspense>
