@@ -2,7 +2,13 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+
+const SearchIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="8" />
+    <path d="M21 21l-4.35-4.35" />
+  </svg>
+)
 
 export default function SearchInput() {
   const router = useRouter()
@@ -19,13 +25,15 @@ export default function SearchInput() {
 
   return (
     <div className="relative max-w-2xl mx-auto">
-      <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+        <SearchIcon />
+      </div>
       <input
         autoFocus
         value={value}
         onChange={e => setValue(e.target.value)}
-        placeholder="Search for a movie…"
-        className="w-full bg-white/5 border border-white/10 focus:border-crimson text-white placeholder-muted rounded-xl pl-11 pr-4 py-4 text-lg outline-none transition-colors"
+        placeholder="Search for a movie..."
+        className="w-full bg-card border border-white/10 focus:border-primary text-foreground placeholder-muted-foreground rounded-xl pl-12 pr-4 py-4 text-lg outline-none transition-all focus:ring-2 focus:ring-primary/20"
       />
     </div>
   )

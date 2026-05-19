@@ -2,81 +2,259 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useMemo } from 'react'
 import type { Movie } from '@/types/movie'
-import RatingBadge from './RatingBadge'
-import GenreChip from './GenreChip'
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  show: { opacity: 1, y: 0 },
+const PlayIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8 5.14v14l11-7-11-7z" />
+  </svg>
+)
+
+const InfoIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4M12 8h.01" />
+  </svg>
+)
+
+const PlusIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+)
+
+interface Props {
+  movie: Movie
+  movies?: Movie[]
 }
 
-const stagger = {
-  show: { transition: { staggerChildren: 0.12 } },
+function extractDominantColor(index: number): string {
+  // Cinematic color palette for bokeh effects
+  const colors = [
+    'rgba(6, 214, 224, 0.6)',   // Cyan
+    'rgba(20, 184, 166, 0.5)',  // Teal
+    'rgba(99, 102, 241, 0.5)',  // Indigo
+    'rgba(168, 85, 247, 0.4)',  // Purple
+    'rgba(236, 72, 153, 0.4)',  // Pink
+  ]
+  return colors[index % colors.length]
 }
 
-interface Props { movie: Movie }
+export default function Hero({ movie, movies = [] }: Props) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const featuredMovies = movies.length > 0 ? movies.slice(0, 5) : [movie]
+  const currentMovie = featuredMovies[currentIndex]
 
-export default function Hero({ movie }: Props) {
+  // Auto-rotate through featured movies
+  useEffect(() => {
+    if (featuredMovies.length <= 1) return
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % featuredMovies.length)
+    }, 8000)
+    return () => clearInterval(timer)
+  }, [featuredMovies.length])
+
+  // Generate bokeh positions
+  const bokehElements = useMemo(() => [
+    { size: 300, x: '70%', y: '20%', color: extractDominantColor(0), delay: 0 },
+    { size: 200, x: '80%', y: '60%', color: extractDominantColor(1), delay: 2 },
+    { size: 250, x: '60%', y: '80%', color: extractDominantColor(2), delay: 4 },
+  ], [])
+
   return (
-    <section className="relative h-[90vh] w-full overflow-hidden grain">
-      {movie.backdropUrl && (
-        <Image
-          src={movie.backdropUrl}
-          alt={movie.title}
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-top"
+    <section className="relative h-screen w-full overflow-hidden">
+      {/* Background Image with Ken Burns Effect */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentMovie._id}
+          initial={{ opacity: 0, scale: 1.1 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.2, ease: 'easeOut' }}
+          className="absolute inset-0"
+        >
+          {currentMovie.backdropUrl && (
+            <Image
+              src={currentMovie.backdropUrl}
+              alt={currentMovie.title}
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-center"
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Bokeh Glow Effects */}
+      {bokehElements.map((bokeh, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0 }}
+          animate={{ 
+            opacity: [0.3, 0.6, 0.3],
+            scale: [1, 1.2, 1],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            delay: bokeh.delay,
+            ease: 'easeInOut',
+          }}
+          style={{
+            width: bokeh.size,
+            height: bokeh.size,
+            left: bokeh.x,
+            top: bokeh.y,
+            background: `radial-gradient(circle, ${bokeh.color} 0%, transparent 70%)`,
+          }}
+          className="absolute rounded-full blur-3xl pointer-events-none mix-blend-screen"
         />
-      )}
+      ))}
 
+      {/* Gradient Overlays */}
       <div className="absolute inset-0 bg-hero-gradient" />
-      <div className="absolute inset-0 bg-gradient-to-t from-base via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-hero-gradient-bottom" />
 
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 flex flex-col justify-end h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20"
-      >
-        <motion.div variants={fadeUp} className="flex flex-wrap gap-2 mb-4">
-          {movie.genres.slice(0, 3).map(g => (
-            <GenreChip key={g} genre={g} />
-          ))}
-          <RatingBadge rating={movie.rating} />
-        </motion.div>
+      {/* Grain Overlay */}
+      <div className="grain absolute inset-0" />
 
-        <motion.h1
-          variants={fadeUp}
-          className="font-display text-5xl sm:text-7xl lg:text-8xl text-white tracking-wide leading-none mb-4 max-w-2xl"
-        >
-          {movie.title}
-        </motion.h1>
+      {/* Content */}
+      <div className="relative z-10 h-full flex flex-col justify-end lg:pl-24 pb-32 lg:pb-24">
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentMovie._id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+              className="max-w-2xl"
+            >
+              {/* Meta Info */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex flex-wrap items-center gap-3 mb-4"
+              >
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-semibold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  Featured
+                </span>
+                <span className="text-muted-foreground text-sm">{currentMovie.releaseYear}</span>
+                <span className="text-muted-foreground text-sm">{currentMovie.runtime} min</span>
+                <span className="flex items-center gap-1 text-accent text-sm font-medium">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  {currentMovie.rating.toFixed(1)}
+                </span>
+              </motion.div>
 
-        <motion.p
-          variants={fadeUp}
-          className="text-white/70 text-sm sm:text-base max-w-lg mb-8 line-clamp-3"
-        >
-          {movie.synopsis}
-        </motion.p>
+              {/* Title */}
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-4xl sm:text-5xl lg:text-7xl font-bold text-foreground tracking-tight leading-[1.1] mb-4 text-balance"
+              >
+                {currentMovie.title}
+              </motion.h1>
 
-        <motion.div variants={fadeUp} className="flex flex-wrap gap-4">
-          <Link
-            href={`/watch/${movie.slug}`}
-            className="inline-flex items-center gap-2 bg-crimson hover:bg-crimson-dark text-white font-semibold px-6 py-3 rounded-lg transition-colors shadow-crimson-glow"
-          >
-            <span>▶</span> Play Now
-          </Link>
-          <Link
-            href={`/movie/${movie.slug}`}
-            className="inline-flex items-center gap-2 glass text-white font-semibold px-6 py-3 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            <span>ℹ</span> More Info
-          </Link>
-        </motion.div>
-      </motion.div>
+              {/* Genres */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-wrap gap-2 mb-5"
+              >
+                {currentMovie.genres.slice(0, 4).map((genre) => (
+                  <span
+                    key={genre}
+                    className="px-3 py-1 text-xs font-medium text-foreground/80 bg-white/10 backdrop-blur-sm rounded-full border border-white/10"
+                  >
+                    {genre}
+                  </span>
+                ))}
+              </motion.div>
+
+              {/* Synopsis */}
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="text-muted-foreground text-sm sm:text-base leading-relaxed line-clamp-3 mb-8 max-w-xl"
+              >
+                {currentMovie.synopsis}
+              </motion.p>
+
+              {/* Action Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="flex flex-wrap items-center gap-4"
+              >
+                <Link
+                  href={`/watch/${currentMovie.slug}`}
+                  className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
+                >
+                  <PlayIcon />
+                  <span>Watch Now</span>
+                </Link>
+                <Link
+                  href={`/movie/${currentMovie.slug}`}
+                  className="btn-glass inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base"
+                >
+                  <InfoIcon />
+                  <span>More Info</span>
+                </Link>
+                <button
+                  className="btn-glass p-4 rounded-xl"
+                  aria-label="Add to Watch Later"
+                >
+                  <PlusIcon />
+                </button>
+              </motion.div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Movie Selector Dots */}
+          {featuredMovies.length > 1 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="flex items-center gap-2 mt-10"
+            >
+              {featuredMovies.map((m, i) => (
+                <button
+                  key={m._id}
+                  onClick={() => setCurrentIndex(i)}
+                  className={`relative h-1 rounded-full transition-all duration-500 ${
+                    i === currentIndex ? 'w-10 bg-primary' : 'w-6 bg-white/20 hover:bg-white/40'
+                  }`}
+                  aria-label={`View ${m.title}`}
+                >
+                  {i === currentIndex && (
+                    <motion.div
+                      layoutId="heroProgress"
+                      className="absolute inset-0 bg-primary rounded-full"
+                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Fade for Carousel Section */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none" />
     </section>
   )
 }

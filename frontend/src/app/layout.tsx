@@ -1,26 +1,33 @@
-import type { Metadata } from 'next'
-import { Inter, Bebas_Neue } from 'next/font/google'
-import Navbar from '@/components/Navbar'
+import type { Metadata, Viewport } from 'next'
+import { Outfit } from 'next/font/google'
+import { UserDataProvider } from '@/lib/useUserData'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
-const bebas = Bebas_Neue({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-bebas',
+const outfit = Outfit({ 
+  subsets: ['latin'], 
+  variable: '--font-outfit',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
-  title: 'Movora — Watch Movies Online',
-  description: 'Stream the latest movies in HD — English, Hindi, and Hindi Dubbed.',
+  title: 'Movora — Premium Movie Streaming',
+  description: 'Stream the latest movies in stunning HD. Your premium destination for English, Hindi, and Hindi Dubbed films.',
+  keywords: ['movies', 'streaming', 'HD', 'watch online', 'Hindi movies', 'English movies'],
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0A0A0A',
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${bebas.variable}`}>
-      <body className="bg-base text-white font-sans antialiased">
-        <Navbar />
-        <main>{children}</main>
+    <html lang="en" className={`${outfit.variable} bg-background`}>
+      <body className="bg-background text-foreground font-sans antialiased min-h-screen">
+        <UserDataProvider>
+          {children}
+        </UserDataProvider>
       </body>
     </html>
   )
