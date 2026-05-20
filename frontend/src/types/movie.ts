@@ -12,13 +12,28 @@ export interface CastMember {
   photo?: string
 }
 
+export interface SeasonInfo {
+  seasonNumber: number
+  episodeCount: number
+  name: string
+}
+
+export interface EpisodeInfo {
+  episodeNumber: number
+  name: string
+  overview: string
+  runtime: number
+  stillUrl: string
+  airDate: string
+}
+
 export interface Movie {
   _id: string
   tmdbId: string
   title: string
   titleHindi?: string
   slug: string
-  type: 'movie'
+  type: 'movie' | 'tvshow'
   language: string[]
   genres: string[]
   releaseYear: number
@@ -31,6 +46,11 @@ export interface Movie {
   cast: CastMember[]
   sources: Source[]
   scrapedFrom: string
+  // TV show specific
+  seasons?: number
+  totalEpisodes?: number
+  status?: string
+  seasonData?: SeasonInfo[]
   createdAt: string
   updatedAt: string
 }
@@ -48,4 +68,6 @@ export interface MovieFilters {
   language?: string
   minRating?: string
   page?: string
+  limit?: string
+  sort?: string
 }

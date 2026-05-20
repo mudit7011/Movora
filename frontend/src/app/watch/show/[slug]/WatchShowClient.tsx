@@ -1,0 +1,358 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import type { Movie } from '@/types/movie'
+import MovieCard from '@/components/MovieCard'
+import EpisodeGrid from '@/components/EpisodeGrid'
+import { useUserData } from '@/lib/useUserData'
+
+interface Source {
+  serverName: string
+  url: string
+  quality: string
+}
+
+function buildSources(tmdbId: string, season: number, episode: number): Source[] {
+  // Strip 'tv_' prefix if present — raw numeric ID needed for embed URLs
+  const rawId = tmdbId.replace(/^tv_/, '')
+  return [
+    { serverName: 'Server 1', url: `https://player.videasy.net/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+    { serverName: 'Server 2', url: `https://www.2embed.cc/embedtv/${rawId}&s=${season}&e=${episode}`, quality: 'HD' },
+    { serverName: 'Server 3', url: `https://vidsrc.icu/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+    { serverName: 'Server 4', url: `https://embed.su/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+    { serverName: 'Server 5', url: `https://vidsrc.cc/v2/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+  ]
+}
+
+interface Props {
+  show: Movie
+  initialSeason: number
+  initialEpisode: number
+  related: { similar: Movie[]; youMayLove: Movie[] }
+}
+
+export default function WatchShowClient({ show, initialSeason, initialEpisode, related }: Props) {
+  const router = useRouter()
+  const [season, setSeason] = useState(initialSeason)
+  const [episode, setEpisode] = useState(initialEpisode)
+  const [activeServerIdx, setActiveServerIdx] = useState(0)
+  const [showBanner, setShowBanner] = useState(false)
+  const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
+  const { updateProgress } = useUserData()
+
+  const sources = buildSources(show.tmdbId, season, episode)
+  const active = sources[activeServerIdx]
+
+  const seasons = show.seasonData?.filter(s => s.seasonNumber > 0) ?? []
+  const activeSeason = seasons.find(s => s.seasonNumber === season)
+  const episodeCount = activeSeason?.episodeCount ?? 0
+
+  const hasNextEpisode = episode < episodeCount
+  const hasNextServer = activeServerIdx < sources.length - 1
+
+  useEffect(() => {
+    setShowBanner(false)
+    clearTimeout(bannerTimer.current)
+    bannerTimer.current = setTimeout(() => setShowBanner(true), 6000)
+    return () => clearTimeout(bannerTimer.current)
+  }, [activeServerIdx, season, episode])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'n' || e.key === 'N') {
+        if (hasNextServer) setActiveServerIdx(i => i + 1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [hasNextServer])
+
+  // Track watch progress for Continue Watching
+  useEffect(() => {
+    const episodeDuration = 2700 // ~45 min default
+    let elapsed = 60
+    updateProgress(show, elapsed, episodeDuration, season, episode)
+    const interval = setInterval(() => {
+      elapsed = Math.min(elapsed + 60, episodeDuration - 30)
+      updateProgress(show, elapsed, episodeDuration, season, episode)
+    }, 60_000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show._id, season, episode])
+
+  function selectEpisode(s: number, ep: number) {
+    setSeason(s)
+    setEpisode(ep)
+    setActiveServerIdx(0)
+    router.replace(`/watch/show/${show.slug}?season=${s}&episode=${ep}`, { scroll: false })
+  }
+
+  function tryNextServer() {
+    if (hasNextServer) {
+      setActiveServerIdx(i => i + 1)
+      setShowBanner(false)
+    }
+  }
+
+  function nextEpisode() {
+    if (hasNextEpisode) selectEpisode(season, episode + 1)
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+
+      {/* Ambient backdrop */}
+      {show.backdropUrl && (
+        <div className="absolute inset-0 pointer-events-none z-0">
+          <Image
+            src={show.backdropUrl}
+            alt=""
+            fill
+            className="object-cover opacity-[0.07] blur-2xl scale-110"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+        </div>
+      )}
+
+      {/* Top bar */}
+      <div className="relative z-10 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-white/[0.06] bg-background/60 backdrop-blur-md sticky top-0">
+        <Link
+          href={`/show/${show.slug}`}
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all flex-shrink-0"
+          aria-label="Back"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 11L5 7l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </Link>
+
+        <Link href="/" className="select-none flex-shrink-0">
+          <span className="text-base font-bold tracking-tight">
+            <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
+          </span>
+        </Link>
+
+        <div className="h-4 w-px bg-white/10 flex-shrink-0" />
+
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-medium truncate">{show.title}</p>
+          <p className="text-white/35 text-xs">S{String(season).padStart(2,'0')} E{String(episode).padStart(2,'0')}</p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full font-semibold">
+            {active.quality}
+          </span>
+          <span className="hidden sm:inline text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-medium">
+            {active.serverName}
+          </span>
+        </div>
+      </div>
+
+      {/* Player */}
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div
+          className="relative w-full rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl"
+          style={{ aspectRatio: '16/9' }}
+        >
+          <div className="absolute -inset-1 rounded-2xl bg-primary/5 blur-xl -z-10" />
+
+          <iframe
+            key={`${active.url}`}
+            src={active.url}
+            title={`${show.title} S${season}E${episode} — ${active.serverName}`}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full bg-black"
+          />
+
+          {/* Not loading banner */}
+          {showBanner && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 shadow-2xl">
+              <span className="text-white/70 text-sm">Not loading?</span>
+              {hasNextServer ? (
+                <button onClick={tryNextServer} className="btn-primary px-4 py-1.5 rounded-xl text-sm font-semibold">
+                  Try {sources[activeServerIdx + 1].serverName} →
+                </button>
+              ) : (
+                <span className="text-white/40 text-xs">All servers tried</span>
+              )}
+              <button onClick={() => setShowBanner(false)} className="text-white/30 hover:text-white transition-colors ml-1 text-lg leading-none">×</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Content below player */}
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+
+        {/* Server switcher */}
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Select Server</p>
+            {hasNextServer && (
+              <button onClick={tryNextServer} className="text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+                Next →
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sources.map((src, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveServerIdx(i)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                  i === activeServerIdx
+                    ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
+                    : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${i === activeServerIdx ? 'bg-background' : 'bg-white/20'}`} />
+                {src.serverName}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-white/20 mt-3">
+            <kbd className="text-white/30 bg-white/5 px-1.5 py-0.5 rounded text-[10px]">N</kbd>{' '}
+            switch server · {activeServerIdx + 1} of {sources.length}
+          </p>
+        </div>
+
+        {/* Episode selector */}
+        {seasons.length > 0 && (
+          <div className="glass rounded-2xl p-5">
+            <EpisodeGrid
+              show={show}
+              currentSeason={season}
+              currentEpisode={episode}
+              onSelect={(s, ep) => selectEpisode(s, ep)}
+            />
+          </div>
+        )}
+
+        {/* Show info card */}
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="flex flex-col sm:flex-row gap-0">
+            {show.posterUrl && (
+              <div className="flex-shrink-0 sm:w-44">
+                <div className="relative aspect-[2/3] sm:h-full">
+                  <Image
+                    src={show.posterUrl}
+                    alt={show.title}
+                    fill
+                    sizes="176px"
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 sm:bg-gradient-to-r sm:from-transparent sm:to-[#0f0f0f]/80" />
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 p-5 sm:p-6">
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold mb-2">
+                TV Series
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-1">{show.title}</h2>
+              {show.titleHindi && (
+                <p className="text-sm text-muted-foreground mb-3">{show.titleHindi}</p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <div className="flex items-center gap-1.5 text-accent">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  <span className="text-sm font-bold">{show.rating > 0 ? show.rating.toFixed(1) : 'N/A'}</span>
+                </div>
+                <span className="text-white/30">·</span>
+                <span className="text-sm text-muted-foreground">{show.releaseYear}</span>
+                {show.seasons && show.seasons > 0 && (
+                  <>
+                    <span className="text-white/30">·</span>
+                    <span className="text-sm text-muted-foreground">{show.seasons} Season{show.seasons !== 1 ? 's' : ''}</span>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {show.genres.map(g => (
+                  <span key={g} className="px-2.5 py-1 text-xs font-medium text-foreground/80 bg-white/5 rounded-full border border-white/10">{g}</span>
+                ))}
+                {show.language.map(l => (
+                  <span key={l} className="px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 rounded-full border border-primary/20">{l}</span>
+                ))}
+              </div>
+
+              {show.synopsis && (
+                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">{show.synopsis}</p>
+              )}
+
+              <Link
+                href={`/show/${show.slug}`}
+                className="inline-flex items-center gap-1.5 mt-4 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+              >
+                Full details & cast
+                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 6h8M6 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Cast */}
+        {show.cast.length > 0 && (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">Cast</p>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+              {show.cast.slice(0, 12).map((member, i) => (
+                <div key={i} className="flex-shrink-0 text-center w-16">
+                  <div className="w-12 h-12 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2">
+                    {member.photo ? (
+                      <Image src={member.photo} alt={member.name} width={48} height={48} className="object-cover w-full h-full" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-base font-semibold text-muted-foreground">{member.name[0]}</div>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-foreground font-medium line-clamp-2 leading-tight">{member.name}</p>
+                  {member.character && (
+                    <p className="text-[9px] text-muted-foreground line-clamp-1 mt-0.5">{member.character}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* More Like This */}
+        {related.similar.length > 0 && (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">More Like This</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {related.similar.slice(0, 12).map(m => (
+                <MovieCard key={m._id} movie={m} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* You May Also Love */}
+        {related.youMayLove.length > 0 && (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">You May Also Love</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {related.youMayLove.slice(0, 12).map(m => (
+                <MovieCard key={m._id} movie={m} />
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
+}

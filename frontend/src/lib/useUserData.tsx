@@ -9,9 +9,12 @@ interface WatchProgress {
   slug: string
   title: string
   posterUrl: string
+  type: 'movie' | 'tvshow'
   timestamp: number
   duration: number
   lastWatched: number
+  season?: number
+  episode?: number
 }
 
 interface WatchlistItem {
@@ -19,6 +22,7 @@ interface WatchlistItem {
   slug: string
   title: string
   posterUrl: string
+  type: 'movie' | 'tvshow'
   addedAt: number
 }
 
@@ -28,7 +32,7 @@ interface UserDataContextType {
   addToWatchlist: (movie: Movie) => void
   removeFromWatchlist: (movieId: string) => void
   isInWatchlist: (movieId: string) => boolean
-  updateProgress: (movie: Movie, timestamp: number, duration: number) => void
+  updateProgress: (movie: Movie, timestamp: number, duration: number, season?: number, episode?: number) => void
   removeFromHistory: (movieId: string) => void
   clearAllData: () => void
 }
@@ -85,16 +89,14 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
 
   const addToWatchlist = useCallback((movie: Movie) => {
     setWatchlist((prev) => {
-      // Don't add if already exists
-      if (prev.some((item) => item.movieId === movie._id)) {
-        return prev
-      }
+      if (prev.some((item) => item.movieId === movie._id)) return prev
       return [
         {
           movieId: movie._id,
           slug: movie.slug,
           title: movie.title,
           posterUrl: movie.posterUrl,
+          type: (movie.type ?? 'movie') as 'movie' | 'tvshow',
           addedAt: Date.now(),
         },
         ...prev,
@@ -110,7 +112,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     return watchlist.some((item) => item.movieId === movieId)
   }, [watchlist])
 
-  const updateProgress = useCallback((movie: Movie, timestamp: number, duration: number) => {
+  const updateProgress = useCallback((movie: Movie, timestamp: number, duration: number, season?: number, episode?: number) => {
     setContinueWatching((prev) => {
       const existingIndex = prev.findIndex((item) => item.movieId === movie._id)
       const newProgress: WatchProgress = {
@@ -118,9 +120,12 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         slug: movie.slug,
         title: movie.title,
         posterUrl: movie.posterUrl,
+        type: (movie.type ?? 'movie') as 'movie' | 'tvshow',
         timestamp,
         duration,
         lastWatched: Date.now(),
+        season,
+        episode,
       }
 
       let updated: WatchProgress[]

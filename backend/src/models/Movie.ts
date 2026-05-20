@@ -15,12 +15,18 @@ interface CastMember {
   photo?: string
 }
 
+interface SeasonInfo {
+  seasonNumber: number
+  episodeCount: number
+  name: string
+}
+
 export interface IMovie extends Document {
   tmdbId: string
   title: string
   titleHindi?: string
   slug: string
-  type: 'movie'
+  type: 'movie' | 'tvshow'
   language: string[]
   genres: string[]
   releaseYear: number
@@ -32,7 +38,13 @@ export interface IMovie extends Document {
   trailerKey?: string
   cast: CastMember[]
   sources: Source[]
+  streamVerified: boolean
   scrapedFrom: string
+  // TV show specific
+  seasons?: number
+  totalEpisodes?: number
+  status?: string
+  seasonData?: SeasonInfo[]
   createdAt: Date
   updatedAt: Date
 }
@@ -52,7 +64,7 @@ const movieSchema = new Schema<IMovie>(
     title: { type: String, required: true },
     titleHindi: String,
     slug: { type: String, required: true, unique: true },
-    type: { type: String, enum: ['movie'], default: 'movie' },
+    type: { type: String, enum: ['movie', 'tvshow'], default: 'movie' },
     language: [String],
     genres: [String],
     releaseYear: Number,
@@ -64,7 +76,12 @@ const movieSchema = new Schema<IMovie>(
     trailerKey: String,
     cast: [{ name: String, character: String, photo: String }],
     sources: [sourceSchema],
+    streamVerified: { type: Boolean, default: true },
     scrapedFrom: String,
+    seasons: Number,
+    totalEpisodes: Number,
+    status: String,
+    seasonData: [{ seasonNumber: Number, episodeCount: Number, name: String }],
   },
   { timestamps: true }
 )
@@ -74,5 +91,6 @@ movieSchema.index({ genres: 1 })
 movieSchema.index({ language: 1 })
 movieSchema.index({ releaseYear: 1 })
 movieSchema.index({ rating: -1 })
+movieSchema.index({ streamVerified: 1 })
 
 export const Movie = model<IMovie>('Movie', movieSchema)

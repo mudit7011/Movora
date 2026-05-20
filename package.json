@@ -13,7 +13,9 @@
   "scripts": {
     "dev:backend": "npm run dev --workspace=backend",
     "test:backend": "npm run test --workspace=backend",
-    "build:backend": "npm run build --workspace=backend"
+    "build:backend": "npm run build --workspace=backend",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=backend",
+    "start": "node backend/dist/server.js"
   },
   "dependencies": {
     "framer-motion": "^12.39.0",

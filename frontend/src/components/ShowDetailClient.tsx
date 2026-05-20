@@ -4,7 +4,10 @@ import { useUserData } from '@/lib/useUserData'
 import type { Movie } from '@/types/movie'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
+import EpisodeGrid from './EpisodeGrid'
 
 const PlayIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -30,44 +33,27 @@ const StarIcon = () => (
   </svg>
 )
 
-const CalendarIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-)
-
-const ClockIcon = () => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 6v6l4 2" />
-  </svg>
-)
-
 interface Props {
-  movie: Movie
+  show: Movie
 }
 
-export default function MovieDetailClient({ movie }: Props) {
+export default function ShowDetailClient({ show }: Props) {
+  const router = useRouter()
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
-  const inWatchlist = isInWatchlist(movie._id)
-  const workingSources = movie.sources.filter(s => s.isWorking)
+  const inWatchlist = isInWatchlist(show._id)
 
   const handleWatchlistToggle = () => {
-    if (inWatchlist) {
-      removeFromWatchlist(movie._id)
-    } else {
-      addToWatchlist(movie)
-    }
+    if (inWatchlist) removeFromWatchlist(show._id)
+    else addToWatchlist(show)
   }
+
+  const seasons = show.seasonData?.filter(s => s.seasonNumber > 0) ?? []
 
   return (
     <div className="min-h-screen">
       {/* Hero Background */}
       <div className="relative h-[70vh] w-full overflow-hidden">
-        {movie.backdropUrl && (
+        {show.backdropUrl && (
           <motion.div
             initial={{ scale: 1.1 }}
             animate={{ scale: 1 }}
@@ -75,8 +61,8 @@ export default function MovieDetailClient({ movie }: Props) {
             className="absolute inset-0"
           >
             <Image
-              src={movie.backdropUrl}
-              alt={movie.title}
+              src={show.backdropUrl}
+              alt={show.title}
               fill
               priority
               sizes="100vw"
@@ -85,27 +71,24 @@ export default function MovieDetailClient({ movie }: Props) {
           </motion.div>
         )}
 
-        {/* Bokeh Effects */}
         <div className="absolute top-1/4 right-1/4 w-[300px] h-[300px] rounded-full bg-primary/30 blur-[100px] animate-pulse" />
         <div className="absolute bottom-1/3 right-1/3 w-[200px] h-[200px] rounded-full bg-secondary/20 blur-[80px]" />
 
-        {/* Gradient Overlays */}
         <div className="absolute inset-0 bg-hero-gradient" />
         <div className="absolute inset-0 bg-hero-gradient-bottom" />
         <div className="grain absolute inset-0" />
 
-        {/* Top Bar — Back + Logo */}
+        {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-4 px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-5 pb-4">
           <Link
-            href="/"
+            href="/shows"
             className="flex items-center justify-center w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 hover:border-white/20 transition-all duration-200 flex-shrink-0"
-            aria-label="Go home"
+            aria-label="Back to shows"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-
           <Link href="/" className="flex items-center gap-1.5 select-none">
             <span className="text-xl font-bold tracking-tight">
               <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
@@ -125,19 +108,17 @@ export default function MovieDetailClient({ movie }: Props) {
             className="flex-shrink-0 w-56 sm:w-64 lg:w-72 mx-auto lg:mx-0"
           >
             <div className="relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
-              {movie.posterUrl ? (
-                <Image 
-                  src={movie.posterUrl} 
-                  alt={movie.title} 
-                  fill 
-                  sizes="(max-width: 1024px) 256px, 288px" 
-                  className="object-cover" 
+              {show.posterUrl ? (
+                <Image
+                  src={show.posterUrl}
+                  alt={show.title}
+                  fill
+                  sizes="(max-width: 1024px) 256px, 288px"
+                  className="object-cover"
                 />
               ) : (
                 <div className="w-full h-full bg-card" />
               )}
-              
-              {/* Glow effect */}
               <div className="absolute -inset-2 rounded-2xl bg-primary/20 blur-2xl -z-10 opacity-50" />
             </div>
           </motion.div>
@@ -149,46 +130,55 @@ export default function MovieDetailClient({ movie }: Props) {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="flex-1 min-w-0 pt-4"
           >
-            {/* Title */}
+            {/* Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-3">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              TV Series
+            </div>
+
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-tight mb-4 text-balance">
-              {movie.title}
+              {show.title}
             </h1>
 
-            {movie.titleHindi && (
-              <p className="text-lg text-muted-foreground mb-4">{movie.titleHindi}</p>
+            {show.titleHindi && (
+              <p className="text-lg text-muted-foreground mb-4">{show.titleHindi}</p>
             )}
 
-            {/* Meta Info */}
+            {/* Meta */}
             <div className="flex flex-wrap items-center gap-4 mb-6">
               <div className="flex items-center gap-2 text-accent">
                 <StarIcon />
-                <span className="text-lg font-semibold">{movie.rating.toFixed(1)}</span>
+                <span className="text-lg font-semibold">{show.rating > 0 ? show.rating.toFixed(1) : 'N/A'}</span>
               </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <CalendarIcon />
-                <span className="text-sm">{movie.releaseYear}</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <ClockIcon />
-                <span className="text-sm">{movie.runtime} min</span>
-              </div>
+              <span className="text-muted-foreground text-sm">{show.releaseYear}</span>
+              {show.seasons && show.seasons > 0 && (
+                <span className="text-muted-foreground text-sm">{show.seasons} Season{show.seasons !== 1 ? 's' : ''}</span>
+              )}
+              {show.totalEpisodes && show.totalEpisodes > 0 && (
+                <span className="text-muted-foreground text-sm">{show.totalEpisodes} Episodes</span>
+              )}
+              {show.status && (
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                  show.status === 'Ended' || show.status === 'Canceled'
+                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                }`}>
+                  {show.status}
+                </span>
+              )}
             </div>
 
             {/* Genres & Languages */}
             <div className="flex flex-wrap gap-2 mb-6">
-              {movie.genres.map((genre) => (
-                <span
-                  key={genre}
-                  className="px-3 py-1.5 text-sm font-medium text-foreground/90 bg-white/5 backdrop-blur-sm rounded-full border border-white/10"
-                >
+              {show.genres.map((genre) => (
+                <span key={genre} className="px-3 py-1.5 text-sm font-medium text-foreground/90 bg-white/5 backdrop-blur-sm rounded-full border border-white/10">
                   {genre}
                 </span>
               ))}
-              {movie.language.map((lang) => (
-                <span
-                  key={lang}
-                  className="px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-full border border-primary/20"
-                >
+              {show.language.map((lang) => (
+                <span key={lang} className="px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-full border border-primary/20">
                   {lang}
                 </span>
               ))}
@@ -196,20 +186,18 @@ export default function MovieDetailClient({ movie }: Props) {
 
             {/* Synopsis */}
             <p className="text-muted-foreground text-base leading-relaxed max-w-2xl mb-8">
-              {movie.synopsis}
+              {show.synopsis}
             </p>
 
-            {/* Action Buttons */}
+            {/* Action buttons */}
             <div className="flex flex-wrap items-center gap-4 mb-8">
-              {workingSources.length > 0 && (
-                <Link
-                  href={`/watch/${movie.slug}`}
-                  className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
-                >
-                  <PlayIcon />
-                  <span>Watch Now</span>
-                </Link>
-              )}
+              <Link
+                href={`/watch/show/${show.slug}?season=1&episode=1`}
+                className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
+              >
+                <PlayIcon />
+                <span>Watch S1 E1</span>
+              </Link>
               <button
                 onClick={handleWatchlistToggle}
                 className={`inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base transition-all ${
@@ -223,26 +211,30 @@ export default function MovieDetailClient({ movie }: Props) {
               </button>
             </div>
 
-            {/* Cast Section */}
-            {movie.cast.length > 0 && (
+            {/* Season/Episode selector */}
+            {seasons.length > 0 && (
+              <div className="mb-8">
+                <EpisodeGrid
+                  show={show}
+                  currentSeason={1}
+                  currentEpisode={0}
+                  onSelect={(s, ep) => router.push(`/watch/show/${show.slug}?season=${s}&episode=${ep}`)}
+                />
+              </div>
+            )}
+
+            {/* Cast */}
+            {show.cast.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-lg font-semibold text-foreground mb-4">Cast</h2>
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                  {movie.cast.slice(0, 10).map((member, i) => (
+                  {show.cast.slice(0, 10).map((member, i) => (
                     <div key={i} className="flex-shrink-0 text-center w-20">
                       <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2">
                         {member.photo ? (
-                          <Image 
-                            src={member.photo} 
-                            alt={member.name} 
-                            width={64} 
-                            height={64} 
-                            className="object-cover w-full h-full" 
-                          />
+                          <Image src={member.photo} alt={member.name} width={64} height={64} className="object-cover w-full h-full" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xl text-muted">
-                            {member.name[0]}
-                          </div>
+                          <div className="w-full h-full flex items-center justify-center text-xl text-muted">{member.name[0]}</div>
                         )}
                       </div>
                       <p className="text-xs text-foreground font-medium line-clamp-1">{member.name}</p>
@@ -255,14 +247,14 @@ export default function MovieDetailClient({ movie }: Props) {
               </div>
             )}
 
-            {/* Trailer Section */}
-            {movie.trailerKey && (
+            {/* Trailer */}
+            {show.trailerKey && (
               <div>
                 <h2 className="text-lg font-semibold text-foreground mb-4">Trailer</h2>
                 <div className="relative aspect-video max-w-2xl rounded-2xl overflow-hidden ring-1 ring-white/10">
                   <iframe
-                    src={`https://www.youtube.com/embed/${movie.trailerKey}`}
-                    title={`${movie.title} Trailer`}
+                    src={`https://www.youtube.com/embed/${show.trailerKey}`}
+                    title={`${show.title} Trailer`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                     className="absolute inset-0 w-full h-full"

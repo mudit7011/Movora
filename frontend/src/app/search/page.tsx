@@ -11,9 +11,19 @@ async function SearchResults({ q }: { q: string }) {
     return null
   }
 
-  const movies = await api.search(q).catch(() => [])
+  const [movies, shows] = await Promise.all([
+    api.search(q).catch(() => []),
+    api.searchShows(q).catch(() => []),
+  ])
+  // Interleave by index so title-matching shows surface alongside title-matching movies
+  const results = []
+  const len = Math.max(movies.length, shows.length)
+  for (let i = 0; i < len; i++) {
+    if (i < movies.length) results.push(movies[i])
+    if (i < shows.length) results.push(shows[i])
+  }
 
-  if (movies.length === 0) {
+  if (results.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <div className="relative mb-6">
@@ -39,7 +49,7 @@ async function SearchResults({ q }: { q: string }) {
         <div>
           <p className="text-sm text-muted-foreground mb-1">Found</p>
           <p className="text-2xl font-bold text-foreground">
-            {movies.length} <span className="text-primary">result{movies.length !== 1 ? 's' : ''}</span>
+            {results.length} <span className="text-primary">result{results.length !== 1 ? 's' : ''}</span>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -60,7 +70,7 @@ async function SearchResults({ q }: { q: string }) {
         </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
-        {movies.map((movie, index) => (
+        {results.map((movie, index) => (
           <div
             key={movie._id}
             className="animate-fade-in-up"

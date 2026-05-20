@@ -31,6 +31,9 @@ interface Props {
 
 export default function MovieCard({ movie, onAddToWatchlist }: Props) {
   const [isHovered, setIsHovered] = useState(false)
+  const isShow = movie.type === 'tvshow'
+  const detailHref = isShow ? `/show/${movie.slug}` : `/movie/${movie.slug}`
+  const watchHref = isShow ? `/watch/show/${movie.slug}?season=1&episode=1` : `/watch/${movie.slug}`
 
   const handleAddToWatchlist = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -40,22 +43,24 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
 
   return (
     <motion.div
-      className="relative flex-shrink-0 w-[160px] sm:w-[180px] group"
+      className="relative w-full group"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       initial={false}
     >
-      <Link href={`/movie/${movie.slug}`} className="block">
+      <Link href={detailHref} className="block">
         <motion.div
-          animate={{ 
-            scale: isHovered ? 1.05 : 1,
+          animate={{
+            scale: isHovered ? 1.03 : 1,
             zIndex: isHovered ? 20 : 1,
           }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           className="relative"
         >
           {/* Poster */}
-          <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card">
+          <div className={`relative aspect-[2/3] rounded-xl overflow-hidden bg-card transition-shadow duration-300 ${
+            isHovered ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
+          }`}>
             {movie.posterUrl ? (
               <Image
                 src={movie.posterUrl}
@@ -78,7 +83,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"
+                  className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/75 to-black/30"
                 />
               )}
             </AnimatePresence>
@@ -116,7 +121,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
                   {/* Quick Actions */}
                   <div className="flex items-center gap-2">
                     <Link
-                      href={`/watch/${movie.slug}`}
+                      href={watchHref}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold transition-all hover:shadow-glow-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -135,30 +140,11 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
               )}
             </AnimatePresence>
 
-            {/* Glow effect on hover */}
-            <AnimatePresence>
-              {isHovered && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute -inset-1 rounded-xl bg-primary/20 blur-xl -z-10"
-                />
-              )}
-            </AnimatePresence>
           </div>
-
-          {/* Border ring */}
-          <motion.div
-            animate={{
-              opacity: isHovered ? 1 : 0,
-            }}
-            className="absolute inset-0 rounded-xl ring-2 ring-primary/50 pointer-events-none"
-          />
         </motion.div>
 
         {/* Title and Meta */}
-        <motion.div 
+        <motion.div
           className="mt-3 px-1"
           animate={{ opacity: isHovered ? 0 : 1 }}
           transition={{ duration: 0.15 }}
@@ -169,7 +155,9 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-muted-foreground">{movie.releaseYear}</span>
             <span className="w-1 h-1 rounded-full bg-muted" />
-            <span className="text-xs text-muted-foreground">{movie.language[0]}</span>
+            <span className="text-xs text-muted-foreground">
+              {isShow && movie.seasons ? `${movie.seasons}S` : movie.language[0]}
+            </span>
           </div>
         </motion.div>
       </Link>

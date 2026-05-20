@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { motion, useMotionValue, useSpring, PanInfo } from 'framer-motion'
+import Link from 'next/link'
+import { motion, useMotionValue, animate, PanInfo } from 'framer-motion'
 import type { Movie } from '@/types/movie'
 import MovieCard from './MovieCard'
 
@@ -20,18 +21,19 @@ const ChevronRightIcon = () => (
 interface Props {
   title: string
   movies: Movie[]
+  seeAllHref?: string
   onAddToWatchlist?: (movie: Movie) => void
 }
 
-export default function Carousel({ title, movies, onAddToWatchlist }: Props) {
+export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [constraints, setConstraints] = useState({ left: 0, right: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
   const [showRightArrow, setShowRightArrow] = useState(true)
+  const [atEnd, setAtEnd] = useState(false)
 
   const x = useMotionValue(0)
-  const springX = useSpring(x, { stiffness: 300, damping: 30 })
 
   // Calculate drag constraints
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function Carousel({ title, movies, onAddToWatchlist }: Props) {
     const unsubscribe = x.on('change', (latest) => {
       setShowLeftArrow(latest < -10)
       setShowRightArrow(latest > constraints.left + 10)
+      setAtEnd(latest <= constraints.left + 10)
     })
     return () => unsubscribe()
   }, [x, constraints.left])
@@ -64,8 +67,7 @@ export default function Carousel({ title, movies, onAddToWatchlist }: Props) {
     const newX = direction === 'left'
       ? Math.min(currentX + scrollAmount, 0)
       : Math.max(currentX - scrollAmount, constraints.left)
-    
-    x.set(newX)
+    animate(x, newX, { type: 'spring', stiffness: 300, damping: 30 })
   }
 
   const handleDragStart = () => setIsDragging(true)
@@ -126,17 +128,17 @@ export default function Carousel({ title, movies, onAddToWatchlist }: Props) {
         </div>
       </div>
 
-      {/* Carousel Container */}
-      <div className="relative overflow-hidden">
+      {/* Carousel Container — py-6 -my-6 gives vertical room for card scale without visual shift */}
+      <div className="relative overflow-hidden py-6 -my-6">
         {/* Left Gradient Fade */}
-        <div 
+        <div
           className={`absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
             showLeftArrow ? 'opacity-100' : 'opacity-0'
           }`}
         />
-        
+
         {/* Right Gradient Fade */}
-        <div 
+        <div
           className={`absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
             showRightArrow ? 'opacity-100' : 'opacity-0'
           }`}
@@ -145,7 +147,7 @@ export default function Carousel({ title, movies, onAddToWatchlist }: Props) {
         {/* Movies Track */}
         <motion.div
           ref={containerRef}
-          style={{ x: springX }}
+          style={{ x }}
           drag="x"
           dragConstraints={constraints}
           dragElastic={0.1}
@@ -157,12 +159,32 @@ export default function Carousel({ title, movies, onAddToWatchlist }: Props) {
           }`}
         >
           {movies.map((movie) => (
-            <MovieCard 
-              key={movie._id} 
-              movie={movie} 
-              onAddToWatchlist={onAddToWatchlist}
-            />
+            <div key={movie._id} className="flex-shrink-0 w-[160px] sm:w-[180px]">
+              <MovieCard movie={movie} onAddToWatchlist={onAddToWatchlist} />
+            </div>
           ))}
+
+          {/* See All card — appears at end of track */}
+          {seeAllHref && (
+            <div className="flex-shrink-0 w-[160px] sm:w-[180px]">
+              <Link
+                href={seeAllHref}
+                className={`flex flex-col items-center justify-center h-[240px] sm:h-[270px] rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] hover:border-primary/40 transition-all duration-300 gap-3 group ${
+                  atEnd ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                style={{ transition: 'opacity 0.4s ease' }}
+              >
+                <div className="w-12 h-12 rounded-full border border-white/20 group-hover:border-primary/60 flex items-center justify-center transition-colors duration-300">
+                  <svg className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors duration-300">
+                  See All
+                </span>
+              </Link>
+            </div>
+          )}
         </motion.div>
       </div>
 

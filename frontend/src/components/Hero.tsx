@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useMemo } from 'react'
 import type { Movie } from '@/types/movie'
+import { useUserData } from '@/lib/useUserData'
 
 const PlayIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -22,6 +23,12 @@ const InfoIcon = () => (
 const PlusIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 5v14M5 12h14" />
+  </svg>
+)
+
+const CheckIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
   </svg>
 )
 
@@ -44,8 +51,21 @@ function extractDominantColor(index: number): string {
 
 export default function Hero({ movie, movies = [] }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const featuredMovies = movies.length > 0 ? movies.slice(0, 5) : [movie]
+  const featuredMovies = movies.length > 0 ? movies.slice(0, 8) : [movie]
   const currentMovie = featuredMovies[currentIndex]
+  const isShow = currentMovie.type === 'tvshow'
+  const watchHref = isShow
+    ? `/watch/show/${currentMovie.slug}?season=1&episode=1`
+    : `/watch/${currentMovie.slug}`
+  const detailHref = isShow ? `/show/${currentMovie.slug}` : `/movie/${currentMovie.slug}`
+
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
+  const inWatchlist = isInWatchlist(currentMovie._id)
+
+  const handleWatchlistToggle = () => {
+    if (inWatchlist) removeFromWatchlist(currentMovie._id)
+    else addToWatchlist(currentMovie)
+  }
 
   // Auto-rotate through featured movies
   useEffect(() => {
@@ -121,6 +141,15 @@ export default function Hero({ movie, movies = [] }: Props) {
       {/* Grain Overlay */}
       <div className="grain absolute inset-0" />
 
+      {/* Movora Logo — top left */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-5">
+        <Link href="/" className="select-none">
+          <span className="text-2xl font-bold tracking-tight">
+            <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
+          </span>
+        </Link>
+      </div>
+
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col justify-end lg:pl-24 pb-32 lg:pb-24">
         <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
@@ -134,7 +163,7 @@ export default function Hero({ movie, movies = [] }: Props) {
               className="max-w-2xl"
             >
               {/* Meta Info */}
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
@@ -142,10 +171,17 @@ export default function Hero({ movie, movies = [] }: Props) {
               >
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-semibold uppercase tracking-wider">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  Featured
+                  {isShow ? 'TV Series' : 'Featured'}
                 </span>
                 <span className="text-muted-foreground text-sm">{currentMovie.releaseYear}</span>
-                <span className="text-muted-foreground text-sm">{currentMovie.runtime} min</span>
+                {isShow
+                  ? currentMovie.seasons && currentMovie.seasons > 0 && (
+                      <span className="text-muted-foreground text-sm">{currentMovie.seasons} Season{currentMovie.seasons !== 1 ? 's' : ''}</span>
+                    )
+                  : currentMovie.runtime > 0 && (
+                      <span className="text-muted-foreground text-sm">{currentMovie.runtime} min</span>
+                    )
+                }
                 <span className="flex items-center gap-1 text-accent text-sm font-medium">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -199,25 +235,53 @@ export default function Hero({ movie, movies = [] }: Props) {
                 className="flex flex-wrap items-center gap-4"
               >
                 <Link
-                  href={`/watch/${currentMovie.slug}`}
+                  href={watchHref}
                   className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
                 >
                   <PlayIcon />
                   <span>Watch Now</span>
                 </Link>
                 <Link
-                  href={`/movie/${currentMovie.slug}`}
+                  href={detailHref}
                   className="btn-glass inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base"
                 >
                   <InfoIcon />
                   <span>More Info</span>
                 </Link>
-                <button
-                  className="btn-glass p-4 rounded-xl"
-                  aria-label="Add to Watch Later"
+                <motion.button
+                  onClick={handleWatchlistToggle}
+                  whileTap={{ scale: 0.92 }}
+                  className={`relative p-4 rounded-xl transition-all duration-200 ${
+                    inWatchlist
+                      ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.4)]'
+                      : 'btn-glass'
+                  }`}
+                  aria-label={inWatchlist ? 'Remove from Watch Later' : 'Add to Watch Later'}
                 >
-                  <PlusIcon />
-                </button>
+                  <AnimatePresence mode="wait">
+                    {inWatchlist ? (
+                      <motion.span
+                        key="check"
+                        initial={{ scale: 0, rotate: -45 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        <CheckIcon />
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="plus"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                      >
+                        <PlusIcon />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
               </motion.div>
             </motion.div>
           </AnimatePresence>

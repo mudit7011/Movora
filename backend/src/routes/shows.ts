@@ -1,17 +1,21 @@
 import { Router } from 'express'
 import { Movie } from '../models/Movie'
+import { tmdbFetch } from '../utils/tmdb'
+
+const IMG_STILL = 'https://image.tmdb.org/t/p/w300'
 
 const router = Router()
 
-// Genres that are unusable on embed providers or undesirable on home page
-const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap', 'TV Movie']
+const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap']
 
 router.get('/', async (req, res) => {
   try {
-    const { page = '1', limit = '20', genre, year, language, minRating, minRuntime, sort = 'recent' } = req.query
-    const filter: Record<string, unknown> = { type: 'movie' }
+    const { page = '1', limit = '20', genre, year, language, minRating, sort = 'recent' } = req.query
+    const filter: Record<string, unknown> = { type: 'tvshow' }
 
-    if (genre && typeof genre === 'string') filter.genres = genre
+    if (genre && typeof genre === 'string') {
+      filter.genres = { $regex: genre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
+    }
     if (year) filter.releaseYear = Number(year)
     if (language && typeof language === 'string') {
       filter.language = language
@@ -19,7 +23,6 @@ router.get('/', async (req, res) => {
       filter.language = { $in: ['Hindi', 'English'] }
     }
     if (minRating) filter.rating = { $gte: Number(minRating) }
-    if (minRuntime) filter.runtime = { $gte: Number(minRuntime) }
 
     const sortMap: Record<string, Record<string, 1 | -1>> = {
       recent: { releaseYear: -1, rating: -1 },
@@ -29,12 +32,12 @@ router.get('/', async (req, res) => {
     const sortObj = sortMap[sort as string] ?? sortMap.recent
 
     const skip = (Number(page) - 1) * Number(limit)
-    const [movies, total] = await Promise.all([
+    const [shows, total] = await Promise.all([
       Movie.find(filter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources'),
       Movie.countDocuments(filter),
     ])
 
-    res.json({ movies, total, page: Number(page), pages: Math.ceil(total / Number(limit)) })
+    res.json({ movies: shows, total, page: Number(page), pages: Math.ceil(total / Number(limit)) })
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
@@ -42,13 +45,11 @@ router.get('/', async (req, res) => {
 
 router.get('/trending', async (_req, res) => {
   try {
-    const movies = await Movie.find({
-      type:           'movie',
+    const shows = await Movie.find({
+      type:           'tvshow',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: 2000 },
       rating:         { $gte: 6, $lte: 9.5 },
-      runtime:        { $gte: 60 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
@@ -56,7 +57,7 @@ router.get('/trending', async (_req, res) => {
       .sort({ rating: -1, releaseYear: -1 })
       .limit(15)
       .select('-sources')
-    res.json(movies)
+    res.json(shows)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
@@ -65,12 +66,11 @@ router.get('/trending', async (_req, res) => {
 router.get('/latest', async (_req, res) => {
   try {
     const currentYear = new Date().getFullYear()
-    const movies = await Movie.find({
-      type:           'movie',
+    const shows = await Movie.find({
+      type:           'tvshow',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: currentYear - 1 },
-      runtime:        { $gte: 60 },
+      releaseYear:    { $gte: currentYear - 2 },
       rating:         { $gte: 5, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
@@ -79,7 +79,7 @@ router.get('/latest', async (_req, res) => {
       .sort({ releaseYear: -1, rating: -1 })
       .limit(20)
       .select('-sources')
-    res.json(movies)
+    res.json(shows)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
@@ -87,11 +87,10 @@ router.get('/latest', async (_req, res) => {
 
 router.get('/by-language/:lang', async (req, res) => {
   try {
-    const movies = await Movie.find({
-      type:           'movie',
+    const shows = await Movie.find({
+      type:           'tvshow',
       streamVerified: { $ne: false },
       language:       req.params.lang,
-      runtime:        { $gte: 60 },
       rating:         { $gte: 5, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
@@ -100,7 +99,7 @@ router.get('/by-language/:lang', async (req, res) => {
       .sort({ rating: -1, releaseYear: -1 })
       .limit(20)
       .select('-sources')
-    res.json(movies)
+    res.json(shows)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
@@ -114,10 +113,10 @@ router.get('/search', async (req, res) => {
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const regex = new RegExp(escaped, 'i')
 
-    const movies = await Movie.aggregate([
+    const shows = await Movie.aggregate([
       {
         $match: {
-          type: 'movie',
+          type: 'tvshow',
           $or: [{ title: regex }, { titleHindi: regex }, { synopsis: regex }],
         },
       },
@@ -139,35 +138,60 @@ router.get('/search', async (req, res) => {
       { $project: { sources: 0, _score: 0 } },
     ])
 
-    res.json(movies)
+    res.json(shows)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
 })
 
+router.get('/:slug/season/:n', async (req, res) => {
+  try {
+    const show = await Movie.findOne({ slug: req.params.slug, type: 'tvshow' }).select('tmdbId')
+    if (!show) return res.status(404).json({ error: 'Show not found' })
+
+    const rawId = show.tmdbId.replace(/^tv_/, '')
+    const season = parseInt(req.params.n)
+    if (!rawId || isNaN(season)) return res.status(400).json({ error: 'Invalid params' })
+
+    const data = await tmdbFetch(`/tv/${rawId}/season/${season}?language=en-US`)
+    const episodes = (data.episodes || []).map((ep: any) => ({
+      episodeNumber: ep.episode_number,
+      name: ep.name || `Episode ${ep.episode_number}`,
+      overview: ep.overview || '',
+      runtime: ep.runtime || 0,
+      stillUrl: ep.still_path ? `${IMG_STILL}${ep.still_path}` : '',
+      airDate: ep.air_date || '',
+    }))
+
+    res.json(episodes)
+  } catch {
+    res.json([]) // return empty array on TMDB failure — client falls back gracefully
+  }
+})
+
 router.get('/related/:slug', async (req, res) => {
   try {
-    const movie = await Movie.findOne({ slug: req.params.slug, type: 'movie' }).select('_id genres language rating')
-    if (!movie) return res.json([])
+    const show = await Movie.findOne({ slug: req.params.slug, type: 'tvshow' }).select('_id genres language rating')
+    if (!show) return res.json({ similar: [], youMayLove: [] })
 
-    const topGenres = movie.genres.slice(0, 2)
+    const topGenres = show.genres.slice(0, 2)
 
     const [similar, youMayLove] = await Promise.all([
-      // Same genre, same language
       Movie.find({
-        _id:            { $ne: movie._id },
+        _id:            { $ne: show._id },
+        type:           'tvshow',
         genres:         { $in: topGenres },
-        language:       { $in: movie.language },
+        language:       { $in: show.language },
         streamVerified: { $ne: false },
         rating:         { $gte: 5 },
         posterUrl:      { $ne: '' },
       }).sort({ rating: -1, releaseYear: -1 }).limit(12).select('-sources'),
 
-      // Same language, highly rated, different taste
       Movie.find({
-        _id:            { $ne: movie._id },
+        _id:            { $ne: show._id },
+        type:           'tvshow',
         genres:         { $nin: topGenres },
-        language:       { $in: movie.language },
+        language:       { $in: show.language },
         streamVerified: { $ne: false },
         rating:         { $gte: 7 },
         posterUrl:      { $ne: '' },
@@ -182,12 +206,12 @@ router.get('/related/:slug', async (req, res) => {
 
 router.get('/:slug', async (req, res) => {
   try {
-    const movie = await Movie.findOne({ slug: req.params.slug, type: 'movie' })
-    if (!movie) return res.status(404).json({ error: 'Movie not found' })
-    res.json(movie)
+    const show = await Movie.findOne({ slug: req.params.slug, type: 'tvshow' })
+    if (!show) return res.status(404).json({ error: 'Show not found' })
+    res.json(show)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
 })
 
-export { router as moviesRouter }
+export { router as showsRouter }

@@ -34,9 +34,12 @@ interface WatchProgress {
   slug: string
   title: string
   posterUrl: string
+  type?: 'movie' | 'tvshow'
   timestamp: number
   duration: number
   lastWatched: number
+  season?: number
+  episode?: number
 }
 
 interface Props {
@@ -157,6 +160,9 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
           {items.map((item) => {
             const progress = (item.timestamp / item.duration) * 100
             const timeLeft = item.duration - item.timestamp
+            const watchHref = item.type === 'tvshow'
+              ? `/watch/show/${item.slug}?season=${item.season ?? 1}&episode=${item.episode ?? 1}`
+              : `/watch/${item.slug}?t=${item.timestamp}`
 
             return (
               <motion.div
@@ -165,7 +171,7 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               >
-                <Link href={`/watch/${item.slug}?t=${item.timestamp}`} className="block">
+                <Link href={watchHref} className="block">
                   {/* Thumbnail */}
                   <div className="relative aspect-video rounded-xl overflow-hidden bg-card">
                     {item.posterUrl ? (
@@ -227,7 +233,9 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
                       {item.title}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {Math.round(progress)}% watched
+                      {item.type === 'tvshow' && item.season && item.episode
+                        ? `S${String(item.season).padStart(2,'0')} E${String(item.episode).padStart(2,'0')}`
+                        : `${Math.round(progress)}% watched`}
                     </p>
                   </div>
                 </Link>

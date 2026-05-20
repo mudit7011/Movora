@@ -12,25 +12,36 @@ interface Props {
   trending: Movie[]
   latest: Movie[]
   hindi: Movie[]
-  dubbed: Movie[]
   english: Movie[]
+  trendingShows: Movie[]
+  latestShows: Movie[]
+  hindiShows: Movie[]
+  englishShows: Movie[]
 }
 
-export default function HomePageClient({ trending, latest, hindi, dubbed, english }: Props) {
+export default function HomePageClient({ trending, latest, hindi, english, trendingShows, latestShows, hindiShows, englishShows }: Props) {
   const { continueWatching, addToWatchlist, removeFromHistory } = useUserData()
 
   const handleAddToWatchlist = useCallback((movie: Movie) => {
     addToWatchlist(movie)
   }, [addToWatchlist])
 
-  const hero = trending[0] ?? latest[0]
+  // 8-slide hero: interleave top 4 movies + top 4 shows (movie, show, movie, show…)
+  const featuredItems: Movie[] = []
+  const topMovies = trending.slice(0, 4)
+  const topShows = trendingShows.slice(0, 4)
+  for (let i = 0; i < 4; i++) {
+    if (topMovies[i]) featuredItems.push(topMovies[i])
+    if (topShows[i]) featuredItems.push(topShows[i])
+  }
+  const hero = featuredItems[0] ?? latest[0] ?? trending[0]
 
   return (
     <>
       <Sidebar />
-      
+
       <main className="min-h-screen pb-24 lg:pb-8">
-        {hero && <Hero movie={hero} movies={trending.slice(0, 5)} />}
+        {hero && <Hero movie={hero} movies={featuredItems} />}
 
         <div className="relative -mt-20 z-10">
           {/* Continue Watching - Personal section */}
@@ -42,42 +53,83 @@ export default function HomePageClient({ trending, latest, hindi, dubbed, englis
           )}
 
           {/* Trending Now */}
-          <Carousel 
-            title="Trending Now" 
-            movies={trending} 
+          <Carousel
+            title="Trending Now"
+            movies={trending}
+            seeAllHref="/movies?sort=rating"
             onAddToWatchlist={handleAddToWatchlist}
           />
 
           {/* Latest Releases */}
-          <Carousel 
-            title="Latest Releases" 
-            movies={latest} 
+          <Carousel
+            title="Latest Releases"
+            movies={latest}
+            seeAllHref="/movies?sort=recent"
             onAddToWatchlist={handleAddToWatchlist}
           />
 
           {/* Hindi Movies */}
           {hindi.length > 0 && (
-            <Carousel 
-              title="Hindi Movies" 
-              movies={hindi} 
-              onAddToWatchlist={handleAddToWatchlist}
-            />
-          )}
-
-          {/* Hindi Dubbed */}
-          {dubbed.length > 0 && (
-            <Carousel 
-              title="Hindi Dubbed" 
-              movies={dubbed} 
+            <Carousel
+              title="Hindi Movies"
+              movies={hindi}
+              seeAllHref="/movies?language=Hindi"
               onAddToWatchlist={handleAddToWatchlist}
             />
           )}
 
           {/* English Movies */}
           {english.length > 0 && (
-            <Carousel 
-              title="English Movies" 
-              movies={english} 
+            <Carousel
+              title="English Movies"
+              movies={english}
+              seeAllHref="/movies?language=English"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {/* ── TV Shows Section ── */}
+          {(trendingShows.length > 0 || latestShows.length > 0) && (
+            <div className="pt-4 pb-2 px-4 sm:px-6 lg:pl-24 lg:pr-8">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-5 bg-primary rounded-full" />
+                <span className="text-xs font-semibold text-primary uppercase tracking-widest">TV Shows</span>
+              </div>
+            </div>
+          )}
+
+          {trendingShows.length > 0 && (
+            <Carousel
+              title="Trending Web Series"
+              movies={trendingShows}
+              seeAllHref="/shows?sort=rating"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {latestShows.length > 0 && (
+            <Carousel
+              title="Latest Web Series"
+              movies={latestShows}
+              seeAllHref="/shows?sort=recent"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {hindiShows.length > 0 && (
+            <Carousel
+              title="Hindi Web Series"
+              movies={hindiShows}
+              seeAllHref="/shows?language=Hindi"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {englishShows.length > 0 && (
+            <Carousel
+              title="English Web Series"
+              movies={englishShows}
+              seeAllHref="/shows?language=English"
               onAddToWatchlist={handleAddToWatchlist}
             />
           )}

@@ -79,7 +79,7 @@ export default function WatchlistPage() {
                     transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                     className="group relative"
                   >
-                    <Link href={`/movie/${item.slug}`} className="block">
+                    <Link href={item.type === 'tvshow' ? `/show/${item.slug}` : `/movie/${item.slug}`} className="block">
                       <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card ring-1 ring-white/10 group-hover:ring-primary/50 transition-all">
                         {item.posterUrl ? (
                           <Image
@@ -101,7 +101,7 @@ export default function WatchlistPage() {
                         {/* Quick Actions */}
                         <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <Link
-                            href={`/watch/${item.slug}`}
+                            href={item.type === 'tvshow' ? `/watch/show/${item.slug}?season=1&episode=1` : `/watch/${item.slug}`}
                             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold"
                             onClick={(e) => e.stopPropagation()}
                           >

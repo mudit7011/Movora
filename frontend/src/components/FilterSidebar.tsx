@@ -17,7 +17,7 @@ const FilterIcon = () => (
 )
 
 const GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Romance', 'Sci-Fi', 'Thriller']
-const LANGUAGES = ['English', 'Hindi', 'Hindi Dubbed', 'Telugu', 'Tamil']
+const LANGUAGES = ['English', 'Hindi']
 const YEARS = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() - i))
 
 export default function FilterSidebar() {
