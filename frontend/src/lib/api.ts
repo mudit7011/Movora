@@ -2,9 +2,9 @@ import type { Movie, PaginatedMovies, MovieFilters, EpisodeInfo } from '@/types/
 
 // In the browser, use relative URL so requests go through the Next.js rewrite proxy
 // (avoids mixed-content blocking when backend is HTTP and frontend is HTTPS).
-// On the server (SSR), use the full backend URL directly.
+// On the server (SSR), use BACKEND_URL (runtime env var, not inlined at build time).
 const API_URL = typeof window === 'undefined'
-  ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
+  ? (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
   : ''
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

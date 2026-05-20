@@ -50,7 +50,7 @@ export default function ShowDetailClient({ show }: Props) {
   const seasons = show.seasonData?.filter(s => s.seasonNumber > 0) ?? []
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:pl-24">
       {/* Hero Background */}
       <div className="relative h-[70vh] w-full overflow-hidden">
         {show.backdropUrl && (

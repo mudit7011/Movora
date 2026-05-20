@@ -64,7 +64,7 @@ export default function MovieDetailClient({ movie }: Props) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen lg:pl-24">
       {/* Hero Background */}
       <div className="relative h-[70vh] w-full overflow-hidden">
         {movie.backdropUrl && (
