@@ -66,7 +66,9 @@ const navItems: NavItem[] = [
   { href: '/history', icon: ClockIcon, label: 'Continue' },
 ]
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+// Sidebar runs only in the browser — use relative URL so the Next.js rewrite
+// proxy forwards requests to the backend (avoids mixed-content blocking).
+const API_URL = ''
 
 export default function Sidebar() {
   const pathname = usePathname()
