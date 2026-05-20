@@ -9,7 +9,7 @@
 // Use require for untyped playwright-extra packages
 /* eslint-disable @typescript-eslint/no-var-requires */
 const { chromium } = require('playwright-extra')
-const StealthPlugin = require('playwright-extra-plugin-stealth')
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 /* eslint-enable */
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
