@@ -183,9 +183,27 @@ export default function Sidebar() {
       >
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 px-5 mb-6">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
-            <span className="text-primary-foreground font-bold text-sm">M</span>
-          </div>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+            <defs>
+              <linearGradient id="sbBg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#131313"/>
+                <stop offset="1" stopColor="#0A0A0A"/>
+              </linearGradient>
+              <linearGradient id="sbMark" x1="7" y1="9" x2="25" y2="23" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#1CF5FF"/>
+                <stop offset="1" stopColor="#06B6C2"/>
+              </linearGradient>
+              <radialGradient id="sbGlow" cx="16" cy="16" r="14" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#06D6E0" stopOpacity="0.22"/>
+                <stop offset="1" stopColor="#06D6E0" stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="32" height="32" rx="7.5" fill="url(#sbBg)"/>
+            <ellipse cx="16" cy="16" rx="12" ry="10" fill="url(#sbGlow)"/>
+            <rect x="0.5" y="0.5" width="31" height="31" rx="7" stroke="#06D6E0" strokeOpacity="0.3" strokeWidth="0.75"/>
+            <path d="M7 23V9l9 8.5L25 9v14" stroke="url(#sbMark)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="16" cy="18.5" r="1.1" fill="#1CF5FF" fillOpacity="0.8"/>
+          </svg>
           <AnimatePresence>
             {isExpanded && (
               <motion.span
