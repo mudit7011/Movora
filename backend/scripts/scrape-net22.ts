@@ -158,61 +158,94 @@ async function main() {
   })
   const page = await context.newPage()
 
-  console.log('\n🔍 Step 1: Detecting embed servers from net22.cc...')
-  // Visit one sample movie page to detect embed provider URLs
-  const sampleMovie = 'https://net22.cc/movie/top-gun-maverick'
-  const detectedEmbeds = await detectEmbedServers(page, sampleMovie)
-  console.log(`Found ${detectedEmbeds.length} embed sources`)
+  const BASE = 'https://net22.cc'
 
-  // ─── Scrape Movie listings ────────────────────────────────────────────────
-  const movieTitles: string[] = []
-  const movieCategories = [
-    'https://net22.cc/genre/hindi',
-    'https://net22.cc/genre/bollywood',
-    'https://net22.cc/genre/hollywood',
-    'https://net22.cc/movies',
-  ]
+  // ─── Step 1: Discover site structure from homepage ────────────────────────
+  console.log('\n🔍 Step 1: Loading net22.cc homepage to discover structure...')
+  await page.goto(`${BASE}/home`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+  await sleep(3000)
 
-  console.log('\n🎬 Step 2: Collecting movie titles...')
-  for (const catUrl of movieCategories) {
-    for (let p = 1; p <= 5; p++) {
-      const url = p === 1 ? catUrl : `${catUrl}?page=${p}`
-      try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
-        await sleep(1500)
-        const titles = await page.evaluate(() => {
-          const cards = document.querySelectorAll('a[href*="/movie/"], .film-name, .film-title, h2 a, .name')
-          return Array.from(cards).map((el: any) => el.textContent?.trim()).filter(Boolean)
-        })
-        movieTitles.push(...(titles as string[]))
-        console.log(`  ${url} → ${titles.length} titles`)
-      } catch { console.log(`  ✗ Failed: ${url}`) }
-      await sleep(1000)
-    }
+  // Find first content link to use for embed detection
+  const firstContentUrl: string = await page.evaluate((base: string) => {
+    const links = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[]
+    const content = links.find(a =>
+      a.href.includes('/watch/') || a.href.includes('/movie/') ||
+      a.href.includes('/detail/') || a.href.includes('/film/')
+    )
+    return content?.href || `${base}/home`
+  }, BASE)
+
+  console.log(`  First content URL: ${firstContentUrl}`)
+
+  // ─── Step 2: Detect embed servers ─────────────────────────────────────────
+  console.log('\n🎯 Step 2: Detecting embed servers...')
+  const detectedEmbeds = await detectEmbedServers(page, firstContentUrl)
+  console.log(`  Found ${detectedEmbeds.length} embed sources`)
+
+  // ─── Step 3: Discover listing pages ───────────────────────────────────────
+  console.log('\n🗺  Step 3: Discovering movie/show listing pages...')
+  await page.goto(`${BASE}/home`, { waitUntil: 'domcontentloaded', timeout: 20000 })
+  await sleep(2000)
+
+  // Find all unique section/listing hrefs from nav + homepage
+  const listingUrls: { url: string; type: 'movie' | 'tv' }[] = await page.evaluate((base: string) => {
+    const links = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[]
+    const results: { url: string; type: 'movie' | 'tv' }[] = []
+    links.forEach(a => {
+      const h = a.href
+      if (/movie/i.test(h) && !h.includes('/watch/') && !results.find(r => r.url === h))
+        results.push({ url: h, type: 'movie' })
+      if (/(tv|series|show)/i.test(h) && !h.includes('/watch/') && !results.find(r => r.url === h))
+        results.push({ url: h, type: 'tv' })
+    })
+    return results.slice(0, 10) // limit to first 10 listing pages found
+  }, BASE)
+
+  // Fallback listing URLs if none auto-detected
+  if (listingUrls.length === 0) {
+    listingUrls.push(
+      { url: `${BASE}/movies`, type: 'movie' },
+      { url: `${BASE}/tv-series`, type: 'tv' },
+      { url: `${BASE}/genre/hindi`, type: 'movie' },
+      { url: `${BASE}/genre/bollywood`, type: 'movie' },
+    )
   }
+  console.log(`  Found ${listingUrls.length} listing pages`)
 
-  // ─── Scrape TV Show listings ──────────────────────────────────────────────
+  // ─── Step 4: Scrape content titles from listing pages ─────────────────────
+  const movieTitles: string[] = []
   const showTitles: string[] = []
-  const showCategories = [
-    'https://net22.cc/tv-shows',
-    'https://net22.cc/genre/hindi-series',
-  ]
 
-  console.log('\n📺 Step 3: Collecting TV show titles...')
-  for (const catUrl of showCategories) {
-    for (let p = 1; p <= 5; p++) {
+  console.log('\n🎬 Step 4: Collecting titles...')
+  for (const { url: catUrl, type } of listingUrls) {
+    for (let p = 1; p <= 8; p++) {
       const url = p === 1 ? catUrl : `${catUrl}?page=${p}`
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
         await sleep(1500)
-        const titles = await page.evaluate(() => {
-          const cards = document.querySelectorAll('a[href*="/tv/"], a[href*="/show/"], .film-name, .film-title, h2 a')
-          return Array.from(cards).map((el: any) => el.textContent?.trim()).filter(Boolean)
+        const titles: string[] = await page.evaluate(() => {
+          // Generic selectors covering most streaming site card layouts
+          const selectors = [
+            '.film-name', '.film-title', '.movie-title', '.title',
+            '.name', 'h2 a', 'h3 a', '.card-title',
+            '[class*="title"] a', '[class*="name"] a',
+            'a[class*="title"]', 'a[class*="name"]',
+          ]
+          const found = new Set<string>()
+          selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach((el: any) => {
+              const t = el.textContent?.trim()
+              if (t && t.length > 1 && t.length < 100) found.add(t)
+            })
+          })
+          return [...found]
         })
-        showTitles.push(...(titles as string[]))
-        console.log(`  ${url} → ${titles.length} titles`)
-      } catch { console.log(`  ✗ Failed: ${url}`) }
-      await sleep(1000)
+        if (titles.length === 0) break // no more pages
+        if (type === 'movie') movieTitles.push(...titles)
+        else showTitles.push(...titles)
+        console.log(`  [${type}] ${url} → ${titles.length} titles`)
+      } catch { console.log(`  ✗ Failed: ${url}`); break }
+      await sleep(800)
     }
   }
 
