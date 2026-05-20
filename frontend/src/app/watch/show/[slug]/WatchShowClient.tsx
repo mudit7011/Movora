@@ -238,16 +238,16 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         <div className="glass rounded-2xl overflow-hidden">
           <div className="flex flex-col sm:flex-row gap-0">
             {show.posterUrl && (
-              <div className="flex-shrink-0 sm:w-44">
-                <div className="relative aspect-[2/3] sm:h-full">
+              <div className="flex-shrink-0 w-full sm:w-36 sm:self-stretch">
+                <div className="relative h-52 sm:h-full">
                   <Image
                     src={show.posterUrl}
                     alt={show.title}
                     fill
-                    sizes="176px"
-                    className="object-cover"
+                    sizes="144px"
+                    className="object-cover object-top"
                   />
-                  <div className="absolute inset-0 sm:bg-gradient-to-r sm:from-transparent sm:to-[#0f0f0f]/80" />
+                  <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-transparent to-[#0f0f0f]/70" />
                 </div>
               </div>
             )}

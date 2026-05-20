@@ -200,16 +200,16 @@ export default function WatchClient({ movie, sources, related }: Props) {
 
             {/* Poster */}
             {movie.posterUrl && (
-              <div className="flex-shrink-0 sm:w-44">
-                <div className="relative aspect-[2/3] sm:h-full">
+              <div className="flex-shrink-0 w-full sm:w-36 sm:self-stretch">
+                <div className="relative h-52 sm:h-full">
                   <Image
                     src={movie.posterUrl}
                     alt={movie.title}
                     fill
-                    sizes="176px"
-                    className="object-cover"
+                    sizes="144px"
+                    className="object-cover object-top"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-[#0f0f0f]/80" />
+                  <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-transparent to-[#0f0f0f]/70" />
                 </div>
               </div>
             )}
