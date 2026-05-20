@@ -59,6 +59,31 @@ async function main() {
   await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
   await sleep(2000)
 
+  // If Cloudflare challenge page detected, wait for user to solve it manually
+  const isCFChallenge = await page.evaluate(() =>
+    document.title.includes('Just a moment') ||
+    document.title.includes('Attention Required') ||
+    document.body?.innerText?.includes('Checking your browser')
+  )
+  if (isCFChallenge) {
+    console.log('\n  ⚠️  CLOUDFLARE DETECTED — solve the challenge in the browser window')
+    console.log('  Waiting 30 seconds for you to pass it...\n')
+    await sleep(30000)
+    // After CF solved, navigate to a movie page manually or auto-click first link
+    const firstMovieLink: string = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[]
+      const movie = links.find(a =>
+        /\/(movie|watch|detail|film|tv)\//i.test(a.href) && !a.href.includes('javascript')
+      )
+      return movie?.href || ''
+    })
+    if (firstMovieLink) {
+      console.log(`  Navigating to first content page: ${firstMovieLink}`)
+      await page.goto(firstMovieLink, { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await sleep(3000)
+    }
+  }
+
   // Try clicking common play/watch buttons
   const playSelectors = [
     'button:has-text("Watch")', 'button:has-text("Play")', 'button:has-text("Online")',
