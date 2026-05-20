@@ -102,7 +102,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden lg:pl-24">
 
       {/* Ambient backdrop */}
       {show.backdropUrl && (
