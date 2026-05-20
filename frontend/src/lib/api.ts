@@ -4,7 +4,7 @@ import type { Movie, PaginatedMovies, MovieFilters, EpisodeInfo } from '@/types/
 // (avoids mixed-content blocking when backend is HTTP and frontend is HTTPS).
 // On the server (SSR), use the full backend URL directly.
 const API_URL = typeof window === 'undefined'
-  ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
+  ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
   : ''
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
