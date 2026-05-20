@@ -200,7 +200,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
 
             {/* Poster */}
             {movie.posterUrl && (
-              <div className="flex-shrink-0 w-full sm:w-36 sm:self-stretch">
+              <div className="flex-shrink-0 w-full sm:w-48 sm:self-stretch">
                 <div className="relative h-52 sm:h-full">
                   <Image
                     src={movie.posterUrl}

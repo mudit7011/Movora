@@ -238,7 +238,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         <div className="glass rounded-2xl overflow-hidden">
           <div className="flex flex-col sm:flex-row gap-0">
             {show.posterUrl && (
-              <div className="flex-shrink-0 w-full sm:w-36 sm:self-stretch">
+              <div className="flex-shrink-0 w-full sm:w-48 sm:self-stretch">
                 <div className="relative h-52 sm:h-full">
                   <Image
                     src={show.posterUrl}
