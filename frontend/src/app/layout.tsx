@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Outfit } from 'next/font/google'
 import { UserDataProvider } from '@/lib/useUserData'
+import Footer from '@/components/Footer'
 import './globals.css'
 
 const outfit = Outfit({ 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-background text-foreground font-sans antialiased min-h-screen">
         <UserDataProvider>
           {children}
+          <Footer />
         </UserDataProvider>
       </body>
     </html>

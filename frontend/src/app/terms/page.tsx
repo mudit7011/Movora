@@ -80,7 +80,7 @@ export default function TermsPage() {
               <h2 className="text-xl font-semibold text-foreground mb-3">8. Contact</h2>
               <p>
                 For any questions regarding these terms, contact us at{' '}
-                <a href="mailto:legal@movora.app" className="text-primary hover:underline">legal@movora.app</a>.
+                <a href="mailto:legal@movora.online" className="text-primary hover:underline">legal@movora.online</a>.
               </p>
             </section>
 

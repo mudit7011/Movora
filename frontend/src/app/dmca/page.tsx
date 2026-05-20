@@ -45,7 +45,7 @@ export default function DMCAPage() {
                 <li>A statement that the information in your notice is accurate and, under penalty of perjury, that you are authorised to act on behalf of the copyright owner.</li>
               </ul>
               <p className="mt-4">
-                Send notices to: <a href="mailto:dmca@movora.app" className="text-primary hover:underline">dmca@movora.app</a>
+                Send notices to: <a href="mailto:dmca@movora.online" className="text-primary hover:underline">dmca@movora.online</a>
               </p>
             </section>
 
@@ -84,7 +84,7 @@ export default function DMCAPage() {
               </p>
               <div className="mt-3 p-4 rounded-xl bg-white/5 border border-white/10 space-y-1">
                 <p><span className="text-foreground font-medium">Name:</span> Movora Support Team</p>
-                <p><span className="text-foreground font-medium">Email:</span> <a href="mailto:grievance@movora.app" className="text-primary hover:underline">grievance@movora.app</a></p>
+                <p><span className="text-foreground font-medium">Email:</span> <a href="mailto:grievance@movora.online" className="text-primary hover:underline">grievance@movora.online</a></p>
                 <p><span className="text-foreground font-medium">Response time:</span> Within 24 hours of receipt of complaint</p>
               </div>
             </section>
