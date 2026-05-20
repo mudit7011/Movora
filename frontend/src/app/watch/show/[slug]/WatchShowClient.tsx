@@ -88,6 +88,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setEpisode(ep)
     setActiveServerIdx(0)
     router.replace(`/watch/show/${show.slug}?season=${s}&episode=${ep}`, { scroll: false })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function tryNextServer() {
