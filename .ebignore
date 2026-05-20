@@ -1,0 +1,9 @@
+# Ignore frontend — only backend deploys to EB
+frontend/
+# Ignore local dev files and secrets
+**/node_modules/
+.env
+.env.*
+backend/scripts/
+*.log
+.next/
