@@ -4,10 +4,13 @@
  * - Discovers movie/show titles + any embed server URLs they use
  * - Enriches via TMDB, upserts into MongoDB
  *
- * Run: npx ts-node scripts/scrape-net22.ts
+ * Run: npx ts-node --transpile-only scripts/scrape-net22.ts
  */
-import { chromium } from 'playwright-extra'
-import StealthPlugin from 'playwright-extra-plugin-stealth'
+// Use require for untyped playwright-extra packages
+/* eslint-disable @typescript-eslint/no-var-requires */
+const { chromium } = require('playwright-extra')
+const StealthPlugin = require('playwright-extra-plugin-stealth')
+/* eslint-enable */
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 import path from 'path'
