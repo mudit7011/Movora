@@ -34,6 +34,7 @@ interface WatchProgress {
   slug: string
   title: string
   posterUrl: string
+  backdropUrl?: string
   type?: 'movie' | 'tvshow'
   timestamp: number
   duration: number
@@ -174,9 +175,9 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
                 <Link href={watchHref} className="block">
                   {/* Thumbnail */}
                   <div className="relative aspect-video rounded-xl overflow-hidden bg-card">
-                    {item.posterUrl ? (
+                    {(item.backdropUrl || item.posterUrl) ? (
                       <Image
-                        src={item.posterUrl}
+                        src={item.backdropUrl || item.posterUrl}
                         alt={item.title}
                         fill
                         sizes="(max-width: 640px) 280px, 320px"

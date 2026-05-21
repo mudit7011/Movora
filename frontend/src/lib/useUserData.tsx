@@ -9,6 +9,7 @@ interface WatchProgress {
   slug: string
   title: string
   posterUrl: string
+  backdropUrl?: string
   type: 'movie' | 'tvshow'
   timestamp: number
   duration: number
@@ -57,9 +58,10 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         setWatchlist(JSON.parse(storedWatchlist))
       }
       if (storedProgress) {
-        // Sort by lastWatched, most recent first
         const progress: WatchProgress[] = JSON.parse(storedProgress)
-        setContinueWatching(progress.sort((a, b) => b.lastWatched - a.lastWatched))
+        // Filter out already-completed items on load so stale localStorage entries disappear
+        const active = progress.filter(p => !(p.duration > 0 && p.timestamp / p.duration >= 0.9))
+        setContinueWatching(active.sort((a, b) => b.lastWatched - a.lastWatched))
       }
     } catch (error) {
       console.error('Failed to load user data:', error)
@@ -149,6 +151,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         slug: movie.slug,
         title: movie.title,
         posterUrl: movie.posterUrl,
+        backdropUrl: movie.backdropUrl,
         type: (movie.type ?? 'movie') as 'movie' | 'tvshow',
         timestamp,
         duration,
