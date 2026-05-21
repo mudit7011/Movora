@@ -8,6 +8,9 @@ const router = Router()
 
 const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap']
 
+// Exclude daily soaps: any season with >50 episodes is a daily serial, not a web series
+const NOT_DAILY_SOAP = { $nor: [{ 'seasonData.episodeCount': { $gt: 50 } }] }
+
 router.get('/', async (req, res) => {
   try {
     const { page = '1', limit = '20', genre, year, language, minRating, sort = 'recent' } = req.query
@@ -32,9 +35,10 @@ router.get('/', async (req, res) => {
     const sortObj = sortMap[sort as string] ?? sortMap.recent
 
     const skip = (Number(page) - 1) * Number(limit)
+    const browseFilter = { ...filter, ...NOT_DAILY_SOAP, genres: { $nin: EXCLUDED_GENRES }, posterUrl: { $ne: '' } }
     const [shows, total] = await Promise.all([
-      Movie.find(filter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources'),
-      Movie.countDocuments(filter),
+      Movie.find(browseFilter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources'),
+      Movie.countDocuments(browseFilter),
     ])
 
     res.json({ movies: shows, total, page: Number(page), pages: Math.ceil(total / Number(limit)) })
@@ -54,6 +58,7 @@ router.get('/trending', async (_req, res) => {
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
+      ...NOT_DAILY_SOAP,
     })
       .sort({ releaseYear: -1, rating: -1 })
       .limit(15)
@@ -76,6 +81,7 @@ router.get('/latest', async (_req, res) => {
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
+      ...NOT_DAILY_SOAP,
     })
       .sort({ releaseYear: -1 })
       .limit(20)
@@ -96,6 +102,7 @@ router.get('/by-language/:lang', async (req, res) => {
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
+      ...NOT_DAILY_SOAP,
     })
       .sort({ releaseYear: -1 })
       .limit(20)
