@@ -65,15 +65,17 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   // Track watch progress for Continue Watching
   useEffect(() => {
     const episodeDuration = 2700 // ~45 min default
+    // next episode within same season, or undefined if last ep
+    const nextEp = episode < episodeCount ? episode + 1 : undefined
     let elapsed = 60
-    updateProgress(show, elapsed, episodeDuration, season, episode)
+    updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
     const interval = setInterval(() => {
       elapsed = Math.min(elapsed + 60, episodeDuration - 30)
-      updateProgress(show, elapsed, episodeDuration, season, episode)
+      updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
     }, 60_000)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show._id, season, episode])
+  }, [show._id, season, episode, episodeCount])
 
   function selectEpisode(s: number, ep: number) {
     setSeason(s)

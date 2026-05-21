@@ -32,7 +32,7 @@ interface UserDataContextType {
   addToWatchlist: (movie: Movie) => void
   removeFromWatchlist: (movieId: string) => void
   isInWatchlist: (movieId: string) => boolean
-  updateProgress: (movie: Movie, timestamp: number, duration: number, season?: number, episode?: number) => void
+  updateProgress: (movie: Movie, timestamp: number, duration: number, season?: number, episode?: number, nextSeason?: number, nextEpisode?: number) => void
   removeFromHistory: (movieId: string) => void
   clearAllData: () => void
 }
@@ -112,7 +112,36 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     return watchlist.some((item) => item.movieId === movieId)
   }, [watchlist])
 
-  const updateProgress = useCallback((movie: Movie, timestamp: number, duration: number, season?: number, episode?: number) => {
+  const updateProgress = useCallback((
+    movie: Movie,
+    timestamp: number,
+    duration: number,
+    season?: number,
+    episode?: number,
+    nextSeason?: number,
+    nextEpisode?: number,
+  ) => {
+    const isMovie = !movie.type || movie.type === 'movie'
+    const completed = duration > 0 && timestamp / duration >= 0.9
+
+    if (completed) {
+      if (isMovie) {
+        // Movie finished — drop from continue watching
+        setContinueWatching(prev => prev.filter(item => item.movieId !== movie._id))
+        return
+      }
+      if (nextSeason !== undefined && nextEpisode !== undefined) {
+        // Advance to next episode, reset position to start
+        season = nextSeason
+        episode = nextEpisode
+        timestamp = 0
+      } else {
+        // Last episode of series — remove
+        setContinueWatching(prev => prev.filter(item => item.movieId !== movie._id))
+        return
+      }
+    }
+
     setContinueWatching((prev) => {
       const existingIndex = prev.findIndex((item) => item.movieId === movie._id)
       const newProgress: WatchProgress = {
@@ -130,15 +159,12 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
 
       let updated: WatchProgress[]
       if (existingIndex >= 0) {
-        // Update existing entry
         updated = [...prev]
         updated[existingIndex] = newProgress
       } else {
-        // Add new entry
         updated = [newProgress, ...prev]
       }
 
-      // Keep only last 20 items
       return updated.slice(0, 20).sort((a, b) => b.lastWatched - a.lastWatched)
     })
   }, [])
