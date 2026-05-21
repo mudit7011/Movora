@@ -12,7 +12,7 @@ export default function AdminLoginPage() {
   const [error, setError]       = useState('')
 
   useEffect(() => {
-    if (adminApi.isLoggedIn()) router.replace('/admin')
+    if (adminApi.isLoggedIn()) router.replace('/ctrl')
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,7 +21,7 @@ export default function AdminLoginPage() {
     setError('')
     try {
       await adminApi.login(email, password)
-      router.replace('/admin')
+      router.replace('/ctrl')
     } catch (err: any) {
       setError(err.message || 'Login failed')
     } finally {
@@ -41,19 +41,12 @@ export default function AdminLoginPage() {
           <span className="text-3xl font-bold tracking-tight">
             <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
           </span>
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold tracking-widest uppercase">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            Admin Access
-          </div>
         </div>
 
         {/* Card */}
         <div className="glass rounded-2xl p-8 border border-white/[0.08]">
           <h1 className="text-xl font-semibold text-foreground mb-1">Sign in</h1>
-          <p className="text-sm text-muted-foreground mb-8">Restricted to authorised personnel only.</p>
+          <p className="text-sm text-muted-foreground mb-8">Enter your credentials to continue.</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -110,9 +103,6 @@ export default function AdminLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground/50 mt-6">
-          Movora Admin Panel · All actions are logged
-        </p>
       </div>
     </div>
   )

@@ -7,7 +7,7 @@ import { adminApi } from '@/lib/adminApi'
 
 const navItems = [
   {
-    href: '/admin',
+    href: '/ctrl',
     label: 'Dashboard',
     icon: (
       <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -17,7 +17,7 @@ const navItems = [
     ),
   },
   {
-    href: '/admin/movies',
+    href: '/ctrl/movies',
     label: 'Content',
     icon: (
       <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -27,7 +27,7 @@ const navItems = [
     ),
   },
   {
-    href: '/admin/scrape',
+    href: '/ctrl/scrape',
     label: 'Scrape Jobs',
     icon: (
       <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -47,7 +47,7 @@ export default function AdminShell({ children }: Props) {
 
   useEffect(() => {
     if (!adminApi.isLoggedIn()) {
-      router.replace('/admin/login')
+      router.replace('/ctrl/login')
     } else {
       setReady(true)
     }
@@ -55,7 +55,7 @@ export default function AdminShell({ children }: Props) {
 
   function handleLogout() {
     adminApi.logout()
-    router.replace('/admin/login')
+    router.replace('/ctrl/login')
   }
 
   if (!ready) {
@@ -76,16 +76,13 @@ export default function AdminShell({ children }: Props) {
             <span className="text-lg font-bold tracking-tight">
               <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
             </span>
-            <span className="text-[10px] font-semibold tracking-widest uppercase text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-              Admin
-            </span>
           </Link>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {navItems.map(item => {
-            const active = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
+            const active = pathname === item.href || (item.href !== '/ctrl' && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.href}
