@@ -12,27 +12,46 @@ router.get('/', async (req, res) => {
     const filter: Record<string, unknown> = { type: 'movie' }
 
     if (genre && typeof genre === 'string') filter.genres = genre
-    if (year) filter.releaseYear = Number(year)
+    if (year) {
+      filter.releaseYear = Number(year)
+    } else {
+      filter.releaseYear = { $gte: 2000 }
+    }
     if (language && typeof language === 'string') {
       filter.language = language
     } else {
       filter.language = { $in: ['Hindi', 'English'] }
     }
-    if (minRating) filter.rating = { $gte: Number(minRating) }
-    if (minRuntime) filter.runtime = { $gte: Number(minRuntime) }
-
-    const sortMap: Record<string, Record<string, 1 | -1>> = {
-      recent: { releaseYear: -1, rating: -1 },
-      rating: { rating: -1 },
-      year:   { releaseYear: -1 },
-    }
-    const sortObj = sortMap[sort as string] ?? sortMap.recent
+    // Always cap at 9.5 to exclude concert films / data anomalies; optionally floor from param
+    const ratingFilter: Record<string, number> = { $lte: 9.5 }
+    if (minRating) ratingFilter.$gte = Number(minRating)
+    filter.rating = ratingFilter
+    filter.runtime = minRuntime ? { $gte: Number(minRuntime) } : { $gte: 60 }
+    filter.posterUrl = { $ne: '' }
 
     const skip = (Number(page) - 1) * Number(limit)
-    const [movies, total] = await Promise.all([
-      Movie.find(filter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources'),
-      Movie.countDocuments(filter),
-    ])
+    const total = await Movie.countDocuments(filter)
+
+    let movies
+    if (!sort || sort === 'recent') {
+      // Weighted score: mix of rating + recency
+      // score = rating * 1.5 + (releaseYear - 2000) * 0.3
+      movies = await Movie.aggregate([
+        { $match: { ...filter, rating: { ...(filter.rating as object), $gte: 5 } } },
+        { $addFields: { _score: { $add: [{ $multiply: ['$rating', 1.5] }, { $multiply: [{ $subtract: ['$releaseYear', 2000] }, 0.3] }] } } },
+        { $sort: { _score: -1 } },
+        { $skip: skip },
+        { $limit: Number(limit) },
+        { $project: { sources: 0, _score: 0 } },
+      ])
+    } else {
+      const sortMap: Record<string, Record<string, 1 | -1>> = {
+        rating: { rating: -1 },
+        year:   { releaseYear: -1 },
+      }
+      const sortObj = sortMap[sort as string] ?? { releaseYear: -1 }
+      movies = await Movie.find(filter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources')
+    }
 
     res.json({ movies, total, page: Number(page), pages: Math.ceil(total / Number(limit)) })
   } catch {
@@ -46,14 +65,14 @@ router.get('/trending', async (_req, res) => {
       type:           'movie',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: 2000 },
+      releaseYear:    { $gte: 2022 },
       rating:         { $gte: 6, $lte: 9.5 },
       runtime:        { $gte: 60 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
     })
-      .sort({ rating: -1, releaseYear: -1 })
+      .sort({ releaseYear: -1, rating: -1 })
       .limit(15)
       .select('-sources')
     res.json(movies)
@@ -69,7 +88,7 @@ router.get('/latest', async (_req, res) => {
       type:           'movie',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: currentYear - 1 },
+      releaseYear:    { $gte: currentYear },
       runtime:        { $gte: 60 },
       rating:         { $gte: 5, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
@@ -91,8 +110,9 @@ router.get('/by-language/:lang', async (req, res) => {
       type:           'movie',
       streamVerified: { $ne: false },
       language:       req.params.lang,
+      releaseYear:    { $gte: 2000 },
       runtime:        { $gte: 60 },
-      rating:         { $gte: 5, $lte: 9.5 },
+      rating:         { $gte: 6, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },

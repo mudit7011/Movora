@@ -35,7 +35,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
-  const [showBanner, setShowBanner] = useState(false)
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 
@@ -50,9 +49,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const hasNextServer = activeServerIdx < sources.length - 1
 
   useEffect(() => {
-    setShowBanner(false)
-    clearTimeout(bannerTimer.current)
-    bannerTimer.current = setTimeout(() => setShowBanner(true), 6000)
     return () => clearTimeout(bannerTimer.current)
   }, [activeServerIdx, season, episode])
 
@@ -88,10 +84,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   }
 
   function tryNextServer() {
-    if (hasNextServer) {
-      setActiveServerIdx(i => i + 1)
-      setShowBanner(false)
-    }
+    if (hasNextServer) setActiveServerIdx(i => i + 1)
   }
 
   function nextEpisode() {
@@ -167,20 +160,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
             className="w-full h-full bg-black"
           />
 
-          {/* Not loading banner */}
-          {showBanner && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 shadow-2xl">
-              <span className="text-white/70 text-sm">Not loading?</span>
-              {hasNextServer ? (
-                <button onClick={tryNextServer} className="btn-primary px-4 py-1.5 rounded-xl text-sm font-semibold">
-                  Try {sources[activeServerIdx + 1].serverName} →
-                </button>
-              ) : (
-                <span className="text-white/40 text-xs">All servers tried</span>
-              )}
-              <button onClick={() => setShowBanner(false)} className="text-white/30 hover:text-white transition-colors ml-1 text-lg leading-none">×</button>
-            </div>
-          )}
         </div>
       </div>
 

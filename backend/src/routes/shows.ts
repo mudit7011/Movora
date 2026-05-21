@@ -49,12 +49,13 @@ router.get('/trending', async (_req, res) => {
       type:           'tvshow',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
+      releaseYear:    { $gte: 2022 },
       rating:         { $gte: 6, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
     })
-      .sort({ rating: -1, releaseYear: -1 })
+      .sort({ releaseYear: -1, rating: -1 })
       .limit(15)
       .select('-sources')
     res.json(shows)
@@ -70,13 +71,13 @@ router.get('/latest', async (_req, res) => {
       type:           'tvshow',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: currentYear - 2 },
+      releaseYear:    { $gte: currentYear },
       rating:         { $gte: 5, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
     })
-      .sort({ releaseYear: -1, rating: -1 })
+      .sort({ releaseYear: -1 })
       .limit(20)
       .select('-sources')
     res.json(shows)
@@ -96,7 +97,7 @@ router.get('/by-language/:lang', async (req, res) => {
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
     })
-      .sort({ rating: -1, releaseYear: -1 })
+      .sort({ releaseYear: -1 })
       .limit(20)
       .select('-sources')
     res.json(shows)

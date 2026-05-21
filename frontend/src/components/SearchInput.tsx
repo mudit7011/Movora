@@ -42,7 +42,44 @@ export default function SearchInput() {
   const [value, setValue] = useState(params.get('q') ?? '')
   const [isFocused, setIsFocused] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [micError, setMicError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const startVoiceSearch = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setMicError('Use Chrome for voice search')
+      setTimeout(() => setMicError(''), 3000)
+      return
+    }
+    if (isListening) return
+    try {
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'en-IN'
+      recognition.interimResults = false
+      recognition.maxAlternatives = 1
+      recognition.onstart = () => { setIsListening(true); setMicError('') }
+      recognition.onend = () => setIsListening(false)
+      recognition.onerror = (e: any) => {
+        setIsListening(false)
+        const msg = e.error === 'not-allowed' ? 'Mic permission denied'
+          : e.error === 'network' ? 'Use Chrome — Brave blocks voice search'
+          : e.error === 'service-not-allowed' ? 'Use Chrome for voice search'
+          : 'Voice search failed — try Chrome'
+        setMicError(msg)
+        setTimeout(() => setMicError(''), 4000)
+      }
+      recognition.onresult = (e: any) => {
+        const transcript = e.results[0][0].transcript
+        setValue(transcript)
+        inputRef.current?.focus()
+      }
+      recognition.start()
+    } catch {
+      setIsListening(false)
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -121,9 +158,20 @@ export default function SearchInput() {
                 </svg>
               </motion.button>
             )}
-            <button className="p-2 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-primary transition-colors">
-              <MicIcon />
-            </button>
+            <div className="relative">
+              <button
+                onClick={startVoiceSearch}
+                className={`p-2 rounded-lg transition-colors ${isListening ? 'text-red-400 animate-pulse bg-red-400/10' : 'hover:bg-white/10 text-muted-foreground hover:text-primary'}`}
+                title="Voice search"
+              >
+                <MicIcon />
+              </button>
+              {micError && (
+                <div className="absolute right-0 top-10 whitespace-nowrap text-xs bg-black/90 text-red-400 border border-red-400/20 px-3 py-1.5 rounded-lg z-50">
+                  {micError}
+                </div>
+              )}
+            </div>
             <kbd className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground bg-white/5 rounded-lg border border-white/10">
               <span>ESC</span>
             </kbd>
@@ -143,7 +191,7 @@ export default function SearchInput() {
           >
             <div className="bg-card/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl">
               {/* Trending Searches */}
-              <div className="mb-6">
+              <div>
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
                   <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
@@ -167,33 +215,6 @@ export default function SearchInput() {
                 </div>
               </div>
 
-              {/* Browse by Genre */}
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-                  <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="14" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" />
-                  </svg>
-                  Browse by Genre
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                  {recentGenres.map((genre, i) => (
-                    <motion.button
-                      key={genre.name}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.1 + i * 0.05 }}
-                      onClick={() => handleSuggestionClick(genre.name)}
-                      className="flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-primary/20 border border-white/10 hover:border-primary/50 rounded-xl transition-all duration-200 group"
-                    >
-                      <span className="text-2xl group-hover:scale-110 transition-transform">{genre.icon}</span>
-                      <span className="text-xs text-muted-foreground group-hover:text-primary">{genre.name}</span>
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
             </div>
           </motion.div>
         )}

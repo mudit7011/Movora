@@ -3,6 +3,7 @@ import MovieCard from '@/components/MovieCard'
 import SearchInput from '@/components/SearchInput'
 import Sidebar from '@/components/Sidebar'
 import { Suspense } from 'react'
+import { Swords, Laugh, Theater, Ghost, Rocket, Heart } from 'lucide-react'
 
 export const metadata = { title: 'Search — Movora' }
 
@@ -151,22 +152,22 @@ export default async function SearchPage({ searchParams }: Props) {
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {[
-                  { name: 'Action', gradient: 'from-red-500/20 to-orange-500/20', icon: '💥' },
-                  { name: 'Comedy', gradient: 'from-yellow-500/20 to-amber-500/20', icon: '😂' },
-                  { name: 'Drama', gradient: 'from-purple-500/20 to-pink-500/20', icon: '🎭' },
-                  { name: 'Horror', gradient: 'from-gray-500/20 to-slate-500/20', icon: '👻' },
-                  { name: 'Sci-Fi', gradient: 'from-blue-500/20 to-cyan-500/20', icon: '🚀' },
-                  { name: 'Romance', gradient: 'from-pink-500/20 to-rose-500/20', icon: '💕' },
-                ].map((category) => (
+                  { name: 'Action',  gradient: 'from-red-500/20 to-orange-500/20',  Icon: Swords  },
+                  { name: 'Comedy',  gradient: 'from-yellow-500/20 to-amber-500/20', Icon: Laugh   },
+                  { name: 'Drama',   gradient: 'from-purple-500/20 to-pink-500/20',  Icon: Theater },
+                  { name: 'Horror',  gradient: 'from-gray-500/20 to-slate-500/20',   Icon: Ghost   },
+                  { name: 'Sci-Fi',  gradient: 'from-blue-500/20 to-cyan-500/20',    Icon: Rocket  },
+                  { name: 'Romance', gradient: 'from-pink-500/20 to-rose-500/20',    Icon: Heart   },
+                ].map(({ name, gradient, Icon }) => (
                   <a
-                    key={category.name}
-                    href={`/search?q=${category.name}`}
-                    className={`group relative p-6 rounded-2xl bg-gradient-to-br ${category.gradient} border border-white/10 hover:border-primary/50 transition-all duration-300 hover:scale-105`}
+                    key={name}
+                    href={`/search?q=${name}`}
+                    className={`group relative p-6 rounded-2xl bg-gradient-to-br ${gradient} border border-white/10 hover:border-primary/50 transition-all duration-300 hover:scale-105`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-primary/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
                     <div className="relative text-center">
-                      <span className="text-3xl mb-2 block group-hover:scale-110 transition-transform">{category.icon}</span>
-                      <span className="text-foreground font-medium">{category.name}</span>
+                      <Icon className="w-8 h-8 mx-auto mb-2 group-hover:scale-110 transition-transform text-white/80" />
+                      <span className="text-foreground font-medium">{name}</span>
                     </div>
                   </a>
                 ))}

@@ -18,7 +18,6 @@ interface Props {
 
 export default function WatchClient({ movie, sources, related }: Props) {
   const [activeIdx, setActiveIdx]   = useState(0)
-  const [showBanner, setShowBanner] = useState(false)
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 
@@ -40,11 +39,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
   }, [movie._id])
 
   useEffect(() => {
-    setShowBanner(false)
-    clearTimeout(bannerTimer.current)
-    if (!isDirect) {
-      bannerTimer.current = setTimeout(() => setShowBanner(true), 6000)
-    }
     return () => clearTimeout(bannerTimer.current)
   }, [activeIdx, isDirect])
 
@@ -59,7 +53,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
   }, [hasNext])
 
   function tryNext() {
-    if (hasNext) { setActiveIdx(i => i + 1); setShowBanner(false) }
+    if (hasNext) setActiveIdx(i => i + 1)
   }
 
   return (
@@ -137,21 +131,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
               allowFullScreen
               className="w-full h-full bg-black"
             />
-          )}
-
-          {/* Not working banner */}
-          {showBanner && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3 shadow-2xl">
-              <span className="text-white/70 text-sm">Not loading?</span>
-              {hasNext ? (
-                <button onClick={tryNext} className="btn-primary px-4 py-1.5 rounded-xl text-sm font-semibold">
-                  Try {sources[activeIdx + 1].serverName} →
-                </button>
-              ) : (
-                <span className="text-white/40 text-xs">All servers tried</span>
-              )}
-              <button onClick={() => setShowBanner(false)} className="text-white/30 hover:text-white transition-colors ml-1 text-lg leading-none">×</button>
-            </div>
           )}
         </div>
       </div>
