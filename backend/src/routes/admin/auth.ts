@@ -43,7 +43,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     const token = jwt.sign({ adminId: admin._id.toString() }, env.JWT_SECRET, { expiresIn: '24h' })
 
     res.cookie('token', token, { ...cookieOptions, maxAge: 24 * 60 * 60 * 1000 })
-    res.json({ message: 'Logged in' })
+    res.json({ message: 'Logged in', token })
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
