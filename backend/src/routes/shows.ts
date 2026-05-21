@@ -8,8 +8,14 @@ const router = Router()
 
 const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap']
 
-// Exclude daily soaps: any season with >100 episodes is a daily serial, not a web series
-const NOT_DAILY_SOAP = { $nor: [{ 'seasonData.episodeCount': { $gt: 100 } }] }
+// Exclude Hindi daily soaps: Hindi shows with any season >100 eps are daily serials.
+// English/other shows (One Piece, Naruto etc.) are exempt from this cap.
+const NOT_DAILY_SOAP = {
+  $or: [
+    { language: { $nin: ['Hindi'] } },
+    { $nor: [{ 'seasonData.episodeCount': { $gt: 100 } }] },
+  ],
+}
 
 router.get('/', async (req, res) => {
   try {
