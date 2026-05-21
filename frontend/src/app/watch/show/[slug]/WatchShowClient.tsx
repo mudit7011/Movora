@@ -16,14 +16,10 @@ interface Source {
 }
 
 function buildSources(tmdbId: string, season: number, episode: number): Source[] {
-  // Strip 'tv_' prefix if present — raw numeric ID needed for embed URLs
   const rawId = tmdbId.replace(/^tv_/, '')
   return [
     { serverName: 'Server 1', url: `https://player.videasy.net/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 2', url: `https://www.2embed.cc/embedtv/${rawId}&s=${season}&e=${episode}`, quality: 'HD' },
-    { serverName: 'Server 3', url: `https://vidsrc.icu/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://embed.su/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 5', url: `https://vidsrc.cc/v2/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+    { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}`,        quality: 'HD' },
   ]
 }
 
