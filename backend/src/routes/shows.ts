@@ -8,8 +8,8 @@ const router = Router()
 
 const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap']
 
-// Exclude daily soaps: any season with >50 episodes is a daily serial, not a web series
-const NOT_DAILY_SOAP = { $nor: [{ 'seasonData.episodeCount': { $gt: 50 } }] }
+// Exclude daily soaps: any season with >100 episodes is a daily serial, not a web series
+const NOT_DAILY_SOAP = { $nor: [{ 'seasonData.episodeCount': { $gt: 100 } }] }
 
 router.get('/', async (req, res) => {
   try {
