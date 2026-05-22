@@ -57,17 +57,25 @@ router.get('/trending', async (_req, res) => {
             type: 'tvshow',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: 2022 },
-            rating: { $gte: 6, $lte: 9.5 },
+            releaseYear: { $gte: 2020 },
+            rating: { $gte: 7.5, $lte: 9.5 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
             backdropUrl: { $ne: '' },
             ...NOT_DAILY_SOAP,
         })
-            .sort({ releaseYear: -1, rating: -1 })
-            .limit(15)
+            .sort({ rating: -1, releaseYear: -1 })
+            .limit(30)
             .select('-sources');
-        res.json(shows);
+        const seen = new Set();
+        const unique = shows.filter(s => {
+            const key = s.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 15);
+        res.json(unique);
     }
     catch {
         res.status(500).json({ error: 'Server error' });
@@ -80,17 +88,25 @@ router.get('/latest', async (_req, res) => {
             type: 'tvshow',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: currentYear },
-            rating: { $gte: 5, $lte: 9.5 },
+            releaseYear: { $gte: currentYear - 1 },
+            rating: { $gte: 5, $lt: 7.5 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
             backdropUrl: { $ne: '' },
             ...NOT_DAILY_SOAP,
         })
-            .sort({ releaseYear: -1 })
-            .limit(20)
+            .sort({ releaseYear: -1, rating: -1 })
+            .limit(40)
             .select('-sources');
-        res.json(shows);
+        const seen = new Set();
+        const unique = shows.filter(s => {
+            const key = s.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 20);
+        res.json(unique);
     }
     catch {
         res.status(500).json({ error: 'Server error' });

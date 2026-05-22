@@ -63,21 +63,30 @@ router.get('/', async (req, res) => {
 });
 router.get('/trending', async (_req, res) => {
     try {
+        // Trending = highly acclaimed (7.5+), sorted by rating — different from Latest
         const movies = await Movie_1.Movie.find({
             type: 'movie',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: 2022 },
-            rating: { $gte: 6, $lte: 9.5 },
+            releaseYear: { $gte: 2020 },
+            rating: { $gte: 7.5, $lte: 9.5 },
             runtime: { $gte: 60 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
             backdropUrl: { $ne: '' },
         })
-            .sort({ releaseYear: -1, rating: -1 })
-            .limit(15)
+            .sort({ rating: -1, releaseYear: -1 })
+            .limit(30)
             .select('-sources');
-        res.json(movies);
+        const seen = new Set();
+        const unique = movies.filter(m => {
+            const key = m.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 15);
+        res.json(unique);
     }
     catch {
         res.status(500).json({ error: 'Server error' });
@@ -86,21 +95,31 @@ router.get('/trending', async (_req, res) => {
 router.get('/latest', async (_req, res) => {
     try {
         const currentYear = new Date().getFullYear();
+        // Latest = recent releases (current year), rating 5-7.4 — explicitly avoids the 7.5+ tier
+        // shown in Trending so the two carousels display different content
         const movies = await Movie_1.Movie.find({
             type: 'movie',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: currentYear },
+            releaseYear: { $gte: currentYear - 1 },
             runtime: { $gte: 60 },
-            rating: { $gte: 5, $lte: 9.5 },
+            rating: { $gte: 5, $lt: 7.5 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
             backdropUrl: { $ne: '' },
         })
             .sort({ releaseYear: -1, rating: -1 })
-            .limit(20)
+            .limit(40)
             .select('-sources');
-        res.json(movies);
+        const seen = new Set();
+        const unique = movies.filter(m => {
+            const key = m.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 20);
+        res.json(unique);
     }
     catch {
         res.status(500).json({ error: 'Server error' });

@@ -59,14 +59,14 @@ router.get('/trending', async (_req, res) => {
       type:           'tvshow',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: 2022 },
-      rating:         { $gte: 6, $lte: 9.5 },
+      releaseYear:    { $gte: 2020 },
+      rating:         { $gte: 7.5, $lte: 9.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
       ...NOT_DAILY_SOAP,
     })
-      .sort({ releaseYear: -1, rating: -1 })
+      .sort({ rating: -1, releaseYear: -1 })
       .limit(30)
       .select('-sources')
     const seen = new Set<string>()
@@ -89,14 +89,14 @@ router.get('/latest', async (_req, res) => {
       type:           'tvshow',
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
-      releaseYear:    { $gte: currentYear },
-      rating:         { $gte: 5, $lte: 9.5 },
+      releaseYear:    { $gte: currentYear - 1 },
+      rating:         { $gte: 5, $lt: 7.5 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
       ...NOT_DAILY_SOAP,
     })
-      .sort({ releaseYear: -1 })
+      .sort({ releaseYear: -1, rating: -1 })
       .limit(40)
       .select('-sources')
     const seen = new Set<string>()
