@@ -55,33 +55,23 @@ router.get('/', async (req, res) => {
       matchFilter.genres = { $nin: EXCLUDED_GENRES }
     }
 
-    const [result] = await Movie.aggregate([
-      { $match: matchFilter },
-      { $sort: sortObj },
-      {
-        $group: {
-          _id: {
-            $cond: {
-              if:   { $eq: [{ $substr: ['$tmdbId', 0, 3] }, 'tv_'] },
-              then: { $substr: ['$tmdbId', 3, 20] },
-              else: '$tmdbId',
-            },
-          },
-          doc: { $first: '$$ROOT' },
-        },
-      },
-      { $replaceRoot: { newRoot: '$doc' } },
-      { $sort: sortObj },
-      {
-        $facet: {
-          data:  [{ $skip: skip }, { $limit: limitNum }, { $project: { sources: 0 } }],
-          count: [{ $count: 'total' }],
-        },
-      },
-    ])
+    // Fetch all matching docs (dedup in memory — dataset is small enough)
+    const allDocs = await Movie.find(matchFilter as any)
+      .sort(sortObj)
+      .select('-sources')
+      .lean()
 
-    const shows = result?.data ?? []
-    const total = result?.count?.[0]?.total ?? 0
+    // Dedup by normalized tmdbId (strip tv_ prefix)
+    const seen = new Set<string>()
+    const deduped = allDocs.filter(doc => {
+      const key = String(doc.tmdbId ?? '').replace(/^tv_/, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    const total = deduped.length
+    const shows = deduped.slice(skip, skip + limitNum)
 
     res.json({ movies: shows, total, page: pageNum, pages: Math.ceil(total / limitNum) })
   } catch {
