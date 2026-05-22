@@ -63,13 +63,14 @@ router.get('/', async (req, res) => {
 });
 router.get('/trending', async (_req, res) => {
     try {
-        // Trending = highly acclaimed (7.5+), sorted by rating — different from Latest
+        // Trending = proven hits from previous years (2020 to last year), sorted by rating
+        const currentYear = new Date().getFullYear();
         const movies = await Movie_1.Movie.find({
             type: 'movie',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: 2020 },
-            rating: { $gte: 7.5, $lte: 9.5 },
+            releaseYear: { $gte: 2020, $lte: currentYear - 1 },
+            rating: { $gte: 7, $lte: 9.5 },
             runtime: { $gte: 60 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
@@ -95,20 +96,19 @@ router.get('/trending', async (_req, res) => {
 router.get('/latest', async (_req, res) => {
     try {
         const currentYear = new Date().getFullYear();
-        // Latest = recent releases (current year), rating 5-7.4 — explicitly avoids the 7.5+ tier
-        // shown in Trending so the two carousels display different content
+        // Latest = 2026 releases, any rating ≥ 5, sorted by rating
         const movies = await Movie_1.Movie.find({
             type: 'movie',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: currentYear - 1 },
+            releaseYear: { $gte: currentYear },
             runtime: { $gte: 60 },
-            rating: { $gte: 5, $lt: 7.5 },
+            rating: { $gte: 5, $lte: 9.5 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
             backdropUrl: { $ne: '' },
         })
-            .sort({ releaseYear: -1, rating: -1 })
+            .sort({ rating: -1, releaseYear: -1 })
             .limit(40)
             .select('-sources');
         const seen = new Set();

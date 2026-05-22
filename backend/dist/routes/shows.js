@@ -84,18 +84,19 @@ router.get('/trending', async (_req, res) => {
 router.get('/latest', async (_req, res) => {
     try {
         const currentYear = new Date().getFullYear();
+        // Latest = 2026 shows, any rating ≥ 5, sorted by rating
         const shows = await Movie_1.Movie.find({
             type: 'tvshow',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: currentYear - 1 },
-            rating: { $gte: 5, $lt: 7.5 },
+            releaseYear: { $gte: currentYear },
+            rating: { $gte: 5, $lte: 9.5 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
             backdropUrl: { $ne: '' },
             ...NOT_DAILY_SOAP,
         })
-            .sort({ releaseYear: -1, rating: -1 })
+            .sort({ rating: -1, releaseYear: -1 })
             .limit(40)
             .select('-sources');
         const seen = new Set();
