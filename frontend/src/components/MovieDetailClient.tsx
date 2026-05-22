@@ -5,6 +5,17 @@ import type { Movie } from '@/types/movie'
 import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
+
+interface CollectionPart {
+  tmdbId: string
+  title: string
+  posterUrl: string
+  year: number
+  slug: string
+  partNumber: number
+  collectionName: string
+}
 
 const PlayIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -53,7 +64,14 @@ interface Props {
 export default function MovieDetailClient({ movie }: Props) {
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
   const inWatchlist = isInWatchlist(movie._id)
-  const workingSources = movie.sources?.filter(s => s.isWorking) ?? []
+  const [collection, setCollection] = useState<CollectionPart[]>([])
+
+  useEffect(() => {
+    fetch(`/api/collection?tmdbId=${encodeURIComponent(movie.tmdbId)}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data) && data.length > 1) setCollection(data) })
+      .catch(() => {})
+  }, [movie.tmdbId])
 
   const handleWatchlistToggle = () => {
     if (inWatchlist) {
@@ -249,6 +267,47 @@ export default function MovieDetailClient({ movie }: Props) {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Series / Collection */}
+            {collection.length > 1 && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold text-foreground mb-4">
+                  {collection[0].collectionName}
+                </h2>
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                  {collection.map(part => {
+                    const isCurrent = part.tmdbId === movie.tmdbId.replace(/^(tv_|movie_)/, '')
+                    return (
+                      <Link
+                        key={part.tmdbId}
+                        href={`/movie/${part.slug}`}
+                        className={`flex-shrink-0 w-28 group ${isCurrent ? 'pointer-events-none' : ''}`}
+                      >
+                        <div className={`relative aspect-[2/3] rounded-xl overflow-hidden ring-2 transition-all ${
+                          isCurrent ? 'ring-primary' : 'ring-white/10 group-hover:ring-primary/60'
+                        }`}>
+                          {part.posterUrl ? (
+                            <Image src={part.posterUrl} alt={part.title} fill sizes="112px" className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-card" />
+                          )}
+                          {isCurrent && (
+                            <div className="absolute inset-0 bg-primary/20 flex items-end justify-center pb-2">
+                              <span className="text-[10px] font-bold text-primary bg-background/80 px-2 py-0.5 rounded-full">Watching</span>
+                            </div>
+                          )}
+                          <div className="absolute top-1.5 left-1.5 bg-background/80 backdrop-blur-sm text-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                            Part {part.partNumber}
+                          </div>
+                        </div>
+                        <p className="text-xs text-foreground font-medium mt-2 line-clamp-1">{part.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{part.year}</p>
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             )}
