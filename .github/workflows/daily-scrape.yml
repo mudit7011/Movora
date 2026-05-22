@@ -25,7 +25,7 @@ jobs:
         working-directory: backend
 
       - name: Scrape latest movies (3 pages ≈ 60 movies)
-        run: npx ts-node scripts/scrape-vidsrc.ts
+        run: node scripts/scrape-vidsrc.js
         working-directory: backend
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -34,7 +34,7 @@ jobs:
           SCRAPE_MAX_PAGES: '3'
 
       - name: Scrape latest TV shows (3 pages ≈ 60 shows)
-        run: npx ts-node scripts/scrape-vidsrc-shows.ts
+        run: node scripts/scrape-vidsrc-shows.js
         working-directory: backend
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
