@@ -56,35 +56,34 @@ function bar(done, total, width = 30) {
     const filled = Math.round(pct * width);
     return `[${'█'.repeat(filled)}${'░'.repeat(width - filled)}] ${done}/${total}`;
 }
-async function fetchCatalogPage(page) {
-    const data = await get(`https://vidsrc.to/vapi/tv/new?page=${page}`);
-    return {
-        items: data?.result?.items ?? [],
-        pages: data?.result?.pages ?? 1,
-    };
-}
+// Use TMDB directly — no scraping, never blocked
 async function collectCatalog(maxPages = 0) {
-    console.log('Fetching vidsrc.to TV catalog...');
-    const first = await fetchCatalogPage(1);
-    const total = maxPages > 0 ? Math.min(maxPages, first.pages) : first.pages;
-    const all = [...first.items];
-    for (let p = 2; p <= total; p++) {
-        try {
-            const page = await fetchCatalogPage(p);
-            all.push(...page.items);
-        }
-        catch {
-            await sleep(2000);
+    const pages = maxPages > 0 ? maxPages : 3;
+    console.log(`Fetching TMDB TV catalog (${pages} pages each)...`);
+    const seen = new Set();
+    const all = [];
+    const endpoints = [
+        `/tv/on_the_air?language=en-US`,
+        `/discover/tv?sort_by=first_air_date.desc&with_original_language=hi&first_air_date.gte=2024-01-01`,
+        `/discover/tv?sort_by=first_air_date.desc&with_original_language=en&first_air_date.gte=2024-01-01`,
+        `/tv/popular?language=en-US`,
+    ];
+    for (const ep of endpoints) {
+        for (let p = 1; p <= pages; p++) {
             try {
-                const page = await fetchCatalogPage(p);
-                all.push(...page.items);
-            }
-            catch { /* skip */ }
+                const sep = ep.includes('?') ? '&' : '?';
+                const data = await tmdb(`${ep}${sep}page=${p}`);
+                for (const s of (data.results ?? [])) {
+                    if (s.id && !seen.has(s.id)) {
+                        seen.add(s.id);
+                        all.push({ tmdb_id: String(s.id), title: s.name || s.original_name });
+                    }
+                }
+                await sleep(100);
+            } catch (e) { /* skip page */ }
         }
-        await sleep(200);
-        process.stdout.write(`\r  Page ${p}/${total} — ${all.length} shows so far`);
     }
-    console.log(`\n  Total catalog entries: ${all.length}`);
+    console.log(`  Total catalog entries: ${all.length}`);
     return all;
 }
 async function enrichFromTmdb(tmdbId) {

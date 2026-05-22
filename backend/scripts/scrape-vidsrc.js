@@ -61,35 +61,34 @@ function bar(done, total, width = 30) {
     const filled = Math.round(pct * width);
     return `[${'█'.repeat(filled)}${'░'.repeat(width - filled)}] ${done}/${total}`;
 }
-async function fetchCatalogPage(page) {
-    const data = await get(`https://vidsrc.to/vapi/movie/new?page=${page}`);
-    return {
-        items: data?.result?.items ?? [],
-        pages: data?.result?.pages ?? 1,
-    };
-}
+// Use TMDB directly — no scraping, never blocked
 async function collectCatalog(maxPages = 0) {
-    console.log('Fetching vidsrc.to movie catalog...');
-    const first = await fetchCatalogPage(1);
-    const total = maxPages > 0 ? Math.min(maxPages, first.pages) : first.pages;
-    const all = [...first.items];
-    for (let p = 2; p <= total; p++) {
-        process.stdout.write(`\r  Page ${p}/${total} — ${all.length} movies collected  `);
-        try {
-            const page = await fetchCatalogPage(p);
-            all.push(...page.items);
-            await sleep(150);
-        }
-        catch {
-            await sleep(1000);
+    const pages = maxPages > 0 ? maxPages : 3;
+    console.log(`Fetching TMDB movie catalog (${pages} pages each)...`);
+    const seen = new Set();
+    const all = [];
+    const endpoints = [
+        `/movie/now_playing?language=en-US`,
+        `/discover/movie?sort_by=release_date.desc&with_original_language=hi&primary_release_date.gte=2025-01-01`,
+        `/discover/movie?sort_by=release_date.desc&with_original_language=en&primary_release_date.gte=2025-01-01`,
+        `/movie/popular?language=en-US`,
+    ];
+    for (const ep of endpoints) {
+        for (let p = 1; p <= pages; p++) {
             try {
-                const page = await fetchCatalogPage(p);
-                all.push(...page.items);
-            }
-            catch { /* skip */ }
+                const sep = ep.includes('?') ? '&' : '?';
+                const data = await tmdb(`${ep}${sep}page=${p}`);
+                for (const m of (data.results ?? [])) {
+                    if (m.id && !seen.has(m.id)) {
+                        seen.add(m.id);
+                        all.push({ tmdb_id: String(m.id), title: m.title || m.original_title });
+                    }
+                }
+                await sleep(100);
+            } catch (e) { /* skip page */ }
         }
     }
-    console.log(`\n  Total catalog entries: ${all.length}`);
+    console.log(`  Total catalog entries: ${all.length}`);
     return all;
 }
 // ─── TMDB enrichment ─────────────────────────────────────────────────────────
