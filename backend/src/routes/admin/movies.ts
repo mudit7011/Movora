@@ -34,10 +34,30 @@ const movieSchema = z.object({
   scrapedFrom: z.string(),
 })
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const movies = await Movie.find().sort({ createdAt: -1 })
-    res.json(movies)
+    const page  = Math.max(1, parseInt(req.query.page  as string) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 30))
+    const search = ((req.query.search as string) || '').trim()
+
+    const filter: Record<string, unknown> = {}
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { slug:  { $regex: search, $options: 'i' } },
+      ]
+    }
+
+    const [movies, total] = await Promise.all([
+      Movie.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .select('title slug type language releaseYear rating sources posterUrl tmdbId'),
+      Movie.countDocuments(filter),
+    ])
+
+    res.json({ movies, total, page, pages: Math.ceil(total / limit) })
   } catch {
     res.status(500).json({ error: 'Server error' })
   }

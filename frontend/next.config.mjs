@@ -1,16 +1,6 @@
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${BACKEND}/api/:path*`,
-      },
-    ]
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'image.tmdb.org' },
@@ -23,6 +13,7 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         ],

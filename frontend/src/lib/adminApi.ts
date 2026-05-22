@@ -16,6 +16,18 @@ function headers() {
   }
 }
 
+async function checkRes(res: Response) {
+  if (!res.ok) {
+    let msg = `Error ${res.status}`
+    try {
+      const body = await res.json()
+      msg = body.error || msg
+    } catch {}
+    throw new Error(msg)
+  }
+  return res
+}
+
 export const adminApi = {
   async login(email: string, password: string) {
     const res = await fetch(`${BASE}/auth/login`, {
@@ -38,28 +50,25 @@ export const adminApi = {
   },
 
   async getStats() {
-    const res = await fetch(`${BASE}/movies`, { headers: headers() })
-    if (!res.ok) throw new Error('Unauthorized')
-    const movies: any[] = await res.json()
-    const total = movies.length
-    const totalMovies = movies.filter(m => m.type === 'movie').length
-    const totalShows  = movies.filter(m => m.type === 'tvshow').length
-    const recentMovies = movies.slice(0, 8)
-    return { total, totalMovies, totalShows, recentMovies }
+    const res = await fetch(`${BASE}/movies?page=1&limit=8`, { headers: headers() })
+    await checkRes(res)
+    const data = await res.json()
+    // backend now returns { movies, total, page, pages }
+    const movies: any[] = data.movies ?? data
+    const total = data.total ?? movies.length
+    const totalMovies = movies.filter((m: any) => m.type === 'movie').length
+    const totalShows  = movies.filter((m: any) => m.type === 'tvshow').length
+    return { total, totalMovies, totalShows, recentMovies: movies }
   },
 
   async getMovies(page = 1, search = '') {
-    const res = await fetch(`${BASE}/movies`, { headers: headers() })
-    if (!res.ok) throw new Error('Unauthorized')
-    let movies: any[] = await res.json()
-    if (search) {
-      const q = search.toLowerCase()
-      movies = movies.filter(m => m.title.toLowerCase().includes(q) || m.slug.includes(q))
-    }
-    const pageSize = 30
-    const total = movies.length
-    const items = movies.slice((page - 1) * pageSize, page * pageSize)
-    return { items, total, pages: Math.ceil(total / pageSize) }
+    const params = new URLSearchParams({ page: String(page), limit: '30' })
+    if (search) params.set('search', search)
+    const res = await fetch(`${BASE}/movies?${params}`, { headers: headers() })
+    await checkRes(res)
+    const data = await res.json()
+    // backend returns { movies, total, page, pages }
+    return { items: data.movies ?? data, total: data.total ?? 0, pages: data.pages ?? 1 }
   },
 
   async deleteMovie(id: string) {
@@ -67,7 +76,7 @@ export const adminApi = {
       method: 'DELETE',
       headers: headers(),
     })
-    if (!res.ok) throw new Error('Delete failed')
+    await checkRes(res)
   },
 
   async triggerScrape() {
@@ -75,13 +84,13 @@ export const adminApi = {
       method: 'POST',
       headers: headers(),
     })
-    if (!res.ok) throw new Error('Trigger failed')
+    await checkRes(res)
     return res.json()
   },
 
   async getScrapeJobs() {
     const res = await fetch(`${BASE}/scrape/jobs`, { headers: headers() })
-    if (!res.ok) throw new Error('Unauthorized')
+    await checkRes(res)
     return res.json() as Promise<any[]>
   },
 }

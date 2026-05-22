@@ -37,10 +37,27 @@ const movieSchema = zod_1.z.object({
     sources: zod_1.z.array(sourceSchema),
     scrapedFrom: zod_1.z.string(),
 });
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const movies = await Movie_1.Movie.find().sort({ createdAt: -1 });
-        res.json(movies);
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 30));
+        const search = (req.query.search || '').trim();
+        const filter = {};
+        if (search) {
+            filter.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { slug: { $regex: search, $options: 'i' } },
+            ];
+        }
+        const [movies, total] = await Promise.all([
+            Movie_1.Movie.find(filter)
+                .sort({ createdAt: -1 })
+                .skip((page - 1) * limit)
+                .limit(limit)
+                .select('title slug type language releaseYear rating sources posterUrl tmdbId'),
+            Movie_1.Movie.countDocuments(filter),
+        ]);
+        res.json({ movies, total, page, pages: Math.ceil(total / limit) });
     }
     catch {
         res.status(500).json({ error: 'Server error' });

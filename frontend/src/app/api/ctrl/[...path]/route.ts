@@ -24,7 +24,7 @@ async function proxy(req: NextRequest, context: { params: { path: string[] } }) 
     method,
     headers: forwardHeaders,
     body,
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(30000),
   })
 
   const data = await res.text()
