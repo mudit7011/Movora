@@ -4,24 +4,25 @@ export const dynamic = 'force-dynamic'
 
 const BACKEND = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-async function proxy(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const { path } = await params
+async function proxy(req: NextRequest, context: { params: { path: string[] } }) {
+  const { path } = context.params
   const url = `${BACKEND}/api/admin/${path.join('/')}`
 
-  const headers: Record<string, string> = {
+  const forwardHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   }
   const auth = req.headers.get('Authorization')
-  if (auth) headers['Authorization'] = auth
+  if (auth) forwardHeaders['Authorization'] = auth
 
   let body: string | undefined
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
+  const method = req.method
+  if (method !== 'GET' && method !== 'HEAD') {
     body = await req.text()
   }
 
   const res = await fetch(url, {
-    method: req.method,
-    headers,
+    method,
+    headers: forwardHeaders,
     body,
     signal: AbortSignal.timeout(15000),
   })
@@ -33,4 +34,8 @@ async function proxy(req: NextRequest, { params }: { params: Promise<{ path: str
   })
 }
 
-export { proxy as GET, proxy as POST, proxy as PUT, proxy as DELETE, proxy as PATCH }
+export const GET = proxy
+export const POST = proxy
+export const PUT = proxy
+export const DELETE = proxy
+export const PATCH = proxy
