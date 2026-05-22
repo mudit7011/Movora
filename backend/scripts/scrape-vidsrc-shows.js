@@ -62,10 +62,11 @@ async function collectCatalog(maxPages = 0) {
     console.log(`Fetching TMDB TV catalog (${pages} pages each)...`);
     const seen = new Set();
     const all = [];
+    const today = new Date().toISOString().split('T')[0];
     const endpoints = [
         `/tv/on_the_air?language=en-US`,
-        `/discover/tv?sort_by=first_air_date.desc&with_original_language=hi&first_air_date.gte=2024-01-01`,
-        `/discover/tv?sort_by=first_air_date.desc&with_original_language=en&first_air_date.gte=2024-01-01`,
+        `/discover/tv?sort_by=first_air_date.desc&with_original_language=hi&first_air_date.gte=2024-01-01&first_air_date.lte=${today}&vote_count.gte=10`,
+        `/discover/tv?sort_by=first_air_date.desc&with_original_language=en&first_air_date.gte=2024-01-01&first_air_date.lte=${today}&vote_count.gte=10`,
         `/tv/popular?language=en-US`,
     ];
     for (const ep of endpoints) {
@@ -95,6 +96,10 @@ async function enrichFromTmdb(tmdbId) {
     const year = detail.first_air_date ? parseInt(detail.first_air_date.split('-')[0]) : 0;
     const title = detail.name || detail.original_name || '';
     if (!title || !year)
+        return null;
+    if (!detail.vote_count || detail.vote_count < 10)
+        return null;
+    if (detail.first_air_date && new Date(detail.first_air_date) > new Date())
         return null;
     const trailer = (videos.results ?? []).find(v => v.site === 'YouTube' && v.type === 'Trailer')?.key;
     const cast = (credits.cast ?? []).slice(0, 15).map((c) => ({

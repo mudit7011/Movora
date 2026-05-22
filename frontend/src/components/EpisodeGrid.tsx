@@ -23,11 +23,12 @@ export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSel
   useEffect(() => {
     setLoading(true)
     setEpisodes([])
-    api.getEpisodes(show.slug, selectedSeason)
-      .then(data => setEpisodes(data))
+    fetch(`/api/episodes?tmdbId=${encodeURIComponent(show.tmdbId)}&season=${selectedSeason}`)
+      .then(r => r.json())
+      .then(data => setEpisodes(Array.isArray(data) ? data : []))
       .catch(() => setEpisodes([]))
       .finally(() => setLoading(false))
-  }, [show.slug, selectedSeason])
+  }, [show.tmdbId, selectedSeason])
 
   const handleSeasonChange = (s: number) => {
     setSelectedSeason(s)

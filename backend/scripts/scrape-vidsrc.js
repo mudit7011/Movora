@@ -67,10 +67,11 @@ async function collectCatalog(maxPages = 0) {
     console.log(`Fetching TMDB movie catalog (${pages} pages each)...`);
     const seen = new Set();
     const all = [];
+    const today = new Date().toISOString().split('T')[0];
     const endpoints = [
         `/movie/now_playing?language=en-US`,
-        `/discover/movie?sort_by=release_date.desc&with_original_language=hi&primary_release_date.gte=2025-01-01`,
-        `/discover/movie?sort_by=release_date.desc&with_original_language=en&primary_release_date.gte=2025-01-01`,
+        `/discover/movie?sort_by=release_date.desc&with_original_language=hi&primary_release_date.gte=2025-01-01&primary_release_date.lte=${today}&vote_count.gte=10`,
+        `/discover/movie?sort_by=release_date.desc&with_original_language=en&primary_release_date.gte=2025-01-01&primary_release_date.lte=${today}&vote_count.gte=10`,
         `/movie/popular?language=en-US`,
     ];
     for (const ep of endpoints) {
@@ -101,6 +102,10 @@ async function enrichFromTmdb(tmdbId) {
     const year = detail.release_date ? parseInt(detail.release_date.split('-')[0]) : 0;
     const title = detail.title || detail.original_title || '';
     if (!title || !year)
+        return null;
+    if (!detail.vote_count || detail.vote_count < 10)
+        return null;
+    if (detail.release_date && new Date(detail.release_date) > new Date())
         return null;
     const trailer = (videos.results ?? []).find(v => v.site === 'YouTube' && v.type === 'Trailer')?.key;
     const cast = (credits.cast ?? []).slice(0, 15).map(c => ({
