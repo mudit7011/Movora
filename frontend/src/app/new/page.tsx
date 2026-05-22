@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { api } from '@/lib/api'
 import Sidebar from '@/components/Sidebar'
 import MovieCard from '@/components/MovieCard'
