@@ -18,9 +18,10 @@ interface Source {
 function buildSources(tmdbId: string, season: number, episode: number): Source[] {
   const rawId = tmdbId.replace(/^tv_/, '')
   return [
-    { serverName: 'Server 1', url: `https://player.videasy.net/tv/${rawId}/${season}/${episode}`,  quality: 'HD' },
-    { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}`,         quality: 'HD' },
-    { serverName: 'Server 3', url: `https://embedmaster.link/tv/${rawId}/${season}/${episode}`,    quality: 'HD' },
+    { serverName: 'Server 1', url: `https://player.videasy.net/tv/${rawId}/${season}/${episode}`,   quality: 'HD' },
+    { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}`,          quality: 'HD' },
+    { serverName: 'Server 3', url: `https://embedmaster.link/tv/${rawId}/${season}/${episode}`,     quality: 'HD' },
+    { serverName: 'Server 4', url: `https://vidsrc.mov/embed/tv/${rawId}/${season}/${episode}`,     quality: 'HD' },
   ]
 }
 
