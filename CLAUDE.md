@@ -93,3 +93,6 @@ The system MUST be designed with a "Zero-Trust" architecture to prevent hacks, d
 - **WAF & DDoS Protection:** Route all traffic through Cloudflare (or AWS WAF) to block bad bots, mitigate DDoS attacks, and hide the origin server IP.
 - **Secrets Management:** Never hardcode API keys (TMDB), DB URIs, or JWT secrets in the codebase. Use strict environment variables (`.env`) and CI/CD secret managers.
 - **Admin Panel Security:** If an admin panel exists to trigger scrapers manually, it must be protected behind strict Authentication (JWT/OAuth), role-based access control (RBAC), and ideally IP whitelisting.
+
+
+

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { tmdbFetch } from '@/lib/tmdbFetch'
 
-const TMDB_BASE = 'https://api.themoviedb.org/3'
 const IMG_W = 'https://image.tmdb.org/t/p/w342'
 
 function slugify(title: string, year: number) {
@@ -11,25 +11,12 @@ export async function GET(req: NextRequest) {
   const rawId = req.nextUrl.searchParams.get('tmdbId')?.replace(/^(tv_|movie_)/, '')
   if (!rawId) return NextResponse.json([])
 
-  const bearer = process.env.TMDB_BEARER
-  if (!bearer) return NextResponse.json([])
-
   try {
-    const movieRes = await fetch(`${TMDB_BASE}/movie/${rawId}?language=en-US`, {
-      headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!movieRes.ok) return NextResponse.json([])
-    const movie = await movieRes.json()
+    const movie = await tmdbFetch(`/movie/${rawId}?language=en-US`)
 
     if (!movie.belongs_to_collection) return NextResponse.json([])
 
-    const colRes = await fetch(`${TMDB_BASE}/collection/${movie.belongs_to_collection.id}?language=en-US`, {
-      headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!colRes.ok) return NextResponse.json([])
-    const col = await colRes.json()
+    const col = await tmdbFetch(`/collection/${movie.belongs_to_collection.id}?language=en-US`)
 
     const parts = ((col.parts ?? []) as any[])
       .sort((a, b) => (a.release_date ?? '').localeCompare(b.release_date ?? ''))

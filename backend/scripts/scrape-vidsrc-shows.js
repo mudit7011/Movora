@@ -33,17 +33,51 @@ const LANG_MAP = {
     ko: 'Korean', ja: 'Japanese', fr: 'French', es: 'Spanish',
     zh: 'Chinese', de: 'German', it: 'Italian',
 };
+const https = require('https');
+const zlib = require('zlib');
+const dns_1 = require('dns');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function get(url, headers = {}) {
-    const res = await fetch(url, { headers });
-    if (!res.ok)
-        throw new Error(`HTTP ${res.status}: ${url}`);
-    return res.json();
+let _cachedIP = null;
+async function resolveTmdbIP() {
+    if (_cachedIP) return _cachedIP;
+    return new Promise((resolve) => {
+        const resolver = new dns_1.Resolver();
+        resolver.setServers(['8.8.8.8', '8.8.4.4']);
+        resolver.resolve4('api.themoviedb.org', (err, addresses) => {
+            _cachedIP = (!err && addresses[0]) ? addresses[0] : 'api.themoviedb.org';
+            resolve(_cachedIP);
+        });
+    });
 }
 async function tmdb(endpoint) {
-    return get(`${TMDB_BASE}${endpoint}`, {
-        Authorization: `Bearer ${TMDB_BEARER}`,
-        Accept: 'application/json',
+    const ip = await resolveTmdbIP();
+    return new Promise((resolve, reject) => {
+        const req = https.request({
+            host: ip, port: 443,
+            path: `/3${endpoint}`,
+            method: 'GET',
+            servername: 'api.themoviedb.org',
+            headers: {
+                Authorization: `Bearer ${TMDB_BEARER}`,
+                Accept: 'application/json',
+                Host: 'api.themoviedb.org',
+            },
+            timeout: 15000,
+        }, (res) => {
+            if (res.statusCode >= 400) { reject(new Error(`TMDB ${res.statusCode}`)); res.resume(); return; }
+            const enc = res.headers['content-encoding'];
+            let stream = res;
+            if (enc === 'gzip') stream = res.pipe(zlib.createGunzip());
+            else if (enc === 'deflate') stream = res.pipe(zlib.createInflate());
+            else if (enc === 'br') stream = res.pipe(zlib.createBrotliDecompress());
+            const chunks = [];
+            stream.on('data', c => chunks.push(c));
+            stream.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch(e) { reject(e); } });
+            stream.on('error', reject);
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+        req.end();
     });
 }
 function slugify(title, year) {
@@ -56,16 +90,24 @@ function bar(done, total, width = 30) {
 }
 // Use TMDB directly — no scraping, never blocked
 async function collectCatalog(maxPages = 0) {
-    const pages = maxPages > 0 ? maxPages : 3;
+    const pages = maxPages > 0 ? maxPages : 10;
     console.log(`Fetching TMDB TV catalog (${pages} pages each)...`);
     const seen = new Set();
     const all = [];
     const today = new Date().toISOString().split('T')[0];
     const endpoints = [
         `/tv/on_the_air?language=en-US`,
-        `/discover/tv?sort_by=first_air_date.desc&with_original_language=hi&first_air_date.gte=2024-01-01&first_air_date.lte=${today}&vote_count.gte=10`,
-        `/discover/tv?sort_by=first_air_date.desc&with_original_language=en&first_air_date.gte=2024-01-01&first_air_date.lte=${today}&vote_count.gte=10`,
         `/tv/popular?language=en-US`,
+        `/tv/top_rated?language=en-US`,
+        // English — recent years
+        `/discover/tv?sort_by=first_air_date.desc&with_original_language=en&first_air_date.gte=2024-01-01&first_air_date.lte=${today}&vote_count.gte=10`,
+        `/discover/tv?sort_by=popularity.desc&with_original_language=en&first_air_date.gte=2020-01-01&first_air_date.lte=2023-12-31&vote_count.gte=50`,
+        `/discover/tv?sort_by=vote_average.desc&with_original_language=en&first_air_date.gte=2015-01-01&first_air_date.lte=2019-12-31&vote_count.gte=100`,
+        `/discover/tv?sort_by=vote_average.desc&with_original_language=en&first_air_date.gte=2010-01-01&first_air_date.lte=2014-12-31&vote_count.gte=200`,
+        // Hindi
+        `/discover/tv?sort_by=first_air_date.desc&with_original_language=hi&first_air_date.gte=2024-01-01&first_air_date.lte=${today}&vote_count.gte=10`,
+        `/discover/tv?sort_by=popularity.desc&with_original_language=hi&first_air_date.gte=2020-01-01&first_air_date.lte=2023-12-31&vote_count.gte=10`,
+        `/discover/tv?sort_by=vote_average.desc&with_original_language=hi&first_air_date.gte=2015-01-01&first_air_date.lte=2019-12-31&vote_count.gte=20`,
     ];
     for (const ep of endpoints) {
         for (let p = 1; p <= pages; p++) {

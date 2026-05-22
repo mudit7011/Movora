@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import MovieCard from './MovieCard'
 import type { Movie } from '@/types/movie'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const API_URL = ''
 
 const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Drama', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller']
 const YEARS  = Array.from({ length: 9 }, (_, i) => String(new Date().getFullYear() - i))

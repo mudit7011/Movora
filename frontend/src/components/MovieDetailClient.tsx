@@ -274,37 +274,76 @@ export default function MovieDetailClient({ movie }: Props) {
             {/* Series / Collection */}
             {collection.length > 1 && (
               <div className="mb-8">
-                <h2 className="text-lg font-semibold text-foreground mb-4">
-                  {collection[0].collectionName}
-                </h2>
-                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                {/* Section header */}
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-5 rounded-full bg-primary" />
+                    <h2 className="text-lg font-semibold text-foreground">{collection[0].collectionName}</h2>
+                  </div>
+                  <div className="flex-1 h-px bg-white/[0.06]" />
+                  <span className="text-xs text-muted-foreground tabular-nums">{collection.length} films</span>
+                </div>
+
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
                   {collection.map(part => {
                     const isCurrent = part.tmdbId === movie.tmdbId.replace(/^(tv_|movie_)/, '')
                     return (
                       <Link
                         key={part.tmdbId}
                         href={`/movie/${part.slug}`}
-                        className={`flex-shrink-0 w-28 group ${isCurrent ? 'pointer-events-none' : ''}`}
+                        className={`flex-shrink-0 w-36 group ${isCurrent ? 'pointer-events-none' : ''}`}
                       >
-                        <div className={`relative aspect-[2/3] rounded-xl overflow-hidden ring-2 transition-all ${
-                          isCurrent ? 'ring-primary' : 'ring-white/10 group-hover:ring-primary/60'
+                        {/* Poster card */}
+                        <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden transition-all duration-300 ${
+                          isCurrent
+                            ? 'border-2 border-primary shadow-[0_0_28px_rgba(6,214,224,0.35)]'
+                            : 'border border-white/10 group-hover:border-primary/50 group-hover:shadow-[0_0_16px_rgba(6,214,224,0.15)]'
                         }`}>
                           {part.posterUrl ? (
-                            <Image src={part.posterUrl} alt={part.title} fill sizes="112px" className="object-cover" />
+                            <Image src={part.posterUrl} alt={part.title} fill sizes="144px" className="object-cover transition-transform duration-500 group-hover:scale-105" />
                           ) : (
-                            <div className="w-full h-full bg-card" />
+                            <div className="w-full h-full bg-card flex items-center justify-center text-muted-foreground text-sm">No Image</div>
                           )}
-                          {isCurrent && (
-                            <div className="absolute inset-0 bg-primary/20 flex items-end justify-center pb-2">
-                              <span className="text-[10px] font-bold text-primary bg-background/80 px-2 py-0.5 rounded-full">Watching</span>
-                            </div>
-                          )}
-                          <div className="absolute top-1.5 left-1.5 bg-background/80 backdrop-blur-sm text-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+
+                          {/* Dark gradient at bottom */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+                          {/* Part badge — top left */}
+                          <div className="absolute top-2 left-2 z-10 bg-background/75 backdrop-blur-md text-foreground text-[10px] font-bold px-2 py-1 rounded-lg border border-white/10">
                             Part {part.partNumber}
                           </div>
+
+                          {/* Hover play button */}
+                          {!isCurrent && (
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <div className="w-10 h-10 rounded-full bg-primary/90 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                                <svg className="w-4 h-4 text-background ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M8 5.14v14l11-7-11-7z" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-xs text-foreground font-medium mt-2 line-clamp-1">{part.title}</p>
-                        <p className="text-[10px] text-muted-foreground">{part.year}</p>
+
+                        {/* Watching pill — rendered in normal flow, below the poster */}
+                        {isCurrent && (
+                          <div className="flex justify-center mt-2">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary text-background text-[10px] font-bold tracking-wide shadow-[0_0_10px_rgba(6,214,224,0.5)]">
+                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5.14v14l11-7-11-7z" />
+                              </svg>
+                              Watching
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Title + year */}
+                        <div className={`${isCurrent ? 'mt-1.5' : 'mt-2.5'} px-0.5`}>
+                          <p className={`text-xs font-semibold line-clamp-1 ${isCurrent ? 'text-primary' : 'text-foreground group-hover:text-primary transition-colors'}`}>
+                            {part.title}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{part.year}</p>
+                        </div>
                       </Link>
                     )
                   })}
