@@ -27,11 +27,9 @@ const IMG_O = 'https://image.tmdb.org/t/p/original';
 const IMG_FACE = 'https://image.tmdb.org/t/p/w185';
 // Embed servers — ordered by reliability
 const EMBED_SERVERS = [
-    (id) => ({ name: 'Server 1', url: `https://player.videasy.net/movie/${id}`, type: 'iframe', quality: 'HD' }),
-    (id) => ({ name: 'Server 2', url: `https://www.2embed.cc/embed/${id}`, type: 'iframe', quality: 'HD' }),
-    (id) => ({ name: 'Server 3', url: `https://vidsrc.icu/embed/movie/${id}`, type: 'iframe', quality: 'HD' }),
-    (id) => ({ name: 'Server 4', url: `https://embed.su/embed/movie/${id}`, type: 'iframe', quality: 'HD' }),
-    (id) => ({ name: 'Server 5', url: `https://vidsrc.cc/v2/embed/movie/${id}`, type: 'iframe', quality: 'HD' }),
+    (id) => ({ name: 'Server 1', url: `https://embed.su/embed/movie/${id}`, type: 'iframe', quality: 'HD' }),
+    (id) => ({ name: 'Server 2', url: `https://player.videasy.net/movie/${id}`, type: 'iframe', quality: 'HD' }),
+    (id) => ({ name: 'Server 3', url: `https://vidsrc.cc/v2/embed/movie/${id}`, type: 'iframe', quality: 'HD' }),
 ];
 const LANG_MAP = {
     hi: 'Hindi', en: 'English', ta: 'Tamil', te: 'Telugu',
