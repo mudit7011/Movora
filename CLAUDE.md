@@ -1,7 +1,7 @@
 # Project: Streaming Link Aggregator & Frontend Streaming Website
 
 ## 1. Project Overview
-The goal of this project is to build an automated web scraping pipeline that extracts streaming links from various target websites (like streamvaults.ru), and a fully functional user-facing streaming website to display and play this content (TV Shows and Movies) seamlessly.
+The goal of this project is to build an automated web scraping pipeline that extracts streaming links from various target websites (like net22.cc, streamvaults.ru), and a fully functional user-facing streaming website to display and play this content (TV Shows and Movies) seamlessly.
 
 ## 2. Tech Stack Recommendations
 - **Backend API:** Node.js (Express/NestJS) or Python (FastAPI).

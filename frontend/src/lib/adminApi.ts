@@ -1,6 +1,8 @@
 'use client'
 
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+// All admin calls go through the Next.js proxy (/api/ctrl/...)
+// so the browser never makes a direct HTTP call to the EB backend.
+const BASE = '/api/ctrl'
 
 function getToken() {
   return typeof window !== 'undefined' ? sessionStorage.getItem('admin_token') : null
@@ -16,7 +18,7 @@ function headers() {
 
 export const adminApi = {
   async login(email: string, password: string) {
-    const res = await fetch(`${BASE}/api/admin/auth/login`, {
+    const res = await fetch(`${BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -36,7 +38,7 @@ export const adminApi = {
   },
 
   async getStats() {
-    const res = await fetch(`${BASE}/api/admin/movies`, { headers: headers() })
+    const res = await fetch(`${BASE}/movies`, { headers: headers() })
     if (!res.ok) throw new Error('Unauthorized')
     const movies: any[] = await res.json()
     const total = movies.length
@@ -47,7 +49,7 @@ export const adminApi = {
   },
 
   async getMovies(page = 1, search = '') {
-    const res = await fetch(`${BASE}/api/admin/movies`, { headers: headers() })
+    const res = await fetch(`${BASE}/movies`, { headers: headers() })
     if (!res.ok) throw new Error('Unauthorized')
     let movies: any[] = await res.json()
     if (search) {
@@ -61,7 +63,7 @@ export const adminApi = {
   },
 
   async deleteMovie(id: string) {
-    const res = await fetch(`${BASE}/api/admin/movies/${id}`, {
+    const res = await fetch(`${BASE}/movies/${id}`, {
       method: 'DELETE',
       headers: headers(),
     })
@@ -69,7 +71,7 @@ export const adminApi = {
   },
 
   async triggerScrape() {
-    const res = await fetch(`${BASE}/api/admin/scrape/trigger`, {
+    const res = await fetch(`${BASE}/scrape/trigger`, {
       method: 'POST',
       headers: headers(),
     })
@@ -78,7 +80,7 @@ export const adminApi = {
   },
 
   async getScrapeJobs() {
-    const res = await fetch(`${BASE}/api/admin/scrape/jobs`, { headers: headers() })
+    const res = await fetch(`${BASE}/scrape/jobs`, { headers: headers() })
     if (!res.ok) throw new Error('Unauthorized')
     return res.json() as Promise<any[]>
   },
