@@ -19,11 +19,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies (skip binary downloads)
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
         working-directory: backend
 
       - name: Scrape latest movies (3 pages ≈ 60 movies)
