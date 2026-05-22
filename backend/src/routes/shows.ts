@@ -20,18 +20,6 @@ const NOT_DAILY_SOAP = {
 router.get('/', async (req, res) => {
   try {
     const { page = '1', limit = '20', genre, year, language, minRating, sort = 'recent' } = req.query
-    const filter: Record<string, unknown> = { type: 'tvshow' }
-
-    if (genre && typeof genre === 'string') {
-      filter.genres = { $regex: genre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
-    }
-    if (year) filter.releaseYear = Number(year)
-    if (language && typeof language === 'string') {
-      filter.language = language
-    } else {
-      filter.language = { $in: ['Hindi', 'English'] }
-    }
-    if (minRating) filter.rating = { $gte: Number(minRating) }
 
     const sortMap: Record<string, Record<string, 1 | -1>> = {
       recent: { releaseYear: -1, rating: -1 },
@@ -40,14 +28,62 @@ router.get('/', async (req, res) => {
     }
     const sortObj = sortMap[sort as string] ?? sortMap.recent
 
-    const skip = (Number(page) - 1) * Number(limit)
-    const browseFilter = { ...filter, ...NOT_DAILY_SOAP, genres: { $nin: EXCLUDED_GENRES }, posterUrl: { $ne: '' } }
-    const [shows, total] = await Promise.all([
-      Movie.find(browseFilter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources'),
-      Movie.countDocuments(browseFilter),
+    const pageNum = Number(page)
+    const limitNum = Number(limit)
+    const skip = (pageNum - 1) * limitNum
+
+    const matchFilter: Record<string, unknown> = {
+      type: 'tvshow',
+      posterUrl: { $ne: '' },
+      ...NOT_DAILY_SOAP,
+    }
+
+    if (year) matchFilter.releaseYear = Number(year)
+    if (language && typeof language === 'string') {
+      matchFilter.language = language
+    } else {
+      matchFilter.language = { $in: ['Hindi', 'English'] }
+    }
+    if (minRating) matchFilter.rating = { $gte: Number(minRating) }
+
+    if (genre && typeof genre === 'string') {
+      matchFilter.$and = [
+        { genres: { $nin: EXCLUDED_GENRES } },
+        { genres: { $regex: genre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
+      ]
+    } else {
+      matchFilter.genres = { $nin: EXCLUDED_GENRES }
+    }
+
+    const [result] = await Movie.aggregate([
+      { $match: matchFilter },
+      { $sort: sortObj },
+      {
+        $group: {
+          _id: {
+            $cond: {
+              if:   { $eq: [{ $substr: ['$tmdbId', 0, 3] }, 'tv_'] },
+              then: { $substr: ['$tmdbId', 3, 20] },
+              else: '$tmdbId',
+            },
+          },
+          doc: { $first: '$$ROOT' },
+        },
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: sortObj },
+      {
+        $facet: {
+          data:  [{ $skip: skip }, { $limit: limitNum }, { $project: { sources: 0 } }],
+          count: [{ $count: 'total' }],
+        },
+      },
     ])
 
-    res.json({ movies: shows, total, page: Number(page), pages: Math.ceil(total / Number(limit)) })
+    const shows = result?.data ?? []
+    const total = result?.count?.[0]?.total ?? 0
+
+    res.json({ movies: shows, total, page: pageNum, pages: Math.ceil(total / limitNum) })
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
