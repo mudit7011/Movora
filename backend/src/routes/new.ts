@@ -20,12 +20,12 @@ router.get('/', async (_req, res) => {
 
     const [movies, shows] = await Promise.all([
       Movie.find({ ...baseFilter, type: 'movie', runtime: { $gte: 60 } })
-        .sort({ releaseYear: -1, rating: -1 })
-        .limit(40)
+        .sort({ createdAt: -1 })
+        .limit(60)
         .select('-sources'),
       Movie.find({ ...baseFilter, type: 'tvshow' })
-        .sort({ releaseYear: -1, rating: -1 })
-        .limit(40)
+        .sort({ createdAt: -1 })
+        .limit(60)
         .select('-sources'),
     ])
 

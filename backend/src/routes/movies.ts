@@ -66,16 +66,23 @@ router.get('/trending', async (_req, res) => {
       streamVerified: { $ne: false },
       language:       { $in: ['Hindi', 'English'] },
       releaseYear:    { $gte: 2022 },
-      rating:         { $gte: 6, $lte: 9.5 },
+      rating:         { $gte: 7, $lte: 9.5 },
       runtime:        { $gte: 60 },
       genres:         { $nin: EXCLUDED_GENRES },
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
     })
-      .sort({ releaseYear: -1, rating: -1 })
-      .limit(15)
+      .sort({ rating: -1, releaseYear: -1 })
+      .limit(30)
       .select('-sources')
-    res.json(movies)
+    const seen = new Set<string>()
+    const unique = movies.filter(m => {
+      const key = m.title.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 15)
+    res.json(unique)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
@@ -95,10 +102,17 @@ router.get('/latest', async (_req, res) => {
       posterUrl:      { $ne: '' },
       backdropUrl:    { $ne: '' },
     })
-      .sort({ releaseYear: -1, rating: -1 })
-      .limit(20)
+      .sort({ createdAt: -1 })
+      .limit(40)
       .select('-sources')
-    res.json(movies)
+    const seen = new Set<string>()
+    const unique = movies.filter(m => {
+      const key = m.title.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 20)
+    res.json(unique)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
