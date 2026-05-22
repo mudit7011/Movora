@@ -53,7 +53,7 @@ interface Props {
 export default function MovieDetailClient({ movie }: Props) {
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
   const inWatchlist = isInWatchlist(movie._id)
-  const workingSources = movie.sources.filter(s => s.isWorking)
+  const workingSources = movie.sources?.filter(s => s.isWorking) ?? []
 
   const handleWatchlistToggle = () => {
     if (inWatchlist) {
@@ -201,15 +201,13 @@ export default function MovieDetailClient({ movie }: Props) {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-4 mb-8">
-              {workingSources.length > 0 && (
-                <Link
-                  href={`/watch/${movie.slug}`}
-                  className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
-                >
-                  <PlayIcon />
-                  <span>Watch Now</span>
-                </Link>
-              )}
+              <Link
+                href={`/watch/${movie.slug}`}
+                className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
+              >
+                <PlayIcon />
+                <span>Watch Now</span>
+              </Link>
               <button
                 onClick={handleWatchlistToggle}
                 className={`inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base transition-all ${
