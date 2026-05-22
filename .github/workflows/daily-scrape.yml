@@ -1,0 +1,44 @@
+name: Daily Content Scrape
+
+on:
+  schedule:
+    # Runs at 12:00 AM IST (6:30 PM UTC) every day
+    - cron: '30 18 * * *'
+  workflow_dispatch:  # allows manual trigger from GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (skip binary downloads)
+        run: npm ci --ignore-scripts
+        working-directory: backend
+
+      - name: Scrape latest movies (3 pages ≈ 60 movies)
+        run: npx ts-node scripts/scrape-vidsrc.ts
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          TMDB_BEARER: ${{ secrets.TMDB_BEARER }}
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          SCRAPE_MAX_PAGES: '3'
+
+      - name: Scrape latest TV shows (3 pages ≈ 60 shows)
+        run: npx ts-node scripts/scrape-vidsrc-shows.ts
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          TMDB_BEARER: ${{ secrets.TMDB_BEARER }}
+          SCRAPE_MAX_PAGES: '3'
