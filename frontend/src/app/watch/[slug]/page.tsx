@@ -18,10 +18,11 @@ export default async function WatchPage({ params }: Props) {
   const movie = await api.getMovie(params.slug).catch(() => null)
   if (!movie) notFound()
 
-  const id = movie.tmdbId
+  const id = movie.tmdbId.replace(/^movie_/, '')
   const sources: Source[] = [
-    { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}`,      type: 'iframe', quality: 'HD',  isWorking: true },
-    { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}`,             type: 'iframe', quality: 'HD',  isWorking: true },
+    { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}`,   type: 'iframe', quality: 'HD', isWorking: true },
+    { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}`,          type: 'iframe', quality: 'HD', isWorking: true },
+    { serverName: 'Server 3', url: `https://embedmaster.link/movie/${id}`,     type: 'iframe', quality: 'HD', isWorking: true },
   ]
 
   const related = await api.getRelated(movie.slug).catch(() => ({ similar: [], youMayLove: [] }))
