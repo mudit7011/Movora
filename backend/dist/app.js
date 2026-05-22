@@ -13,6 +13,7 @@ const routes_1 = require("./routes");
 const rateLimiter_1 = require("./middleware/rateLimiter");
 function createApp() {
     const app = (0, express_1.default)();
+    app.set('trust proxy', 1);
     app.use((0, helmet_1.default)());
     app.use((0, cors_1.default)({
         origin: env_1.env.FRONTEND_URL,

@@ -9,6 +9,7 @@ import { publicRateLimiter } from './middleware/rateLimiter'
 export function createApp() {
   const app = express()
 
+  app.set('trust proxy', 1)
   app.use(helmet())
   app.use(cors({
     origin: env.FRONTEND_URL,
