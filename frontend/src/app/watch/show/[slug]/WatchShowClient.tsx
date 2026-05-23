@@ -160,7 +160,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
             title={`${show.title} S${season}E${episode} — ${active.serverName}`}
             allow="autoplay; fullscreen; picture-in-picture"
             allowFullScreen
-
+            {...(active.serverName === 'Server 1' && { sandbox: 'allow-scripts allow-same-origin allow-presentation allow-fullscreen' })}
             className="w-full h-full bg-black"
           />
 
