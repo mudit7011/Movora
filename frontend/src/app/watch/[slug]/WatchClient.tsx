@@ -129,6 +129,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
               title={`${movie.title} — ${active.serverName}`}
               allow="autoplay; fullscreen; picture-in-picture"
               allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
               className="w-full h-full bg-black"
             />
           )}
