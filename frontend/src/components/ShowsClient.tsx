@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import type { Movie } from '@/types/movie'
 import MovieCard from './MovieCard'
+import { useTV } from '@/components/TvProvider'
 
 const GENRES = ['Drama', 'Crime', 'Action & Adventure', 'Sci-Fi & Fantasy', 'Comedy', 'Mystery', 'Animation', 'Documentary', 'War & Politics', 'Family', 'Western', 'Kids']
 const YEARS = Array.from({ length: 9 }, (_, i) => String(new Date().getFullYear() - i))
@@ -24,6 +25,7 @@ interface Props {
 export default function ShowsClient({ initialGenre, initialYear, initialLanguage, initialSort }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const isTV = useTV()
 
   const [shows, setShows] = useState<Movie[]>([])
   const [total, setTotal] = useState(0)
@@ -80,7 +82,7 @@ export default function ShowsClient({ initialGenre, initialYear, initialLanguage
   const hasMore = page < pages
 
   return (
-    <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24">
+    <div className={`min-h-screen pb-24 lg:pb-8 ${isTV ? 'pt-20' : 'lg:pl-24'}`}>
 
       {/* Sticky filter bar — same style as movies */}
       <div className="sticky top-0 z-30 bg-background/85 backdrop-blur-xl border-b border-white/[0.06]">

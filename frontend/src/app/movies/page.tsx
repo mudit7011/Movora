@@ -26,16 +26,14 @@ export default async function MoviesPage({ searchParams }: Props) {
   return (
     <>
       <Sidebar />
-      <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24">
-        <Suspense>
-          <BrowseClient
-            key={filterKey}
-            initialMovies={data.movies}
-            initialTotal={data.total}
-            initialPages={data.pages}
-          />
-        </Suspense>
-      </div>
+      <Suspense>
+        <BrowseClient
+          key={filterKey}
+          initialMovies={data.movies}
+          initialTotal={data.total}
+          initialPages={data.pages}
+        />
+      </Suspense>
     </>
   )
 }

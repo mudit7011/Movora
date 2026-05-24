@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import MovieCard from './MovieCard'
 import type { Movie } from '@/types/movie'
+import { useTV } from '@/components/TvProvider'
 
 const API_URL = ''
 
@@ -24,6 +25,7 @@ interface Props {
 export default function BrowseClient({ initialMovies, initialTotal, initialPages }: Props) {
   const searchParams = useSearchParams()
   const router       = useRouter()
+  const isTV = useTV()
   const [movies, setMovies] = useState<Movie[]>(initialMovies)
   const [page, setPage]     = useState(1)
   const [isPending, start]  = useTransition()
@@ -70,7 +72,7 @@ export default function BrowseClient({ initialMovies, initialTotal, initialPages
   }
 
   return (
-    <div>
+    <div className={`min-h-screen pb-24 lg:pb-8 ${isTV ? 'pt-20' : 'lg:pl-24'}`}>
 
       {/* ── Sticky filter bar ── */}
       <div className="sticky top-0 z-30 bg-background/85 backdrop-blur-xl border-b border-white/[0.06]">
