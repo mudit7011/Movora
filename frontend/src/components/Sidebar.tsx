@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Movie } from '@/types/movie'
+import { useTV } from '@/components/TvProvider'
 
 // Icons as SVG components for premium look
 const HomeIcon = ({ className }: { className?: string }) => (
@@ -71,6 +72,7 @@ const navItems: NavItem[] = [
 const API_URL = ''
 
 export default function Sidebar() {
+  const isTV    = useTV()
   const pathname = usePathname()
   const router = useRouter()
   const [isExpanded, setIsExpanded] = useState(false)
@@ -169,6 +171,8 @@ export default function Sidebar() {
     router.push(item.type === 'tvshow' ? `/show/${item.slug}` : `/movie/${item.slug}`)
     closeSearch()
   }
+
+  if (isTV) return null
 
   return (
     <>

@@ -201,3 +201,76 @@ body {
   background: rgba(6, 214, 224, 0.3);
   color: var(--foreground);
 }
+
+/* ─── TV MODE ─────────────────────────────────────────────── */
+[data-tv] {
+  cursor: none !important;
+}
+
+[data-tv] * {
+  cursor: none !important;
+}
+
+/* Hide default focus outline — Framer Motion handles it */
+[data-tv] :focus {
+  outline: none !important;
+}
+
+/* TV focus ring on focusable cards */
+[data-tv] [data-focusable]:focus {
+  outline: none !important;
+  box-shadow:
+    0 0 0 3px var(--primary),
+    0 0 40px rgba(6, 214, 224, 0.5),
+    0 0 80px rgba(6, 214, 224, 0.2);
+  transform: scale(1.08);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease;
+  z-index: 50;
+  position: relative;
+}
+
+/* TV — larger base font */
+[data-tv] body {
+  font-size: 18px;
+}
+
+/* TV — hide sidebar (use full width) */
+[data-tv] .lg\:pl-24 {
+  padding-left: 0 !important;
+}
+
+/* TV — bigger carousel cards */
+[data-tv] .carousel-card {
+  width: 220px !important;
+}
+
+/* TV — bigger grid cards */
+[data-tv] .movie-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 2rem !important;
+}
+
+/* TV — larger hero text */
+[data-tv] .hero-title {
+  font-size: 4rem !important;
+  line-height: 1.1 !important;
+}
+
+/* TV — bigger buttons */
+[data-tv] .btn-primary,
+[data-tv] .btn-glass {
+  padding: 1rem 2rem !important;
+  font-size: 1.1rem !important;
+  border-radius: 1rem !important;
+}
+
+/* TV — no scrollbar */
+[data-tv] ::-webkit-scrollbar {
+  display: none;
+}
+
+/* TV — footer hidden */
+[data-tv] footer {
+  display: none !important;
+}

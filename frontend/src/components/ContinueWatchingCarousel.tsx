@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion, useMotionValue, useSpring, PanInfo } from 'framer-motion'
 import { useRef, useState, useEffect } from 'react'
+import { useTV } from '@/components/TvProvider'
 
 const PlayIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -49,6 +50,7 @@ interface Props {
 }
 
 export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
+  const isTV = useTV()
   const containerRef = useRef<HTMLDivElement>(null)
   const [constraints, setConstraints] = useState({ left: 0, right: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -110,7 +112,7 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
   return (
     <section className="py-8 relative">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 px-4 sm:px-6 lg:pl-24 lg:pr-8">
+      <div className={`flex items-center justify-between mb-6 px-4 sm:px-6 ${isTV ? 'lg:px-16' : 'lg:pl-24 lg:pr-8'}`}>
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
             Continue Watching
@@ -156,7 +158,7 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
           dragTransition={{ bounceStiffness: 300, bounceDamping: 30 }}
           onDragStart={() => setIsDragging(true)}
           onDragEnd={handleDragEnd}
-          className={`flex gap-4 px-4 sm:px-6 lg:pl-24 lg:pr-8 pb-4 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          className={`flex gap-4 pb-4 ${isTV ? 'px-16 gap-6' : 'px-4 sm:px-6 lg:pl-24 lg:pr-8'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         >
           {items.map((item) => {
             const progress = (item.timestamp / item.duration) * 100

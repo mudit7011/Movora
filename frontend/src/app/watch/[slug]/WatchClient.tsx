@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic'
 import type { Movie, Source } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import { useUserData } from '@/lib/useUserData'
+import { useTV } from '@/components/TvProvider'
 
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
 
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function WatchClient({ movie, sources, related }: Props) {
+  const isTV = useTV()
   const [activeIdx, setActiveIdx]   = useState(0)
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
@@ -153,6 +155,8 @@ export default function WatchClient({ movie, sources, related }: Props) {
               <button
                 key={i}
                 onClick={() => setActiveIdx(i)}
+                data-focusable={isTV ? '' : undefined}
+                tabIndex={isTV ? 0 : undefined}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                   i === activeIdx
                     ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'

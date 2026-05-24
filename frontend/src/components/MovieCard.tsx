@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useCallback } from 'react'
 import type { Movie } from '@/types/movie'
+import { useTV } from '@/components/TvProvider'
 
 const PlayIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -31,9 +32,11 @@ interface Props {
 
 export default function MovieCard({ movie, onAddToWatchlist }: Props) {
   const [isHovered, setIsHovered] = useState(false)
+  const [isTvFocused, setIsTvFocused] = useState(false)
+  const isTV   = useTV()
   const isShow = movie.type === 'tvshow'
   const detailHref = isShow ? `/show/${movie.slug}` : `/movie/${movie.slug}`
-  const watchHref = isShow ? `/watch/show/${movie.slug}?season=1&episode=1` : `/watch/${movie.slug}`
+  const watchHref  = isShow ? `/watch/show/${movie.slug}?season=1&episode=1` : `/watch/${movie.slug}`
 
   const handleAddToWatchlist = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -41,25 +44,33 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
     onAddToWatchlist?.(movie)
   }, [movie, onAddToWatchlist])
 
+  const active = isHovered || isTvFocused
+
   return (
     <motion.div
       className="relative w-full group"
+      data-focusable={isTV ? '' : undefined}
+      tabIndex={isTV ? 0 : undefined}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsTvFocused(true)}
+      onBlur={() => setIsTvFocused(false)}
+      animate={isTvFocused ? { scale: 1.1, zIndex: 50 } : { scale: 1, zIndex: 1 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 24 }}
       initial={false}
     >
       <Link href={detailHref} className="block">
         <motion.div
           animate={{
-            scale: isHovered ? 1.03 : 1,
-            zIndex: isHovered ? 20 : 1,
+            scale: active && !isTV ? 1.03 : 1,
+            zIndex: active ? 20 : 1,
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           className="relative"
         >
           {/* Poster */}
           <div className={`relative aspect-[2/3] rounded-xl overflow-hidden bg-card transition-shadow duration-300 ${
-            isHovered ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
+            active ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
           }`}>
             {movie.posterUrl ? (
               <Image
@@ -77,7 +88,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
 
             {/* Hover Overlay */}
             <AnimatePresence>
-              {isHovered && (
+              {active && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -98,7 +109,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
 
             {/* Hover Content */}
             <AnimatePresence>
-              {isHovered && (
+              {active && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -146,7 +157,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
         {/* Title and Meta */}
         <motion.div
           className="mt-3 px-1"
-          animate={{ opacity: isHovered ? 0 : 1 }}
+          animate={{ opacity: active ? 0 : 1 }}
           transition={{ duration: 0.15 }}
         >
           <h3 className="text-sm font-medium text-foreground line-clamp-1 text-pretty">

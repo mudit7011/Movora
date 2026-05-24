@@ -6,6 +6,7 @@ import Carousel from '@/components/Carousel'
 import ContinueWatchingCarousel from '@/components/ContinueWatchingCarousel'
 import Sidebar from '@/components/Sidebar'
 import { useUserData } from '@/lib/useUserData'
+import { useTV } from '@/components/TvProvider'
 import type { Movie } from '@/types/movie'
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function HomePageClient({ trending, latest, hindi, english, trendingShows, latestShows, hindiShows, englishShows }: Props) {
+  const isTV = useTV()
   const { continueWatching, addToWatchlist, removeFromHistory } = useUserData()
 
   const handleAddToWatchlist = useCallback((movie: Movie) => {
@@ -40,7 +42,7 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
     <>
       <Sidebar />
 
-      <main className="min-h-screen pb-24 lg:pb-8">
+      <main className={`min-h-screen pb-24 lg:pb-8 ${isTV ? '' : 'lg:pl-24'}`}>
         {hero && <Hero movie={hero} movies={featuredItems} />}
 
         <div className="relative -mt-20 z-10">

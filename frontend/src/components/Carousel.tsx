@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion, useMotionValue, animate, PanInfo } from 'framer-motion'
 import type { Movie } from '@/types/movie'
 import MovieCard from './MovieCard'
+import { useTV } from '@/components/TvProvider'
 
 const ChevronLeftIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }: Props) {
+  const isTV = useTV()
   const containerRef = useRef<HTMLDivElement>(null)
   const [constraints, setConstraints] = useState({ left: 0, right: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -94,7 +96,7 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
   return (
     <section className="py-8 relative group/carousel">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 px-4 sm:px-6 lg:pl-24 lg:pr-8">
+      <div className={`flex items-center justify-between mb-6 px-4 sm:px-6 ${isTV ? 'lg:px-16' : 'lg:pl-24 lg:pr-8'}`}>
         <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
           {title}
         </h2>
@@ -154,7 +156,7 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
           dragTransition={{ bounceStiffness: 300, bounceDamping: 30 }}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          className={`flex gap-4 px-4 sm:px-6 lg:pl-24 lg:pr-8 pb-4 ${
+          className={`flex gap-4 pb-4 ${isTV ? 'px-16 gap-6' : 'px-4 sm:px-6 lg:pl-24 lg:pr-8'} ${
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
           }`}
         >

@@ -8,6 +8,7 @@ import type { Movie } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import EpisodeGrid from '@/components/EpisodeGrid'
 import { useUserData } from '@/lib/useUserData'
+import { useTV } from '@/components/TvProvider'
 
 interface Source {
   serverName: string
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export default function WatchShowClient({ show, initialSeason, initialEpisode, related }: Props) {
+  const isTV   = useTV()
   const router = useRouter()
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
@@ -184,6 +186,8 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               <button
                 key={i}
                 onClick={() => setActiveServerIdx(i)}
+                data-focusable={isTV ? '' : undefined}
+                tabIndex={isTV ? 0 : undefined}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                   i === activeServerIdx
                     ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
