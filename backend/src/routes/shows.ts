@@ -231,7 +231,17 @@ router.get('/related/:slug', async (req, res) => {
 
     const topGenres = show.genres.slice(0, 2)
 
-    const [similar, youMayLove] = await Promise.all([
+    const dedup = (docs: any[]) => {
+      const seen = new Set<string>()
+      return docs.filter(d => {
+        const key = String(d.tmdbId ?? '').replace(/^tv_/, '')
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+      }).slice(0, 12)
+    }
+
+    const [rawSimilar, rawYouMayLove] = await Promise.all([
       Movie.find({
         _id:            { $ne: show._id },
         type:           'tvshow',
@@ -240,7 +250,7 @@ router.get('/related/:slug', async (req, res) => {
         streamVerified: { $ne: false },
         rating:         { $gte: 5 },
         posterUrl:      { $ne: '' },
-      }).sort({ rating: -1, releaseYear: -1 }).limit(12).select('-sources'),
+      }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
 
       Movie.find({
         _id:            { $ne: show._id },
@@ -250,10 +260,10 @@ router.get('/related/:slug', async (req, res) => {
         streamVerified: { $ne: false },
         rating:         { $gte: 7 },
         posterUrl:      { $ne: '' },
-      }).sort({ rating: -1, releaseYear: -1 }).limit(12).select('-sources'),
+      }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
     ])
 
-    res.json({ similar, youMayLove })
+    res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) })
   } catch {
     res.status(500).json({ error: 'Server error' })
   }

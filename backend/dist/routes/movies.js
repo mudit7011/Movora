@@ -32,18 +32,15 @@ router.get('/', async (req, res) => {
         filter.rating = ratingFilter;
         filter.runtime = minRuntime ? { $gte: Number(minRuntime) } : { $gte: 60 };
         filter.posterUrl = { $ne: '' };
-        const skip = (Number(page) - 1) * Number(limit);
-        const total = await Movie_1.Movie.countDocuments(filter);
-        let movies;
+        const pageNum = Number(page);
+        const limitNum = Number(limit);
+        const skip = (pageNum - 1) * limitNum;
+        let allDocs;
         if (!sort || sort === 'recent') {
-            // Weighted score: mix of rating + recency
-            // score = rating * 1.5 + (releaseYear - 2000) * 0.3
-            movies = await Movie_1.Movie.aggregate([
+            allDocs = await Movie_1.Movie.aggregate([
                 { $match: { ...filter, rating: { ...filter.rating, $gte: 5 } } },
                 { $addFields: { _score: { $add: [{ $multiply: ['$rating', 1.5] }, { $multiply: [{ $subtract: ['$releaseYear', 2000] }, 0.3] }] } } },
                 { $sort: { _score: -1 } },
-                { $skip: skip },
-                { $limit: Number(limit) },
                 { $project: { sources: 0, _score: 0 } },
             ]);
         }
@@ -53,9 +50,20 @@ router.get('/', async (req, res) => {
                 year: { releaseYear: -1 },
             };
             const sortObj = sortMap[sort] ?? { releaseYear: -1 };
-            movies = await Movie_1.Movie.find(filter).sort(sortObj).skip(skip).limit(Number(limit)).select('-sources');
+            allDocs = await Movie_1.Movie.find(filter).sort(sortObj).select('-sources').lean();
         }
-        res.json({ movies, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+        // Dedup by normalized tmdbId (strip movie_ prefix)
+        const seen = new Set();
+        const deduped = allDocs.filter(doc => {
+            const key = String(doc.tmdbId ?? '').replace(/^movie_/, '');
+            if (!key || seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        });
+        const total = deduped.length;
+        const movies = deduped.slice(skip, skip + limitNum);
+        res.json({ movies, total, page: pageNum, pages: Math.ceil(total / limitNum) });
     }
     catch {
         res.status(500).json({ error: 'Server error' });
@@ -190,8 +198,17 @@ router.get('/related/:slug', async (req, res) => {
         if (!movie)
             return res.json([]);
         const topGenres = movie.genres.slice(0, 2);
-        const [similar, youMayLove] = await Promise.all([
-            // Same genre, same language
+        const dedup = (docs) => {
+            const seen = new Set();
+            return docs.filter(d => {
+                const key = String(d.tmdbId ?? '').replace(/^movie_/, '');
+                if (!key || seen.has(key))
+                    return false;
+                seen.add(key);
+                return true;
+            }).slice(0, 12);
+        };
+        const [rawSimilar, rawYouMayLove] = await Promise.all([
             Movie_1.Movie.find({
                 _id: { $ne: movie._id },
                 genres: { $in: topGenres },
@@ -199,8 +216,7 @@ router.get('/related/:slug', async (req, res) => {
                 streamVerified: { $ne: false },
                 rating: { $gte: 5 },
                 posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(12).select('-sources'),
-            // Same language, highly rated, different taste
+            }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
             Movie_1.Movie.find({
                 _id: { $ne: movie._id },
                 genres: { $nin: topGenres },
@@ -208,9 +224,9 @@ router.get('/related/:slug', async (req, res) => {
                 streamVerified: { $ne: false },
                 rating: { $gte: 7 },
                 posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(12).select('-sources'),
+            }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
         ]);
-        res.json({ similar, youMayLove });
+        res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) });
     }
     catch {
         res.status(500).json({ error: 'Server error' });
