@@ -15,6 +15,7 @@ interface CollectionPart {
   slug: string
   partNumber: number
   collectionName: string
+  unreleased?: boolean
 }
 
 const PlayIcon = () => (
@@ -342,7 +343,12 @@ export default function MovieDetailClient({ movie }: Props) {
                           <p className={`text-xs font-semibold line-clamp-1 ${isCurrent ? 'text-primary' : 'text-foreground group-hover:text-primary transition-colors'}`}>
                             {part.title}
                           </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{part.year}</p>
+                          <p className="text-[11px] mt-0.5">
+                            {part.unreleased
+                              ? <span className="text-accent font-semibold">Coming Soon</span>
+                              : <span className="text-muted-foreground">{part.year}</span>
+                            }
+                          </p>
                         </div>
                       </Link>
                     )
