@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-const TV_UA = /SMART-TV|SmartTV|Tizen|WebOS|HbbTV|CrKey|NetCast|NETTV|googletv|Android.*TV|TV Safari|BRAVIA|Roku|AmazonWebAppPlatform|AFT|AFTS|AFTB|Vizio|PhilipsTV|SonyDTV|LOEWE|Hisense|TCL|Skyworth/i
+const TV_UA = /SMART-TV|SmartTV|Tizen|WebOS|HbbTV|CrKey|NetCast|NETTV|googletv|Android.*TV|TV Safari|BRAVIA|Roku|AmazonWebAppPlatform|AFT|AFTS|AFTB|Vizio|PhilipsTV|SonyDTV|LOEWE|Hisense|TCL|Skyworth|TVBro|TV\s?Bro/i
 const LS_KEY = 'movora_tv_mode'
 
 export function useTvMode(): boolean {

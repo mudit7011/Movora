@@ -211,6 +211,15 @@ body {
   cursor: none !important;
 }
 
+/* TV — kill all animations/transitions for performance on weak TV CPUs */
+[data-tv] *,
+[data-tv] *::before,
+[data-tv] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
 /* Hide default focus outline — Framer Motion handles it */
 [data-tv] :focus {
   outline: none !important;
