@@ -9,7 +9,7 @@ import { adminScrapeRouter } from './admin/scrape'
 const router = Router()
 
 router.get('/health', (_req, res) => {
-  res.json({ status: 'ok' })
+  res.json({ status: 'ok', host: 'render', region: 'singapore' })
 })
 
 router.use('/movies', moviesRouter)
