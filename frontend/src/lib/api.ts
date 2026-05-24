@@ -7,12 +7,18 @@ const API_URL = typeof window === 'undefined'
   ? (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
   : ''
 
+const SSR_HEADERS: Record<string, string> =
+  typeof window === 'undefined' && process.env.INTERNAL_API_TOKEN
+    ? { 'x-internal-token': process.env.INTERNAL_API_TOKEN }
+    : {}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 8000)
   try {
     const res = await fetch(`${API_URL}${path}`, {
       ...init,
+      headers: { ...SSR_HEADERS, ...(init?.headers ?? {}) },
       signal: controller.signal,
       cache: 'no-store',
     })
