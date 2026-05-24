@@ -138,7 +138,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
       </div>
 
       {/* ── Content below player ── */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 lg:pb-8 space-y-5">
 
         {/* Server switcher card */}
         <div className="glass rounded-2xl p-5">

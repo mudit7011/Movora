@@ -7,6 +7,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Movie } from '@/types/movie'
 import { useTV } from '@/components/TvProvider'
+import TvNavbar from '@/components/TvNavbar'
 
 // Icons as SVG components for premium look
 const HomeIcon = ({ className }: { className?: string }) => (
@@ -172,7 +173,7 @@ export default function Sidebar() {
     closeSearch()
   }
 
-  if (isTV) return null
+  if (isTV) return <TvNavbar />
 
   return (
     <>
