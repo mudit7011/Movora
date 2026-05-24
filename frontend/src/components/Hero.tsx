@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useMemo } from 'react'
 import type { Movie } from '@/types/movie'
 import { useUserData } from '@/lib/useUserData'
+import { useTV } from '@/components/TvProvider'
 
 const PlayIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -50,6 +51,7 @@ function extractDominantColor(index: number): string {
 }
 
 export default function Hero({ movie, movies = [] }: Props) {
+  const isTV = useTV()
   const [currentIndex, setCurrentIndex] = useState(0)
   const featuredMovies = movies.length > 0 ? movies.slice(0, 8) : [movie]
   const currentMovie = featuredMovies[currentIndex]
@@ -97,6 +99,7 @@ export default function Hero({ movie, movies = [] }: Props) {
         >
           {currentMovie.backdropUrl && (
             <Image
+              key={currentMovie._id}
               src={currentMovie.backdropUrl}
               alt={currentMovie.title}
               fill
@@ -141,14 +144,16 @@ export default function Hero({ movie, movies = [] }: Props) {
       {/* Grain Overlay */}
       <div className="grain absolute inset-0" />
 
-      {/* Movora Logo — top left */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-5">
-        <Link href="/" className="select-none">
-          <span className="text-2xl font-bold tracking-tight">
-            <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
-          </span>
-        </Link>
-      </div>
+      {/* Movora Logo — top left (hidden in TV mode; TvNavbar already shows it) */}
+      {!isTV && (
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-5">
+          <Link href="/" className="select-none">
+            <span className="text-2xl font-bold tracking-tight">
+              <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
+            </span>
+          </Link>
+        </div>
+      )}
 
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col justify-end lg:pl-24 pb-32 lg:pb-24">

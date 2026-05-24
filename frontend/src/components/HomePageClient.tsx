@@ -42,7 +42,7 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
     <>
       <Sidebar />
 
-      <main className={`min-h-screen pb-24 lg:pb-8 ${isTV ? '' : 'lg:pl-24'}`}>
+      <main className={`min-h-screen pb-24 lg:pb-8 ${isTV ? 'pt-20' : ''}`}>
         {hero && <Hero movie={hero} movies={featuredItems} />}
 
         <div className="relative -mt-20 z-10">
