@@ -30,8 +30,8 @@ export default function WatchlistPage() {
   return (
     <>
       <Sidebar />
-      <div className="min-h-screen pt-8 pb-24 lg:pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:pl-28 lg:pr-8 py-8">
+      <div className="min-h-screen pt-8 pb-24 lg:pb-8 lg:pl-24">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Watch Later</h1>

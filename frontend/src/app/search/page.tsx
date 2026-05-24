@@ -96,7 +96,7 @@ export default async function SearchPage({ searchParams }: Props) {
   return (
     <>
       <Sidebar />
-      <div className="min-h-screen">
+      <div className="min-h-screen lg:pl-24">
         {/* Hero Search Section */}
         <div className={`relative transition-all duration-500 ${hasQuery ? 'pt-8 pb-8' : 'pt-32 pb-20'}`}>
           {/* Animated Background Gradient */}
@@ -106,7 +106,7 @@ export default async function SearchPage({ searchParams }: Props) {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-radial from-primary/5 to-transparent rounded-full" />
           </div>
           
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:pl-28 lg:pr-8">
+          <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Title Section - Only show when no query */}
             {!hasQuery && (
               <div className="text-center mb-12">
@@ -130,7 +130,7 @@ export default async function SearchPage({ searchParams }: Props) {
         </div>
 
         {/* Results Section */}
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:pl-28 lg:pr-8 pb-24 lg:pb-8">
+        <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pb-24 lg:pb-8">
           <Suspense fallback={
             <div className="flex flex-col items-center justify-center py-20">
               <div className="relative">
