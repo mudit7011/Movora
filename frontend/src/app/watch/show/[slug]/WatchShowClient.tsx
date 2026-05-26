@@ -162,6 +162,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay *; fullscreen *; picture-in-picture *"
               allowFullScreen
+              referrerPolicy="no-referrer"
               className="w-full h-full bg-black"
             />
           </div>
