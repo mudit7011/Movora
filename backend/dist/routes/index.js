@@ -11,7 +11,7 @@ const scrape_1 = require("./admin/scrape");
 const router = (0, express_1.Router)();
 exports.routes = router;
 router.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', host: 'render', region: 'singapore' });
 });
 router.use('/movies', movies_1.moviesRouter);
 router.use('/shows', shows_1.showsRouter);

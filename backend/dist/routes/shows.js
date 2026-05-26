@@ -1,9 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showsRouter = void 0;
 const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
+const fuse_js_1 = __importDefault(require("fuse.js"));
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300';
 function shuffle(arr) {
     const a = [...arr];
@@ -84,11 +88,12 @@ router.get('/', async (req, res) => {
 });
 router.get('/trending', async (_req, res) => {
     try {
+        const currentYear = new Date().getFullYear();
         const shows = await Movie_1.Movie.find({
             type: 'tvshow',
             streamVerified: { $ne: false },
             language: { $in: ['Hindi', 'English'] },
-            releaseYear: { $gte: 2020 },
+            releaseYear: { $gte: 2020, $lte: currentYear - 1 },
             rating: { $gte: 7.5, $lte: 9.5 },
             genres: { $nin: EXCLUDED_GENRES },
             posterUrl: { $ne: '' },
@@ -178,33 +183,41 @@ router.get('/search', async (req, res) => {
         const { q } = req.query;
         if (!q || typeof q !== 'string')
             return res.json([]);
-        const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(escaped, 'i');
-        const shows = await Movie_1.Movie.aggregate([
-            {
-                $match: {
-                    type: 'tvshow',
-                    $or: [{ title: regex }, { titleHindi: regex }, { synopsis: regex }],
-                },
-            },
-            {
-                $addFields: {
-                    _score: {
-                        $switch: {
-                            branches: [
-                                { case: { $regexMatch: { input: '$title', regex: escaped, options: 'i' } }, then: 3 },
-                                { case: { $regexMatch: { input: { $ifNull: ['$titleHindi', ''] }, regex: escaped, options: 'i' } }, then: 2 },
-                            ],
-                            default: 1,
-                        },
-                    },
-                },
-            },
-            { $sort: { _score: -1, rating: -1 } },
-            { $limit: 20 },
-            { $project: { sources: 0, _score: 0 } },
-        ]);
-        res.json(shows);
+        const raw = q.trim();
+        const tokens = raw.split(/\s+/).filter(Boolean);
+        const escapedFull = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const anyTokenFilter = tokens.map(t => {
+            const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] };
+        });
+        const candidates = await Movie_1.Movie.find({
+            type: 'tvshow',
+            $or: [
+                { $and: anyTokenFilter },
+                { title: { $regex: escapedFull, $options: 'i' } },
+                { titleHindi: { $regex: escapedFull, $options: 'i' } },
+                { synopsis: { $regex: escapedFull, $options: 'i' } },
+            ],
+        })
+            .limit(100)
+            .select('-sources')
+            .lean();
+        const fuse = new fuse_js_1.default(candidates, {
+            keys: [
+                { name: 'title', weight: 2 },
+                { name: 'titleHindi', weight: 1.5 },
+                { name: 'synopsis', weight: 0.5 },
+            ],
+            threshold: 0.45,
+            includeScore: true,
+            ignoreLocation: true,
+            minMatchCharLength: 2,
+        });
+        const fuseResults = fuse.search(raw);
+        const ranked = fuseResults.length > 0
+            ? fuseResults.map(r => r.item)
+            : candidates.sort((a, b) => b.rating - a.rating);
+        res.json(ranked.slice(0, 20));
     }
     catch {
         res.status(500).json({ error: 'Server error' });

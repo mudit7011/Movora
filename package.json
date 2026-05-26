@@ -14,5 +14,11 @@
     "build:backend": "npm run build --workspace=backend",
     "build": "npm run build --workspace=backend",
     "start": "node backend/dist/server.js"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "ts-node": "^10.9.2"
   }
 }

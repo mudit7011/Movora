@@ -72,6 +72,38 @@ const navItems: NavItem[] = [
 // proxy forwards requests to the backend (avoids mixed-content blocking).
 const API_URL = ''
 
+const RECENTS_KEY = 'movora_recent_searches'
+const MAX_RECENTS = 6
+
+function getRecents(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]') } catch { return [] }
+}
+function saveRecent(q: string) {
+  const prev = getRecents().filter(s => s.toLowerCase() !== q.toLowerCase())
+  localStorage.setItem(RECENTS_KEY, JSON.stringify([q, ...prev].slice(0, MAX_RECENTS)))
+}
+function removeRecent(q: string) {
+  const prev = getRecents().filter(s => s !== q)
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(prev))
+}
+
+function highlightTokens(text: string, query: string): React.ReactNode {
+  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  if (!tokens.length) return text
+  const pattern = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  const parts = text.split(new RegExp(`(${pattern})`, 'gi'))
+  const matchRe = new RegExp(`^(${pattern})$`, 'i')
+  return (
+    <>
+      {parts.map((part, i) =>
+        matchRe.test(part)
+          ? <mark key={i} className="bg-primary/20 text-primary not-italic rounded-[2px] px-[1px]">{part}</mark>
+          : part
+      )}
+    </>
+  )
+}
+
 export default function Sidebar() {
   const isTV    = useTV()
   const pathname = usePathname()
@@ -82,7 +114,11 @@ export default function Sidebar() {
   const [results, setResults] = useState<Movie[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [selectedIdx, setSelectedIdx] = useState(-1)
+  const [recents, setRecents] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Load recents on mount (client only)
+  useEffect(() => { setRecents(getRecents()) }, [])
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false)
@@ -90,6 +126,19 @@ export default function Sidebar() {
     setResults([])
     setSelectedIdx(-1)
   }, [])
+
+  const navigate = useCallback((item: Movie) => {
+    router.push(item.type === 'tvshow' ? `/show/${item.slug}` : `/movie/${item.slug}`)
+    closeSearch()
+  }, [router, closeSearch])
+
+  const submitQuery = useCallback((q: string) => {
+    if (!q.trim()) return
+    saveRecent(q.trim())
+    setRecents(getRecents())
+    router.push(`/search?q=${encodeURIComponent(q.trim())}`)
+    closeSearch()
+  }, [router, closeSearch])
 
   // Open on Cmd+K / Ctrl+K
   useEffect(() => {
@@ -124,7 +173,6 @@ export default function Sidebar() {
           fetch(`${API_URL}/api/movies/search?q=${q}`).then(r => r.json()),
           fetch(`${API_URL}/api/shows/search?q=${q}`).then(r => r.json()),
         ])
-        // Interleave movies + shows, cap at 8
         const merged: Movie[] = []
         const max = Math.max((movies as Movie[]).length, (shows as Movie[]).length)
         for (let i = 0; i < max && merged.length < 8; i++) {
@@ -136,11 +184,11 @@ export default function Sidebar() {
         setResults([])
       }
       setIsSearching(false)
-    }, 280)
+    }, 260)
     return () => clearTimeout(timer)
   }, [query, searchOpen])
 
-  // Keyboard navigation inside modal
+  // Keyboard navigation
   useEffect(() => {
     if (!searchOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -155,23 +203,15 @@ export default function Sidebar() {
       }
       if (e.key === 'Enter') {
         if (selectedIdx >= 0 && results[selectedIdx]) {
-          const item = results[selectedIdx]
-          router.push(item.type === 'tvshow' ? `/show/${item.slug}` : `/movie/${item.slug}`)
-          closeSearch()
+          navigate(results[selectedIdx])
         } else if (query.trim()) {
-          router.push(`/search?q=${encodeURIComponent(query.trim())}`)
-          closeSearch()
+          submitQuery(query)
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [searchOpen, results, selectedIdx, query, router, closeSearch])
-
-  const handleResultClick = (item: Movie) => {
-    router.push(item.type === 'tvshow' ? `/show/${item.slug}` : `/movie/${item.slug}`)
-    closeSearch()
-  }
+  }, [searchOpen, results, selectedIdx, query, navigate, submitQuery, closeSearch])
 
   if (isTV) return <TvNavbar />
 
@@ -313,70 +353,85 @@ export default function Sidebar() {
       <AnimatePresence>
         {searchOpen && (
           <>
-            {/* Backdrop — full screen, click to close */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              transition={{ duration: 0.15 }}
               onClick={closeSearch}
               className="fixed inset-0 z-[60]"
-              style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+              style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
             />
 
-            {/* Centering shell — flex so NO transform needed on modal (fixes Framer Motion conflict) */}
-            <div className="fixed inset-0 z-[70] flex items-start justify-center px-4 pt-[10vh] pointer-events-none">
+            <div className="fixed inset-0 z-[70] flex items-start justify-center px-4 pt-[8vh] pointer-events-none">
               <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.97 }}
+                initial={{ opacity: 0, y: -16, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -12, scale: 0.97 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-                className="w-full max-w-[680px] pointer-events-auto"
+                exit={{ opacity: 0, y: -10, scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 440, damping: 40 }}
+                className="w-full max-w-[700px] pointer-events-auto"
                 onClick={e => e.stopPropagation()}
               >
-                {/* Outer glow ring */}
                 <div className="relative rounded-2xl"
-                  style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.07), 0 32px 64px rgba(0,0,0,0.6), 0 0 60px rgba(6,214,224,0.06)' }}
+                  style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 40px 80px rgba(0,0,0,0.7), 0 0 80px rgba(6,214,224,0.07)' }}
                 >
                   <div className="rounded-2xl overflow-hidden"
-                    style={{ background: 'rgba(14,14,20,0.97)', backdropFilter: 'blur(48px)', WebkitBackdropFilter: 'blur(48px)' }}
+                    style={{ background: 'rgba(12,12,18,0.98)', backdropFilter: 'blur(60px)', WebkitBackdropFilter: 'blur(60px)' }}
                   >
 
                     {/* ── Input row ── */}
-                    <div className="flex items-center gap-3 px-5 py-4">
-                      <div className="flex-shrink-0 text-white/30">
-                        {isSearching ? (
-                          <svg className="w-5 h-5 text-primary animate-spin" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="55" strokeDashoffset="38" strokeLinecap="round" />
-                          </svg>
-                        ) : (
-                          <SearchIcon className="w-5 h-5" />
-                        )}
+                    <div className="flex items-center gap-3 px-5 py-4 pb-3.5">
+                      <div className="flex-shrink-0">
+                        <AnimatePresence mode="wait">
+                          {isSearching ? (
+                            <motion.svg key="spin" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="w-5 h-5 text-primary animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeDasharray="55" strokeDashoffset="38" strokeLinecap="round" />
+                            </motion.svg>
+                          ) : (
+                            <motion.div key="icon" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
+                              <SearchIcon className="w-5 h-5 text-white/25" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                       <input
                         ref={inputRef}
                         value={query}
                         onChange={e => { setQuery(e.target.value); setSelectedIdx(-1) }}
-                        placeholder="Search movies & TV shows..."
-                        className="flex-1 bg-transparent text-white placeholder:text-white/20 text-[17px] font-medium outline-none tracking-tight"
+                        onKeyDown={e => e.key === 'Enter' && !results.length && query.trim() && submitQuery(query)}
+                        placeholder="Search movies, shows, actors..."
+                        className="flex-1 bg-transparent text-white placeholder:text-white/18 text-[17px] font-medium outline-none tracking-tight"
+                        style={{ caretColor: 'rgb(6,214,224)' }}
                       />
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {query ? (
-                          <button
-                            onClick={() => { setQuery(''); setResults([]); inputRef.current?.focus() }}
-                            className="w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/50 hover:text-white transition-all text-sm"
-                          >×</button>
-                        ) : (
-                          <kbd className="hidden sm:flex items-center gap-0.5 px-2 py-1 text-[10px] font-semibold text-white/20 bg-white/[0.04] rounded-md border border-white/[0.06]">
-                            <span className="text-xs">⌘</span>K
-                          </kbd>
-                        )}
-                        <kbd className="flex items-center px-2 py-1 text-[10px] font-semibold text-white/20 bg-white/[0.04] rounded-md border border-white/[0.06]">ESC</kbd>
+                        <AnimatePresence>
+                          {query && (
+                            <motion.button
+                              initial={{ opacity: 0, scale: 0.7 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.7 }}
+                              onClick={() => { setQuery(''); setResults([]); inputRef.current?.focus() }}
+                              className="w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/40 hover:text-white transition-all text-sm leading-none"
+                            >×</motion.button>
+                          )}
+                        </AnimatePresence>
+                        {!query && <kbd className="hidden sm:flex items-center gap-0.5 px-2 py-1 text-[10px] font-semibold text-white/15 bg-white/[0.03] rounded-md border border-white/[0.05]"><span className="text-xs">⌘</span>K</kbd>}
+                        <kbd className="flex items-center px-2 py-1 text-[10px] font-semibold text-white/15 bg-white/[0.03] rounded-md border border-white/[0.05]">ESC</kbd>
                       </div>
                     </div>
 
-                    {/* Divider */}
-                    <div className="h-px bg-white/[0.06] mx-5" />
+                    {/* Progress bar while searching */}
+                    <div className="h-[1px] mx-0 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-white/[0.05]" />
+                      {isSearching && (
+                        <motion.div
+                          className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary/60 to-cyan-400/60"
+                          initial={{ width: '0%' }}
+                          animate={{ width: '85%' }}
+                          transition={{ duration: 0.5, ease: 'easeOut' }}
+                        />
+                      )}
+                    </div>
 
                     {/* ── Body ── */}
                     <AnimatePresence mode="wait">
@@ -386,110 +441,170 @@ export default function Sidebar() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          transition={{ duration: 0.12 }}
-                          className="overflow-y-auto"
-                          style={{ maxHeight: 'min(55vh, 480px)' }}
+                          transition={{ duration: 0.1 }}
+                          className="overflow-y-auto overscroll-contain"
+                          style={{ maxHeight: 'min(58vh, 500px)' }}
                         >
+                          <div className="px-5 pt-3 pb-1 flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-white/15 uppercase tracking-[0.12em]">
+                              {results.length} result{results.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
                           {results.map((item, i) => {
                             const isSelected = i === selectedIdx
                             const isShow = item.type === 'tvshow'
                             return (
-                              <button
+                              <motion.button
                                 key={item._id}
-                                onClick={() => handleResultClick(item)}
+                                initial={{ opacity: 0, x: -8 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.03, duration: 0.15 }}
+                                onClick={() => navigate(item)}
                                 onMouseEnter={() => setSelectedIdx(i)}
-                                className={`w-full flex items-center gap-4 px-5 py-3 text-left transition-colors duration-100 ${
-                                  isSelected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
+                                className={`w-full flex items-center gap-4 px-5 py-3 text-left transition-all duration-100 group ${
+                                  isSelected ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'
                                 }`}
                               >
-                                {/* Poster */}
-                                <div className="flex-shrink-0 w-9 h-[54px] rounded-md overflow-hidden bg-white/[0.06] ring-1 ring-white/[0.07]">
+                                {/* Poster — 2:3 ratio, 48×72 */}
+                                <div className={`flex-shrink-0 w-12 h-[72px] rounded-lg overflow-hidden bg-white/[0.06] ring-1 transition-all ${isSelected ? 'ring-primary/40 shadow-lg shadow-primary/10' : 'ring-white/[0.07]'}`}>
                                   {item.posterUrl ? (
-                                    <Image src={item.posterUrl} alt={item.title} width={36} height={54}
+                                    <Image src={item.posterUrl} alt={item.title} width={48} height={72}
                                       className="object-cover w-full h-full" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
-                                      <svg className="w-3.5 h-3.5 text-white/15" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M8 5.14v14l11-7-11-7z" />
-                                      </svg>
+                                      <svg className="w-4 h-4 text-white/10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v14l11-7-11-7z"/></svg>
                                     </div>
                                   )}
                                 </div>
 
                                 {/* Text */}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[14px] font-semibold text-white/90 line-clamp-1 leading-snug mb-1">{item.title}</p>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${
-                                      isShow ? 'text-primary/90 bg-primary/10' : 'text-white/35 bg-white/5'
+                                  <p className="text-[14.5px] font-semibold text-white/90 line-clamp-1 leading-snug mb-1.5">
+                                    {highlightTokens(item.title, query)}
+                                  </p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded tracking-wider ${
+                                      isShow ? 'text-primary bg-primary/10 border border-primary/20' : 'text-white/30 bg-white/[0.05] border border-white/[0.08]'
                                     }`}>
                                       {isShow ? 'SERIES' : 'MOVIE'}
                                     </span>
-                                    <span className="text-[11px] text-white/30">{item.releaseYear}</span>
-                                    {item.genres[0] && <span className="text-[11px] text-white/25 truncate">{item.genres[0]}</span>}
+                                    <span className="text-[11px] text-white/30 font-medium">{item.releaseYear}</span>
+                                    {item.genres[0] && (
+                                      <span className="text-[11px] text-white/20 truncate max-w-[100px]">{item.genres[0]}</span>
+                                    )}
                                   </div>
                                 </div>
 
-                                {/* Rating */}
-                                <div className="flex-shrink-0 flex items-center gap-1.5">
+                                {/* Rating + arrow */}
+                                <div className="flex-shrink-0 flex flex-col items-end gap-2">
                                   <div className="flex items-center gap-1">
-                                    <svg className="w-3 h-3 text-accent/80" viewBox="0 0 24 24" fill="currentColor">
+                                    <svg className="w-3 h-3 text-yellow-400/70" viewBox="0 0 24 24" fill="currentColor">
                                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                                     </svg>
-                                    <span className="text-[12px] font-bold text-white/50">{item.rating.toFixed(1)}</span>
+                                    <span className="text-[12px] font-bold text-white/45">{item.rating.toFixed(1)}</span>
                                   </div>
-                                  <svg className={`w-3.5 h-3.5 transition-opacity ${isSelected ? 'text-primary/60 opacity-100' : 'opacity-0'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <motion.svg
+                                    className="w-3.5 h-3.5 text-primary/50"
+                                    animate={{ opacity: isSelected ? 1 : 0, x: isSelected ? 0 : -4 }}
+                                    transition={{ duration: 0.15 }}
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                                  >
                                     <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
+                                  </motion.svg>
                                 </div>
-                              </button>
+                              </motion.button>
                             )
                           })}
                         </motion.div>
 
                       ) : query.trim() && !isSearching ? (
-                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-14 flex flex-col items-center gap-3">
-                          <div className="w-14 h-14 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
-                            <SearchIcon className="w-6 h-6 text-white/15" />
+                        <motion.div key="empty" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="py-16 flex flex-col items-center gap-4">
+                          <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center">
+                            <svg className="w-7 h-7 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                              <path d="M8 11h6M11 8v6" strokeLinecap="round"/>
+                            </svg>
                           </div>
                           <div className="text-center">
-                            <p className="text-sm font-medium text-white/40">No results for</p>
-                            <p className="text-base font-bold text-white/60 mt-0.5">&ldquo;{query}&rdquo;</p>
+                            <p className="text-[13px] font-medium text-white/30">No results for</p>
+                            <p className="text-[15px] font-bold text-white/55 mt-0.5">&ldquo;{query}&rdquo;</p>
+                            <p className="text-[11px] text-white/20 mt-2">Try different keywords or check spelling</p>
                           </div>
                         </motion.div>
 
                       ) : !query.trim() ? (
-                        <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-5 py-5">
-                          <p className="text-[10px] text-white/15 uppercase tracking-[0.14em] font-semibold mb-3">Browse by genre</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {[
-                              { label: 'Action', href: '/movies?genre=Action' },
-                              { label: 'Thriller', href: '/movies?genre=Thriller' },
-                              { label: 'Drama', href: '/movies?genre=Drama' },
-                              { label: 'Comedy', href: '/movies?genre=Comedy' },
-                              { label: 'Sci-Fi', href: '/movies?genre=Sci-Fi' },
-                              { label: 'Crime', href: '/movies?genre=Crime' },
-                              { label: 'Horror', href: '/movies?genre=Horror' },
-                              { label: 'TV Drama', href: '/shows?genre=Drama' },
-                              { label: 'TV Action', href: '/shows?genre=Action+%26+Adventure' },
-                            ].map(item => (
-                              <button
-                                key={item.label}
-                                onClick={() => { router.push(item.href); closeSearch() }}
-                                className="px-3 py-1.5 text-[11px] font-medium text-white/40 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white/70 rounded-full border border-white/[0.06] transition-all"
-                              >
-                                {item.label}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="mt-4 pt-4 border-t border-white/[0.05]">
-                            <p className="text-[10px] text-white/15 uppercase tracking-[0.14em] font-semibold mb-2">Quick access</p>
-                            <div className="flex gap-2">
-                              {[{ label: 'New & Popular', href: '/new' }, { label: 'Top Rated', href: '/movies?sort=rating' }, { label: 'Watch Later', href: '/watchlist' }].map(item => (
+                        <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-5 py-4">
+                          {/* Recent searches */}
+                          {recents.length > 0 && (
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between mb-2.5">
+                                <p className="text-[10px] text-white/15 uppercase tracking-[0.14em] font-semibold">Recent searches</p>
+                                <button
+                                  onClick={() => { localStorage.setItem(RECENTS_KEY, '[]'); setRecents([]) }}
+                                  className="text-[10px] text-white/20 hover:text-white/50 transition-colors"
+                                >Clear all</button>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {recents.map(r => (
+                                  <div key={r} className="group flex items-center gap-1 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] rounded-full transition-all">
+                                    <button
+                                      onClick={() => { setQuery(r); inputRef.current?.focus() }}
+                                      className="flex items-center gap-1.5 pl-3 pr-1 py-1.5"
+                                    >
+                                      <svg className="w-3 h-3 text-white/20 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+                                      </svg>
+                                      <span className="text-[11px] font-medium text-white/45">{r}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => { removeRecent(r); setRecents(getRecents()) }}
+                                      className="pr-2 pl-0.5 py-1.5 text-white/15 hover:text-white/50 transition-colors opacity-0 group-hover:opacity-100 text-xs"
+                                    >×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Genre chips */}
+                          <div className={recents.length > 0 ? 'pt-3 border-t border-white/[0.04]' : ''}>
+                            <p className="text-[10px] text-white/15 uppercase tracking-[0.14em] font-semibold mb-2.5">Browse by genre</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                { label: 'Action', href: '/movies?genre=Action' },
+                                { label: 'Thriller', href: '/movies?genre=Thriller' },
+                                { label: 'Drama', href: '/movies?genre=Drama' },
+                                { label: 'Comedy', href: '/movies?genre=Comedy' },
+                                { label: 'Sci-Fi', href: '/movies?genre=Sci-Fi' },
+                                { label: 'Crime', href: '/movies?genre=Crime' },
+                                { label: 'Horror', href: '/movies?genre=Horror' },
+                                { label: 'TV Drama', href: '/shows?genre=Drama' },
+                                { label: 'TV Action', href: '/shows?genre=Action+%26+Adventure' },
+                              ].map(item => (
                                 <button
                                   key={item.label}
                                   onClick={() => { router.push(item.href); closeSearch() }}
-                                  className="flex-1 py-2 text-[11px] font-medium text-white/40 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white/70 rounded-lg border border-white/[0.06] transition-all"
+                                  className="px-3 py-1.5 text-[11px] font-medium text-white/35 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white/65 rounded-full border border-white/[0.06] transition-all"
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Quick access */}
+                          <div className="mt-4 pt-3 border-t border-white/[0.04]">
+                            <p className="text-[10px] text-white/15 uppercase tracking-[0.14em] font-semibold mb-2">Quick access</p>
+                            <div className="flex gap-2">
+                              {[
+                                { label: 'New & Popular', href: '/new' },
+                                { label: 'Top Rated', href: '/movies?sort=rating' },
+                                { label: 'Watch Later', href: '/watchlist' },
+                              ].map(item => (
+                                <button
+                                  key={item.label}
+                                  onClick={() => { router.push(item.href); closeSearch() }}
+                                  className="flex-1 py-2.5 text-[11px] font-medium text-white/35 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white/65 rounded-xl border border-white/[0.06] transition-all"
                                 >
                                   {item.label}
                                 </button>
@@ -501,22 +616,22 @@ export default function Sidebar() {
                     </AnimatePresence>
 
                     {/* ── Footer ── */}
-                    <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/[0.05]">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/[0.04]">
+                      <div className="flex items-center gap-3.5">
                         {[['↑↓', 'navigate'], ['↵', 'select'], ['esc', 'close']].map(([key, label]) => (
                           <div key={key} className="flex items-center gap-1.5">
-                            <kbd className="px-1.5 py-0.5 text-[9px] font-bold text-white/20 bg-white/[0.04] rounded border border-white/[0.06]">{key}</kbd>
-                            <span className="text-[10px] text-white/15">{label}</span>
+                            <kbd className="px-1.5 py-0.5 text-[9px] font-bold text-white/18 bg-white/[0.04] rounded border border-white/[0.06]">{key}</kbd>
+                            <span className="text-[10px] text-white/12">{label}</span>
                           </div>
                         ))}
                       </div>
                       {query.trim() && (
                         <button
-                          onClick={() => { router.push(`/search?q=${encodeURIComponent(query.trim())}`); closeSearch() }}
-                          className="flex items-center gap-1 text-[11px] text-primary/50 hover:text-primary font-medium transition-colors"
+                          onClick={() => submitQuery(query)}
+                          className="flex items-center gap-1.5 text-[11px] text-primary/40 hover:text-primary font-semibold transition-colors group"
                         >
-                          All results
-                          <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6h8M6 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          See all results
+                          <svg className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6h8M6 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </button>
                       )}
                     </div>

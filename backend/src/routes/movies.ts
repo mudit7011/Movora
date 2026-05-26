@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { Movie } from '../models/Movie'
+import Fuse from 'fuse.js'
 
 const router = Router()
 
@@ -173,35 +174,50 @@ router.get('/search', async (req, res) => {
     const { q } = req.query
     if (!q || typeof q !== 'string') return res.json([])
 
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(escaped, 'i')
+    const raw = q.trim()
+    const tokens = raw.split(/\s+/).filter(Boolean)
+    const escapedFull = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-    const movies = await Movie.aggregate([
-      {
-        $match: {
-          type: 'movie',
-          $or: [{ title: regex }, { titleHindi: regex }, { synopsis: regex }],
-        },
-      },
-      {
-        $addFields: {
-          _score: {
-            $switch: {
-              branches: [
-                { case: { $regexMatch: { input: '$title', regex: escaped, options: 'i' } }, then: 3 },
-                { case: { $regexMatch: { input: { $ifNull: ['$titleHindi', ''] }, regex: escaped, options: 'i' } }, then: 2 },
-              ],
-              default: 1,
-            },
-          },
-        },
-      },
-      { $sort: { _score: -1, rating: -1 } },
-      { $limit: 20 },
-      { $project: { sources: 0, _score: 0 } },
-    ])
+    // Pull a broad candidate set: match any token in title or titleHindi
+    const anyTokenFilter = tokens.map(t => {
+      const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] }
+    })
 
-    res.json(movies)
+    const candidates = await Movie.find({
+      type: 'movie',
+      $or: [
+        { $and: anyTokenFilter },
+        { title: { $regex: escapedFull, $options: 'i' } },
+        { titleHindi: { $regex: escapedFull, $options: 'i' } },
+        { synopsis: { $regex: escapedFull, $options: 'i' } },
+      ],
+    })
+      .limit(100)
+      .select('-sources')
+      .lean()
+
+    // Fuzzy-rank the candidates so typos and word-order differences still surface
+    const fuse = new Fuse(candidates, {
+      keys: [
+        { name: 'title', weight: 2 },
+        { name: 'titleHindi', weight: 1.5 },
+        { name: 'synopsis', weight: 0.5 },
+      ],
+      threshold: 0.45,
+      includeScore: true,
+      ignoreLocation: true,
+      minMatchCharLength: 2,
+    })
+
+    const fuseResults = fuse.search(raw)
+
+    // If fuse found matches, return those; otherwise fall back to candidates sorted by rating
+    const ranked = fuseResults.length > 0
+      ? fuseResults.map(r => r.item)
+      : candidates.sort((a, b) => (b as any).rating - (a as any).rating)
+
+    res.json(ranked.slice(0, 20))
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
