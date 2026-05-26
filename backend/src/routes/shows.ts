@@ -150,7 +150,7 @@ router.get('/latest', async (_req, res) => {
 
 router.get('/by-language/:lang', async (req, res) => {
   try {
-    const shows = await Movie.find({
+    const raw = await Movie.find({
       type:           'tvshow',
       streamVerified: { $ne: false },
       language:       req.params.lang,
@@ -161,8 +161,15 @@ router.get('/by-language/:lang', async (req, res) => {
       ...NOT_DAILY_SOAP,
     })
       .sort({ releaseYear: -1 })
-      .limit(20)
+      .limit(60)
       .select('-sources')
+    const seen = new Set<string>()
+    const shows = raw.filter(s => {
+      const key = `${s.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${s.releaseYear ?? ''}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 20)
     res.json(shows)
   } catch {
     res.status(500).json({ error: 'Server error' })

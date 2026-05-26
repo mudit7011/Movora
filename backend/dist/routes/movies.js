@@ -143,7 +143,7 @@ router.get('/latest', async (_req, res) => {
 });
 router.get('/by-language/:lang', async (req, res) => {
     try {
-        const movies = await Movie_1.Movie.find({
+        const raw = await Movie_1.Movie.find({
             type: 'movie',
             streamVerified: { $ne: false },
             language: req.params.lang,
@@ -155,8 +155,16 @@ router.get('/by-language/:lang', async (req, res) => {
             backdropUrl: { $ne: '' },
         })
             .sort({ rating: -1, releaseYear: -1 })
-            .limit(20)
+            .limit(60)
             .select('-sources');
+        const seen = new Set();
+        const movies = raw.filter(m => {
+            const key = `${m.title.toLowerCase().replace(/[^a-z0-9]/g, '')}_${m.releaseYear ?? ''}`;
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 20);
         res.json(movies);
     }
     catch {
