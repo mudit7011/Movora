@@ -28,10 +28,13 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
     addToWatchlist(movie)
   }, [addToWatchlist])
 
-  // 8-slide hero: interleave top 4 movies + top 4 shows (movie, show, movie, show…)
+  // 8-slide hero: daily-rotating window through trending pool
+  const daySeed = Math.floor(Date.now() / 86400000)
+  const mOff = trending.length > 4 ? daySeed % (trending.length - 3) : 0
+  const sOff = trendingShows.length > 4 ? (daySeed + 3) % (trendingShows.length - 3) : 0
+  const topMovies = trending.slice(mOff, mOff + 4)
+  const topShows  = trendingShows.slice(sOff, sOff + 4)
   const featuredItems: Movie[] = []
-  const topMovies = trending.slice(0, 4)
-  const topShows = trendingShows.slice(0, 4)
   for (let i = 0; i < 4; i++) {
     if (topMovies[i]) featuredItems.push(topMovies[i])
     if (topShows[i]) featuredItems.push(topShows[i])

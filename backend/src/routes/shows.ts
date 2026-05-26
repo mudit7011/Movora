@@ -4,6 +4,15 @@ import { tmdbFetch } from '../utils/tmdb'
 
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300'
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 const router = Router()
 
 const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap']
@@ -233,12 +242,15 @@ router.get('/related/:slug', async (req, res) => {
 
     const dedup = (docs: any[]) => {
       const seen = new Set<string>()
-      return docs.filter(d => {
-        const key = String(d.tmdbId ?? '').replace(/^tv_/, '')
-        if (!key || seen.has(key)) return false
-        seen.add(key)
+      const unique = docs.filter(d => {
+        const idKey  = String(d.tmdbId ?? '').replace(/^tv_/, '')
+        const titleKey = `${String(d.title ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')}_${d.releaseYear ?? ''}`
+        if (seen.has(idKey) || seen.has(titleKey)) return false
+        if (idKey) seen.add(idKey)
+        seen.add(titleKey)
         return true
-      }).slice(0, 12)
+      })
+      return shuffle(unique).slice(0, 12)
     }
 
     const [rawSimilar, rawYouMayLove] = await Promise.all([
@@ -250,7 +262,7 @@ router.get('/related/:slug', async (req, res) => {
         streamVerified: { $ne: false },
         rating:         { $gte: 5 },
         posterUrl:      { $ne: '' },
-      }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
+      }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
 
       Movie.find({
         _id:            { $ne: show._id },
@@ -258,9 +270,9 @@ router.get('/related/:slug', async (req, res) => {
         genres:         { $nin: topGenres },
         language:       { $in: show.language },
         streamVerified: { $ne: false },
-        rating:         { $gte: 7 },
+        rating:         { $gte: 6.5 },
         posterUrl:      { $ne: '' },
-      }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
+      }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
     ])
 
     res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) })

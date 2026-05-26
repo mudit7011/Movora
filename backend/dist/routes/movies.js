@@ -5,6 +5,14 @@ const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const router = (0, express_1.Router)();
 exports.moviesRouter = router;
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 // Genres that are unusable on embed providers or undesirable on home page
 const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap', 'TV Movie'];
 router.get('/', async (req, res) => {
@@ -200,13 +208,17 @@ router.get('/related/:slug', async (req, res) => {
         const topGenres = movie.genres.slice(0, 2);
         const dedup = (docs) => {
             const seen = new Set();
-            return docs.filter(d => {
-                const key = String(d.tmdbId ?? '').replace(/^movie_/, '');
-                if (!key || seen.has(key))
+            const unique = docs.filter(d => {
+                const idKey = String(d.tmdbId ?? '').replace(/^movie_/, '');
+                const titleKey = `${String(d.title ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')}_${d.releaseYear ?? ''}`;
+                if (seen.has(idKey) || seen.has(titleKey))
                     return false;
-                seen.add(key);
+                if (idKey)
+                    seen.add(idKey);
+                seen.add(titleKey);
                 return true;
-            }).slice(0, 12);
+            });
+            return shuffle(unique).slice(0, 12);
         };
         const [rawSimilar, rawYouMayLove] = await Promise.all([
             Movie_1.Movie.find({
@@ -216,15 +228,15 @@ router.get('/related/:slug', async (req, res) => {
                 streamVerified: { $ne: false },
                 rating: { $gte: 5 },
                 posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
+            }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
             Movie_1.Movie.find({
                 _id: { $ne: movie._id },
                 genres: { $nin: topGenres },
                 language: { $in: movie.language },
                 streamVerified: { $ne: false },
-                rating: { $gte: 7 },
+                rating: { $gte: 6.5 },
                 posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
+            }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
         ]);
         res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) });
     }

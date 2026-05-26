@@ -5,6 +5,14 @@ const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300';
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 const router = (0, express_1.Router)();
 exports.showsRouter = router;
 const EXCLUDED_GENRES = ['Music', 'Talk', 'News', 'Reality', 'Soap'];
@@ -226,13 +234,17 @@ router.get('/related/:slug', async (req, res) => {
         const topGenres = show.genres.slice(0, 2);
         const dedup = (docs) => {
             const seen = new Set();
-            return docs.filter(d => {
-                const key = String(d.tmdbId ?? '').replace(/^tv_/, '');
-                if (!key || seen.has(key))
+            const unique = docs.filter(d => {
+                const idKey = String(d.tmdbId ?? '').replace(/^tv_/, '');
+                const titleKey = `${String(d.title ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')}_${d.releaseYear ?? ''}`;
+                if (seen.has(idKey) || seen.has(titleKey))
                     return false;
-                seen.add(key);
+                if (idKey)
+                    seen.add(idKey);
+                seen.add(titleKey);
                 return true;
-            }).slice(0, 12);
+            });
+            return shuffle(unique).slice(0, 12);
         };
         const [rawSimilar, rawYouMayLove] = await Promise.all([
             Movie_1.Movie.find({
@@ -243,16 +255,16 @@ router.get('/related/:slug', async (req, res) => {
                 streamVerified: { $ne: false },
                 rating: { $gte: 5 },
                 posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
+            }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
             Movie_1.Movie.find({
                 _id: { $ne: show._id },
                 type: 'tvshow',
                 genres: { $nin: topGenres },
                 language: { $in: show.language },
                 streamVerified: { $ne: false },
-                rating: { $gte: 7 },
+                rating: { $gte: 6.5 },
                 posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(40).select('-sources').lean(),
+            }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
         ]);
         res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) });
     }
