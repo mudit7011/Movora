@@ -20,7 +20,7 @@ export default async function WatchPage({ params }: Props) {
 
   const id = movie.tmdbId.replace(/^movie_/, '')
   const sources: Source[] = [
-    { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}?color=06D6E0&autoplay=1`,   type: 'iframe', quality: 'HD', isWorking: true },
+    { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}?color=06D6E0&autoplay=1&overlay=true`,   type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}`,          type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 3', url: `https://embedmaster.link/movie/${id}`,     type: 'iframe', quality: 'HD', isWorking: true },
   ]
