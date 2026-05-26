@@ -38,6 +38,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
+  const [audioLang, setAudioLang] = useState<'en' | 'hi'>('en')
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 
@@ -84,6 +85,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setSeason(s)
     setEpisode(ep)
     setActiveServerIdx(0)
+    setAudioLang('en')
     router.replace(`/watch/show/${show.slug}?season=${s}&episode=${ep}`, { scroll: false })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -173,7 +175,46 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
         {/* Server switcher */}
         <div className="glass rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
+
+          {/* Audio language quick-select */}
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-3">Audio Language</p>
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setAudioLang('en')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                audioLang === 'en'
+                  ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
+                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
+              }`}
+            >
+              🇺🇸 English
+            </button>
+            <button
+              onClick={() => { setAudioLang('hi'); setActiveServerIdx(0) }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                audioLang === 'hi'
+                  ? 'bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.35)]'
+                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-orange-500/40'
+              }`}
+            >
+              🇮🇳 Hindi
+            </button>
+          </div>
+          {audioLang === 'hi' && (
+            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 mb-4">
+              <svg className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
+              </svg>
+              <p className="text-xs text-orange-200/80 leading-relaxed">
+                Server 1 is selected. Inside the player tap <span className="font-semibold text-orange-200">⚙ Settings → Servers → Fade</span> to switch to Hindi audio.
+              </p>
+            </div>
+          )}
+
+          <div className="h-px bg-white/[0.06] mb-4" />
+
+          {/* Server buttons */}
+          <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Select Server</p>
             {hasNextServer && (
               <button onClick={tryNextServer} className="text-xs text-primary hover:text-primary/80 font-medium transition-colors">
@@ -185,7 +226,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
             {sources.map((src, i) => (
               <button
                 key={i}
-                onClick={() => setActiveServerIdx(i)}
+                onClick={() => { setActiveServerIdx(i); if (i !== 0) setAudioLang('en') }}
                 data-focusable={isTV ? '' : undefined}
                 tabIndex={isTV ? 0 : undefined}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
@@ -196,6 +237,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${i === activeServerIdx ? 'bg-background' : 'bg-white/20'}`} />
                 {src.serverName}
+                {i === 0 && <span className="text-[9px] font-semibold text-orange-400/80">हि</span>}
               </button>
             ))}
           </div>
