@@ -38,7 +38,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
-  const [audioLang, setAudioLang] = useState<'en' | 'hi'>('en')
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 
@@ -85,7 +84,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setSeason(s)
     setEpisode(ep)
     setActiveServerIdx(0)
-    setAudioLang('en')
     router.replace(`/watch/show/${show.slug}?season=${s}&episode=${ep}`, { scroll: false })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -173,47 +171,47 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       {/* Content below player */}
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 lg:pb-8 space-y-5">
 
-        {/* Server switcher */}
-        <div className="glass rounded-2xl p-5">
-
-          {/* Audio language quick-select */}
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-3">Audio Language</p>
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setAudioLang('en')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                audioLang === 'en'
-                  ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
-                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
-              }`}
-            >
-              🇺🇸 English
-            </button>
-            <button
-              onClick={() => { setAudioLang('hi'); setActiveServerIdx(0) }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                audioLang === 'hi'
-                  ? 'bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.35)]'
-                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-orange-500/40'
-              }`}
-            >
-              🇮🇳 Hindi
-            </button>
-          </div>
-          {audioLang === 'hi' && (
-            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 mb-4">
-              <svg className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
-              </svg>
-              <p className="text-xs text-orange-200/80 leading-relaxed">
-                Server 1 is selected. Inside the player tap <span className="font-semibold text-orange-200">⚙ Settings → Servers → Fade</span> to switch to Hindi audio.
-              </p>
+        {/* Now Playing card */}
+        <div className="relative overflow-hidden rounded-2xl border border-white/[0.07]">
+          {show.backdropUrl && (
+            <div className="absolute inset-0">
+              <Image src={show.backdropUrl} alt="" fill className="object-cover opacity-[0.12] scale-110 blur-sm" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#0f0f0f] via-[#0f0f0f]/90 to-[#0f0f0f]/60" />
             </div>
           )}
+          <div className="relative flex items-center gap-4 px-4 py-4 sm:px-5">
+            {show.posterUrl && (
+              <div className="relative flex-shrink-0 w-11 h-[66px] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
+                <Image src={show.posterUrl} alt={show.title} fill sizes="44px" className="object-cover" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Now Playing</span>
+                <span className="text-[11px] text-white/35 font-medium tabular-nums">
+                  S{String(season).padStart(2,'0')} · E{String(episode).padStart(2,'0')}
+                </span>
+              </div>
+              <h2 className="text-base sm:text-lg font-bold text-white truncate leading-tight">{show.title}</h2>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {show.rating > 0 && (
+                  <span className="text-xs text-accent font-semibold">★ {show.rating.toFixed(1)}</span>
+                )}
+                <span className="text-white/20">·</span>
+                <span className="text-xs text-white/40">{show.releaseYear}</span>
+                {show.seasons && show.seasons > 0 && (
+                  <><span className="text-white/20">·</span><span className="text-xs text-white/40">{show.seasons} Season{show.seasons !== 1 ? 's' : ''}</span></>
+                )}
+                {show.genres.length > 0 && (
+                  <><span className="text-white/20">·</span><span className="text-xs text-white/40">{show.genres.slice(0, 2).join(', ')}</span></>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
-          <div className="h-px bg-white/[0.06] mb-4" />
-
-          {/* Server buttons */}
+        {/* Server switcher */}
+        <div className="glass rounded-2xl p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Select Server</p>
             {hasNextServer && (
@@ -222,11 +220,11 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-4">
             {sources.map((src, i) => (
               <button
                 key={i}
-                onClick={() => { setActiveServerIdx(i); if (i !== 0) setAudioLang('en') }}
+                onClick={() => setActiveServerIdx(i)}
                 data-focusable={isTV ? '' : undefined}
                 tabIndex={isTV ? 0 : undefined}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
@@ -237,14 +235,17 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${i === activeServerIdx ? 'bg-background' : 'bg-white/20'}`} />
                 {src.serverName}
-                {i === 0 && <span className="text-[9px] font-semibold text-orange-400/80">हि</span>}
               </button>
             ))}
           </div>
-          <p className="text-xs text-white/20 mt-3">
-            <kbd className="text-white/30 bg-white/5 px-1.5 py-0.5 rounded text-[10px]">N</kbd>{' '}
-            switch server · {activeServerIdx + 1} of {sources.length}
-          </p>
+          <div className="flex items-start gap-2 pt-3 border-t border-white/[0.05]">
+            <svg className="w-3.5 h-3.5 text-white/20 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
+            </svg>
+            <p className="text-[11px] text-white/25 leading-relaxed">
+              Audio language depends on server availability. For Hindi audio, tap <span className="text-white/40">⚙ Settings → Servers → Fade</span> inside the player (Server 1 only). Not all titles have Hindi available.
+            </p>
+          </div>
         </div>
 
         {/* Episode selector */}
