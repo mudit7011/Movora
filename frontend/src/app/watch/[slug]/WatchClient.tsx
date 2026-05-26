@@ -110,69 +110,58 @@ export default function WatchClient({ movie, sources, related }: Props) {
         </div>
       </div>
 
-      {/* ── Player ── */}
+      {/* ── Player + info strip ── */}
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div
-          className="relative w-full rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl"
-          style={{ aspectRatio: '16/9' }}
-        >
-          <div className="absolute -inset-1 rounded-2xl bg-primary/5 blur-xl -z-10" />
+        <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl">
 
-          {isDirect ? (
-            <VideoPlayer
-              src={active.url}
-              title={movie.title}
-              poster={movie.backdropUrl || movie.posterUrl}
-            />
-          ) : (
-            <iframe
-              key={active.url}
-              src={active.url}
-              title={`${movie.title} — ${active.serverName}`}
-              allow="autoplay *; fullscreen *; picture-in-picture *"
-              allowFullScreen
-              className="w-full h-full bg-black"
-            />
-          )}
+          {/* Video */}
+          <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+            <div className="absolute -inset-1 bg-primary/5 blur-xl -z-10" />
+            {isDirect ? (
+              <VideoPlayer
+                src={active.url}
+                title={movie.title}
+                poster={movie.backdropUrl || movie.posterUrl}
+              />
+            ) : (
+              <iframe
+                key={active.url}
+                src={active.url}
+                title={`${movie.title} — ${active.serverName}`}
+                allow="autoplay *; fullscreen *; picture-in-picture *"
+                allowFullScreen
+                className="w-full h-full bg-black"
+              />
+            )}
+          </div>
+
+          {/* Title strip — Netflix-style info below the video frame */}
+          <div className="bg-[#0c0c0c] border-t border-white/[0.05] px-4 sm:px-5 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <span className="text-[9px] text-primary font-bold uppercase tracking-widest">Now Playing</span>
+                <h3 className="text-sm sm:text-base font-bold text-white truncate leading-tight mt-0.5">{movie.title}</h3>
+              </div>
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                {movie.rating > 0 && (
+                  <span className="text-xs text-accent font-semibold">★ {movie.rating.toFixed(1)}</span>
+                )}
+                {movie.runtime > 0 && (
+                  <span className="text-xs text-white/25 hidden sm:inline">{movie.runtime} min</span>
+                )}
+                {movie.genres[0] && (
+                  <span className="text-xs text-white/25 hidden sm:inline">{movie.genres[0]}</span>
+                )}
+                <span className="text-xs text-white/20 hidden sm:inline">{movie.releaseYear}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
       {/* ── Content below player ── */}
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 lg:pb-8 space-y-5">
-
-        {/* Now Playing card */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/[0.07]">
-          {movie.backdropUrl && (
-            <div className="absolute inset-0">
-              <Image src={movie.backdropUrl} alt="" fill className="object-cover opacity-[0.12] scale-110 blur-sm" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#0f0f0f] via-[#0f0f0f]/90 to-[#0f0f0f]/60" />
-            </div>
-          )}
-          <div className="relative flex items-center gap-4 px-4 py-4 sm:px-5">
-            {movie.posterUrl && (
-              <div className="relative flex-shrink-0 w-11 h-[66px] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
-                <Image src={movie.posterUrl} alt={movie.title} fill sizes="44px" className="object-cover" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Now Playing</span>
-              <h2 className="text-base sm:text-lg font-bold text-white truncate leading-tight mt-1">{movie.title}</h2>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {movie.rating > 0 && (
-                  <span className="text-xs text-accent font-semibold">★ {movie.rating.toFixed(1)}</span>
-                )}
-                <span className="text-white/20">·</span>
-                <span className="text-xs text-white/40">{movie.releaseYear}</span>
-                {movie.runtime > 0 && (
-                  <><span className="text-white/20">·</span><span className="text-xs text-white/40">{movie.runtime} min</span></>
-                )}
-                {movie.genres.length > 0 && (
-                  <><span className="text-white/20">·</span><span className="text-xs text-white/40">{movie.genres.slice(0, 2).join(', ')}</span></>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Server switcher card */}
         <div className="glass rounded-2xl p-5">

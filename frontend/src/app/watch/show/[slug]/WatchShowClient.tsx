@@ -148,67 +148,53 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         </div>
       </div>
 
-      {/* Player */}
+      {/* Player + info strip */}
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div
-          className="relative w-full rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl"
-          style={{ aspectRatio: '16/9' }}
-        >
-          <div className="absolute -inset-1 rounded-2xl bg-primary/5 blur-xl -z-10" />
+        <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl">
 
-          <iframe
-            key={`${active.url}`}
-            src={active.url}
-            title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-            allow="autoplay *; fullscreen *; picture-in-picture *"
-            allowFullScreen
-            className="w-full h-full bg-black"
-          />
+          {/* Video */}
+          <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+            <div className="absolute -inset-1 bg-primary/5 blur-xl -z-10" />
+            <iframe
+              key={`${active.url}`}
+              src={active.url}
+              title={`${show.title} S${season}E${episode} — ${active.serverName}`}
+              allow="autoplay *; fullscreen *; picture-in-picture *"
+              allowFullScreen
+              className="w-full h-full bg-black"
+            />
+          </div>
+
+          {/* Title strip — Netflix-style info below the video frame */}
+          <div className="bg-[#0c0c0c] border-t border-white/[0.05] px-4 sm:px-5 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[9px] text-primary font-bold uppercase tracking-widest">Now Playing</span>
+                  <span className="text-white/20">·</span>
+                  <span className="text-[11px] text-white/35 tabular-nums">
+                    S{String(season).padStart(2,'0')} E{String(episode).padStart(2,'0')}
+                  </span>
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-white truncate leading-tight">{show.title}</h3>
+              </div>
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                {show.rating > 0 && (
+                  <span className="text-xs text-accent font-semibold">★ {show.rating.toFixed(1)}</span>
+                )}
+                {show.genres[0] && (
+                  <span className="text-xs text-white/25 hidden sm:inline">{show.genres[0]}</span>
+                )}
+                <span className="text-xs text-white/20 hidden sm:inline">{show.releaseYear}</span>
+              </div>
+            </div>
+          </div>
 
         </div>
       </div>
 
       {/* Content below player */}
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 lg:pb-8 space-y-5">
-
-        {/* Now Playing card */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/[0.07]">
-          {show.backdropUrl && (
-            <div className="absolute inset-0">
-              <Image src={show.backdropUrl} alt="" fill className="object-cover opacity-[0.12] scale-110 blur-sm" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#0f0f0f] via-[#0f0f0f]/90 to-[#0f0f0f]/60" />
-            </div>
-          )}
-          <div className="relative flex items-center gap-4 px-4 py-4 sm:px-5">
-            {show.posterUrl && (
-              <div className="relative flex-shrink-0 w-11 h-[66px] rounded-lg overflow-hidden ring-1 ring-white/10 shadow-lg">
-                <Image src={show.posterUrl} alt={show.title} fill sizes="44px" className="object-cover" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[9px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Now Playing</span>
-                <span className="text-[11px] text-white/35 font-medium tabular-nums">
-                  S{String(season).padStart(2,'0')} · E{String(episode).padStart(2,'0')}
-                </span>
-              </div>
-              <h2 className="text-base sm:text-lg font-bold text-white truncate leading-tight">{show.title}</h2>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {show.rating > 0 && (
-                  <span className="text-xs text-accent font-semibold">★ {show.rating.toFixed(1)}</span>
-                )}
-                <span className="text-white/20">·</span>
-                <span className="text-xs text-white/40">{show.releaseYear}</span>
-                {show.seasons && show.seasons > 0 && (
-                  <><span className="text-white/20">·</span><span className="text-xs text-white/40">{show.seasons} Season{show.seasons !== 1 ? 's' : ''}</span></>
-                )}
-                {show.genres.length > 0 && (
-                  <><span className="text-white/20">·</span><span className="text-xs text-white/40">{show.genres.slice(0, 2).join(', ')}</span></>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Server switcher */}
         <div className="glass rounded-2xl p-5">
