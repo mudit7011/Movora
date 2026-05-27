@@ -1,13 +1,14 @@
 import { api } from '@/lib/api'
 import MovieCard from '@/components/MovieCard'
 import SearchInput from '@/components/SearchInput'
+import SearchFilters from '@/components/SearchFilters'
 import Sidebar from '@/components/Sidebar'
 import { Suspense } from 'react'
 import { Swords, Laugh, Theater, Ghost, Rocket, Heart } from 'lucide-react'
 
 export const metadata = { title: 'Search — Movora' }
 
-async function SearchResults({ q }: { q: string }) {
+async function SearchResults({ q, sort, type }: { q: string; sort: string; type: string }) {
   if (!q.trim()) {
     return null
   }
@@ -16,13 +17,26 @@ async function SearchResults({ q }: { q: string }) {
     api.search(q).catch(() => []),
     api.searchShows(q).catch(() => []),
   ])
+
   // Interleave by index so title-matching shows surface alongside title-matching movies
-  const results = []
+  const merged: (typeof movies[number])[] = []
   const len = Math.max(movies.length, shows.length)
   for (let i = 0; i < len; i++) {
-    if (i < movies.length) results.push(movies[i])
-    if (i < shows.length) results.push(shows[i])
+    if (i < movies.length) merged.push(movies[i])
+    if (i < shows.length) merged.push(shows[i])
   }
+
+  // Apply type filter
+  const filtered =
+    type === 'movie' ? merged.filter(r => r.type !== 'tvshow') :
+    type === 'show'  ? merged.filter(r => r.type === 'tvshow') :
+    merged
+
+  // Apply sort
+  const results = [...filtered]
+  if (sort === 'rating') results.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+  else if (sort === 'newest') results.sort((a, b) => (b.releaseYear ?? 0) - (a.releaseYear ?? 0))
+  else if (sort === 'oldest') results.sort((a, b) => (a.releaseYear ?? 0) - (b.releaseYear ?? 0))
 
   if (results.length === 0) {
     return (
@@ -46,30 +60,7 @@ async function SearchResults({ q }: { q: string }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-sm text-muted-foreground mb-1">Found</p>
-          <p className="text-2xl font-bold text-foreground">
-            {results.length} <span className="text-primary">result{results.length !== 1 ? 's' : ''}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-white/20 transition-all">
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 6h16M4 12h10M4 18h4" />
-              </svg>
-              Filters
-            </span>
-          </button>
-          <select className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-foreground outline-none cursor-pointer hover:border-white/20 transition-all">
-            <option value="relevance">Relevance</option>
-            <option value="rating">Top Rated</option>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-          </select>
-        </div>
-      </div>
+      <SearchFilters total={results.length} />
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
         {results.map((movie, index) => (
           <div
@@ -86,11 +77,11 @@ async function SearchResults({ q }: { q: string }) {
 }
 
 interface Props {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{ q?: string; sort?: string; type?: string }>
 }
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q = '' } = await searchParams
+  const { q = '', sort = 'relevance', type = 'all' } = await searchParams
   const hasQuery = q.trim().length > 0
 
   return (
@@ -140,7 +131,7 @@ export default async function SearchPage({ searchParams }: Props) {
               <p className="text-muted-foreground mt-4">Searching...</p>
             </div>
           }>
-            <SearchResults q={q} />
+            <SearchResults q={q} sort={sort} type={type} />
           </Suspense>
 
           {/* Quick Categories - Show when no query */}
