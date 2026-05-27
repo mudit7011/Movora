@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { RetroTvError } from '@/components/ui/404-error-page'
+import BackButton from '@/components/ui/BackButton'
 
 export default function NotFound() {
   return (
@@ -69,15 +70,12 @@ export default function NotFound() {
             </svg>
             Go Home
           </Link>
-          <Link
-            href="/movies"
-            className="btn-glass inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5.14v14l11-7-11-7z" />
+          <BackButton className="btn-glass inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
-            Browse Movies
-          </Link>
+            Go Back
+          </BackButton>
         </div>
       </div>
     </div>
