@@ -1,8 +1,7 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { motion, useMotionValue, animate, PanInfo } from 'framer-motion'
 import type { Movie } from '@/types/movie'
 import MovieCard from './MovieCard'
 import { useTV } from '@/components/TvProvider'
@@ -28,88 +27,48 @@ interface Props {
 
 export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }: Props) {
   const isTV = useTV()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [constraints, setConstraints] = useState({ left: 0, right: 0 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [showLeftArrow, setShowLeftArrow] = useState(false)
-  const [showRightArrow, setShowRightArrow] = useState(true)
-  const [atEnd, setAtEnd] = useState(false)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [showLeft, setShowLeft]   = useState(false)
+  const [showRight, setShowRight] = useState(true)
 
-  const x = useMotionValue(0)
+  const updateArrows = useCallback(() => {
+    const el = trackRef.current
+    if (!el) return
+    setShowLeft(el.scrollLeft > 8)
+    setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8)
+  }, [])
 
-  // Calculate drag constraints
   useEffect(() => {
-    const updateConstraints = () => {
-      if (!containerRef.current) return
-      const containerWidth = containerRef.current.scrollWidth
-      const viewportWidth = containerRef.current.offsetWidth
-      const maxScroll = Math.max(0, containerWidth - viewportWidth)
-      setConstraints({ left: -maxScroll, right: 0 })
-      setShowRightArrow(maxScroll > 0)
-    }
+    const el = trackRef.current
+    if (!el) return
+    updateArrows()
+    el.addEventListener('scroll', updateArrows, { passive: true })
+    const ro = new ResizeObserver(updateArrows)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', updateArrows); ro.disconnect() }
+  }, [movies, updateArrows])
 
-    updateConstraints()
-    window.addEventListener('resize', updateConstraints)
-    return () => window.removeEventListener('resize', updateConstraints)
-  }, [movies])
-
-  // Update arrow visibility based on scroll position
-  useEffect(() => {
-    const unsubscribe = x.on('change', (latest) => {
-      setShowLeftArrow(latest < -10)
-      setShowRightArrow(latest > constraints.left + 10)
-      setAtEnd(latest <= constraints.left + 10)
-    })
-    return () => unsubscribe()
-  }, [x, constraints.left])
-
-  const scroll = (direction: 'left' | 'right') => {
-    const scrollAmount = 400
-    const currentX = x.get()
-    const newX = direction === 'left'
-      ? Math.min(currentX + scrollAmount, 0)
-      : Math.max(currentX - scrollAmount, constraints.left)
-    animate(x, newX, { type: 'spring', stiffness: 300, damping: 30 })
-  }
-
-  const handleDragStart = () => setIsDragging(true)
-  
-  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    setIsDragging(false)
-    
-    // Snap to nearest card
-    const velocity = info.velocity.x
-    const currentX = x.get()
-    
-    // Add momentum
-    const momentum = velocity * 0.2
-    const targetX = Math.max(
-      constraints.left,
-      Math.min(0, currentX + momentum)
-    )
-    
-    x.set(targetX)
+  const scroll = (dir: 'left' | 'right') => {
+    trackRef.current?.scrollBy({ left: dir === 'left' ? -440 : 440, behavior: 'smooth' })
   }
 
   if (movies.length === 0) return null
+
+  const atEnd = !showRight
 
   return (
     <section className="py-8 relative group/carousel">
       {/* Header */}
       <div className={`flex items-center justify-between mb-6 px-4 sm:px-6 ${isTV ? 'lg:px-16' : 'lg:pl-24 lg:pr-8'}`}>
-        <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
-          {title}
-        </h2>
-        
-        {/* Navigation Arrows - Desktop */}
+        <h2 className="text-xl sm:text-2xl font-semibold text-foreground">{title}</h2>
+
+        {/* Arrow buttons — desktop */}
         <div className="hidden sm:flex items-center gap-2">
           <button
             onClick={() => scroll('left')}
-            disabled={!showLeftArrow}
+            disabled={!showLeft}
             className={`p-2 rounded-full bg-white/5 border border-white/10 text-foreground transition-all duration-300 ${
-              showLeftArrow 
-                ? 'hover:bg-white/10 hover:border-white/20' 
-                : 'opacity-30 cursor-not-allowed'
+              showLeft ? 'hover:bg-white/10 hover:border-white/20' : 'opacity-30 cursor-not-allowed'
             }`}
             aria-label="Scroll left"
           >
@@ -117,11 +76,9 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
           </button>
           <button
             onClick={() => scroll('right')}
-            disabled={!showRightArrow}
+            disabled={!showRight}
             className={`p-2 rounded-full bg-white/5 border border-white/10 text-foreground transition-all duration-300 ${
-              showRightArrow 
-                ? 'hover:bg-white/10 hover:border-white/20' 
-                : 'opacity-30 cursor-not-allowed'
+              showRight ? 'hover:bg-white/10 hover:border-white/20' : 'opacity-30 cursor-not-allowed'
             }`}
             aria-label="Scroll right"
           >
@@ -130,45 +87,37 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
         </div>
       </div>
 
-      {/* Carousel Container — py-6 -my-6 gives vertical room for card scale without visual shift */}
-      <div className="relative overflow-hidden py-6 -my-6">
-        {/* Left Gradient Fade */}
-        <div
-          className={`absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
-            showLeftArrow ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
+      {/* Track wrapper */}
+      <div className="relative py-6 -my-6">
+        {/* Left fade */}
+        <div className={`absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showLeft ? 'opacity-100' : 'opacity-0'}`} />
+        {/* Right fade */}
+        <div className={`absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showRight ? 'opacity-100' : 'opacity-0'}`} />
 
-        {/* Right Gradient Fade */}
+        {/* Scrollable track — native scroll for smooth touch/swipe */}
         <div
-          className={`absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
-            showRightArrow ? 'opacity-100' : 'opacity-0'
+          ref={trackRef}
+          className={`flex gap-4 overflow-x-auto no-scrollbar pb-4 scroll-smooth ${
+            isTV ? 'px-16 gap-6' : 'px-4 sm:px-6 lg:pl-24 lg:pr-8'
           }`}
-        />
-
-        {/* Movies Track */}
-        <motion.div
-          ref={containerRef}
-          style={{ x }}
-          drag="x"
-          dragConstraints={constraints}
-          dragElastic={0.1}
-          dragTransition={{ bounceStiffness: 300, bounceDamping: 30 }}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          className={`flex gap-4 pb-4 ${isTV ? 'px-16 gap-6' : 'px-4 sm:px-6 lg:pl-24 lg:pr-8'} ${
-            isDragging ? 'cursor-grabbing' : 'cursor-grab'
-          }`}
+          style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
         >
           {movies.map((movie) => (
-            <div key={movie._id} className="flex-shrink-0 w-[160px] sm:w-[180px]">
+            <div
+              key={movie._id}
+              className="flex-shrink-0 w-[160px] sm:w-[180px]"
+              style={{ scrollSnapAlign: 'start' }}
+            >
               <MovieCard movie={movie} onAddToWatchlist={onAddToWatchlist} />
             </div>
           ))}
 
-          {/* See All card — appears at end of track */}
+          {/* See All card */}
           {seeAllHref && (
-            <div className="flex-shrink-0 w-[160px] sm:w-[180px]">
+            <div
+              className="flex-shrink-0 w-[160px] sm:w-[180px]"
+              style={{ scrollSnapAlign: 'start' }}
+            >
               <Link
                 href={seeAllHref}
                 className={`flex flex-col items-center justify-center h-[240px] sm:h-[270px] rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] hover:border-primary/40 transition-all duration-300 gap-3 group ${
@@ -187,19 +136,6 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
               </Link>
             </div>
           )}
-        </motion.div>
-      </div>
-
-      {/* Mobile Navigation Hint */}
-      <div className="sm:hidden flex justify-center mt-4">
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>Swipe to explore</span>
-          <motion.span
-            animate={{ x: [0, 4, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-          >
-            →
-          </motion.span>
         </div>
       </div>
     </section>

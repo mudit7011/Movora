@@ -48,8 +48,7 @@ export async function GET(req: NextRequest) {
 
     const available = parts.filter(p => existingSet.has(p.slug))
 
-    // Only show the section if at least 2 parts are available (no point showing solo)
-    if (available.length < 2) return NextResponse.json([])
+    if (available.length === 0) return NextResponse.json([])
 
     return NextResponse.json(available)
   } catch {
