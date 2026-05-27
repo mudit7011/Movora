@@ -153,19 +153,22 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       </div>
 
       {/* ── Player ── */}
-      <div className="relative z-10 w-full bg-black lg:bg-transparent lg:px-6 lg:pt-4">
-        <div className="relative w-full lg:rounded-2xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
-          <iframe
-            key={`${active.url}`}
-            src={active.url}
-            title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
-            allowFullScreen
-            referrerPolicy="no-referrer"
-            className="w-full h-full bg-black"
-            style={{ border: 'none', display: 'block' }}
-            scrolling="no"
-          />
+      <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:bg-transparent">
+        <div className="lg:rounded-2xl overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
+          <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+            <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
+            <iframe
+              key={`${active.url}`}
+              src={active.url}
+              title={`${show.title} S${season}E${episode} — ${active.serverName}`}
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+              allowFullScreen
+              referrerPolicy="no-referrer"
+              className="w-full h-full bg-black"
+              style={{ border: 'none', display: 'block' }}
+              scrolling="no"
+            />
+          </div>
         </div>
       </div>
 
