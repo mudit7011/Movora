@@ -52,9 +52,10 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
       tabIndex={isTV ? 0 : undefined}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onFocus={() => setIsTvFocused(true)}
-      onBlur={() => setIsTvFocused(false)}
+      onFocus={() => isTV && setIsTvFocused(true)}
+      onBlur={() => isTV && setIsTvFocused(false)}
       animate={isTvFocused ? { scale: 1.1, zIndex: 50 } : { scale: 1, zIndex: 1 }}
+      style={{ transformOrigin: 'top center' }}
       transition={{ type: 'spring', stiffness: 320, damping: 24 }}
       initial={false}
     >
@@ -65,14 +66,8 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
             zIndex: active ? 20 : 1,
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          style={{
-            transformOrigin: 'top center',
-            /* outline is NOT clipped by parent overflow — the only safe border for carousel cards */
-            outline: '2px solid',
-            outlineColor: active ? 'rgb(6,214,224)' : 'transparent',
-            outlineOffset: '0px',
-          }}
-          className="relative rounded-xl transition-[outline-color] duration-200"
+          style={{ transformOrigin: 'top center' }}
+          className="relative rounded-xl"
         >
           {/* Poster */}
           <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card">
@@ -155,6 +150,14 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
               )}
             </AnimatePresence>
 
+            {/* Border ring — absolute overlay above image, inset so it can't be clipped by parent overflow */}
+            <div
+              className="absolute inset-0 rounded-xl pointer-events-none z-30"
+              style={{
+                boxShadow: active ? 'inset 0 0 0 2px rgb(6,214,224)' : 'inset 0 0 0 2px transparent',
+                transition: 'box-shadow 0.2s ease',
+              }}
+            />
           </div>
         </motion.div>
 
