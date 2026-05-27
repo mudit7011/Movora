@@ -169,10 +169,12 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *"
               allowFullScreen
+              // @ts-ignore
+              webkitallowfullscreen="true"
+              mozallowfullscreen="true"
               referrerPolicy="strict-origin-when-cross-origin"
               className="w-full h-full bg-black"
               style={{ border: 'none', display: 'block' }}
-              scrolling="no"
             />
           </div>
         </div>
