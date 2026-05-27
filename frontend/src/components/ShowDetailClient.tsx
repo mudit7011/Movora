@@ -85,7 +85,7 @@ export default function ShowDetailClient({ show }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <Link href="/" className="flex items-center gap-1.5 select-none">
+          <Link href="/" className="lg:hidden flex items-center gap-1.5 select-none">
             <span className="text-xl font-bold tracking-tight">
               <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
             </span>
