@@ -118,7 +118,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       )}
 
       {/* Top bar */}
-      <div className="relative z-10 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-white/[0.06] bg-background/60 backdrop-blur-md sticky top-0">
+      <div className="relative z-10 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 lg:py-4 border-b border-white/[0.06] bg-background/80 backdrop-blur-md sticky top-0">
         <Link
           href={`/show/${show.slug}`}
           className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all flex-shrink-0"
@@ -129,13 +129,13 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
           </svg>
         </Link>
 
-        <Link href="/" className="select-none flex-shrink-0">
+        <Link href="/" className="select-none flex-shrink-0 hidden sm:block">
           <span className="text-base font-bold tracking-tight">
             <span className="text-foreground">Mo</span><span className="text-primary">vora</span>
           </span>
         </Link>
 
-        <div className="h-4 w-px bg-white/10 flex-shrink-0" />
+        <div className="h-4 w-px bg-white/10 flex-shrink-0 hidden sm:block" />
 
         <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-medium truncate">{show.title}</p>
@@ -152,26 +152,23 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         </div>
       </div>
 
-      {/* Player + info strip */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl">
-
-          {/* Video */}
+      {/* ── Player — edge-to-edge on mobile, contained on desktop ── */}
+      <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6">
+        <div className="lg:rounded-2xl overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
           <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
-            <div className="absolute -inset-1 bg-primary/5 blur-xl -z-10" />
+            <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             <iframe
               key={`${active.url}`}
               src={active.url}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-              allow="autoplay *; fullscreen *; picture-in-picture *"
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
               allowFullScreen
               referrerPolicy="no-referrer"
               className="w-full h-full bg-black"
+              style={{ border: 'none', display: 'block' }}
+              scrolling="no"
             />
           </div>
-
-
-
         </div>
       </div>
 
