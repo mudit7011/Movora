@@ -75,7 +75,7 @@ export default function ShowDetailClient({ show }: Props) {
         <div className="grain absolute inset-0" />
 
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-4 px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-5 pb-4">
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-4 px-4 sm:px-6 lg:pl-24 lg:pr-8 pt-5 pb-4">
           <Link
             href="/shows"
             className="flex items-center justify-center w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 hover:border-white/20 transition-all duration-200 flex-shrink-0"
