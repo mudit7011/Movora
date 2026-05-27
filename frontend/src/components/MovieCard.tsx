@@ -65,6 +65,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
             zIndex: active ? 20 : 1,
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+          style={{ transformOrigin: 'top center' }}
           className={`relative rounded-xl transition-shadow duration-300 ${
             active ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
           }`}
