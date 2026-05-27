@@ -67,6 +67,14 @@ const navItems: NavItem[] = [
   { href: '/history', icon: ClockIcon, label: 'Continue' },
 ]
 
+// Shorter labels for mobile bottom nav (5 items)
+const MOBILE_NAV = [
+  { href: '/',        icon: HomeIcon,     label: 'Home'   },
+  { href: '/new',     icon: FlameIcon,    label: 'New'    },
+  { href: '/movies',  icon: FilmIcon,     label: 'Movies' },
+  { href: '/shows',   icon: TvIcon,       label: 'Shows'  },
+]
+
 // Sidebar runs only in the browser — use relative URL so the Next.js rewrite
 // proxy forwards requests to the backend (avoids mixed-content blocking).
 const API_URL = ''
@@ -115,6 +123,8 @@ export default function Sidebar() {
   const [selectedIdx, setSelectedIdx] = useState(-1)
   const [recents, setRecents] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const mobileItemRefs = useRef<(HTMLElement | null)[]>([])
+  const mobileTextRefs = useRef<(HTMLElement | null)[]>([])
 
   // Load recents on mount (client only)
   useEffect(() => { setRecents(getRecents()) }, [])
@@ -155,6 +165,18 @@ export default function Sidebar() {
   useEffect(() => {
     if (searchOpen) setTimeout(() => inputRef.current?.focus(), 50)
   }, [searchOpen])
+
+  // Slide underline to active item's text width
+  useEffect(() => {
+    const activeIdx = MOBILE_NAV.findIndex(item => pathname === item.href)
+    for (let i = 0; i <= 4; i++) {
+      const itemEl = mobileItemRefs.current[i]
+      const textEl = mobileTextRefs.current[i]
+      if (!itemEl) continue
+      const isActive = i < 4 ? i === activeIdx : searchOpen
+      itemEl.style.setProperty('--lineWidth', isActive && textEl ? `${textEl.offsetWidth}px` : '0px')
+    }
+  }, [pathname, searchOpen])
 
   // Debounced live search
   useEffect(() => {
@@ -320,30 +342,46 @@ export default function Sidebar() {
         </div>
       </motion.aside>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong border-t border-white/5">
-        <div className="flex items-center justify-around h-16 px-4">
-          {navItems.slice(0, 4).map((item) => {
+      {/* Mobile Bottom Navigation — InteractiveMenu style */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong border-t border-white/[0.06]">
+        <div className="flex items-center">
+          {MOBILE_NAV.map((item, i) => {
             const isActive = pathname === item.href
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all ${
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                }`}
+                className={`mnav__item ${isActive ? 'mnav--active' : ''}`}
+                ref={(el: HTMLAnchorElement | null) => { mobileItemRefs.current[i] = el }}
+                style={{ '--lineWidth': '0px' } as React.CSSProperties}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <div className="mnav__icon">
+                  <item.icon className="w-[22px] h-[22px]" />
+                </div>
+                <strong
+                  className="mnav__label"
+                  ref={el => { mobileTextRefs.current[i] = el }}
+                >
+                  {item.label}
+                </strong>
               </Link>
             )
           })}
           <button
             onClick={() => setSearchOpen(true)}
-            className="flex flex-col items-center gap-1 py-2 px-4 rounded-xl text-muted-foreground"
+            className={`mnav__item ${searchOpen ? 'mnav--active' : ''}`}
+            ref={el => { mobileItemRefs.current[4] = el }}
+            style={{ '--lineWidth': '0px' } as React.CSSProperties}
           >
-            <SearchIcon className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Search</span>
+            <div className="mnav__icon">
+              <SearchIcon className="w-[22px] h-[22px]" />
+            </div>
+            <strong
+              className="mnav__label"
+              ref={el => { mobileTextRefs.current[4] = el }}
+            >
+              Search
+            </strong>
           </button>
         </div>
       </nav>
