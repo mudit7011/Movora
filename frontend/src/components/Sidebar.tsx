@@ -418,11 +418,11 @@ export default function Sidebar() {
               >
                 <div className="relative rounded-2xl"
                   style={{
-                    background: 'linear-gradient(160deg, rgba(6,214,224,0.07) 0%, rgba(10,10,10,0.52) 35%, rgba(10,10,10,0.48) 100%)',
+                    background: 'linear-gradient(160deg, rgba(6,214,224,0.04) 0%, rgba(10,10,10,0.78) 35%, rgba(10,10,10,0.75) 100%)',
                     backdropFilter: 'blur(40px)',
                     WebkitBackdropFilter: 'blur(40px)',
-                    border: '1px solid rgba(6,214,224,0.10)',
-                    boxShadow: '0 0 0 1px rgba(255,255,255,0.03), 0 40px 80px rgba(0,0,0,0.5), 0 0 60px rgba(6,214,224,0.08)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.02), 0 40px 80px rgba(0,0,0,0.6), 0 0 50px rgba(6,214,224,0.05)',
                   }}
                 >
                   <div className="rounded-2xl overflow-hidden">
