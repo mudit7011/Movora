@@ -22,7 +22,7 @@ export default async function WatchPage({ params }: Props) {
   const sources: Source[] = [
     { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}?color=06D6E0&autoplay=1&overlay=true`,   type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}?primaryColor=06D6E0&autoplay=true`, type: 'iframe', quality: 'HD', isWorking: true },
-    { serverName: 'Server 3', url: `https://embedmaster.link/movie/${id}`,     type: 'iframe', quality: 'HD', isWorking: true },
+    { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/movie/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/movie/${id}?autoplay=true&color=%2306D6E0`, type: 'iframe', quality: 'HD', isWorking: true },
   ]
 
