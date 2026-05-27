@@ -245,7 +245,14 @@ export default function Sidebar() {
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         onMouseEnter={() => setIsExpanded(true)}
         onMouseLeave={() => setIsExpanded(false)}
-        className="fixed left-4 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col glass-strong rounded-2xl py-4 overflow-hidden"
+        className="fixed left-4 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col rounded-2xl py-4 overflow-hidden"
+        style={{
+          background: 'linear-gradient(160deg, rgba(6,214,224,0.04) 0%, rgba(10,10,10,0.45) 40%, rgba(10,10,10,0.40) 100%)',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          border: '1px solid rgba(6,214,224,0.08)',
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.03), 0 8px 32px rgba(0,0,0,0.3)',
+        }}
       >
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 px-5 mb-6">
