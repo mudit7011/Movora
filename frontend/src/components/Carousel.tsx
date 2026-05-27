@@ -87,17 +87,18 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
         </div>
       </div>
 
-      {/* Track wrapper */}
-      <div className="relative py-6 -my-6">
+      {/* Track wrapper — negative margin compensates for the pt-3 added to the track */}
+      <div className="relative -mt-3">
         {/* Left fade */}
         <div className={`absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showLeft ? 'opacity-100' : 'opacity-0'}`} />
         {/* Right fade */}
         <div className={`absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showRight ? 'opacity-100' : 'opacity-0'}`} />
 
-        {/* Scrollable track — native scroll for smooth touch/swipe */}
+        {/* Scrollable track — pt-3 gives headroom so overflow-x-auto's implicit
+            overflow-y:auto doesn't clip the card top glow/border on hover */}
         <div
           ref={trackRef}
-          className={`flex gap-4 overflow-x-auto no-scrollbar pb-4 scroll-smooth ${
+          className={`flex gap-4 overflow-x-auto no-scrollbar pt-3 pb-4 scroll-smooth ${
             isTV ? 'px-16 gap-6' : 'px-4 sm:px-6 lg:pl-24 lg:pr-8'
           }`}
           style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
