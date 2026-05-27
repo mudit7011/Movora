@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { tmdbFetch } from '@/lib/tmdbFetch'
 
 const IMG_W = 'https://image.tmdb.org/t/p/w342'
+const BACKEND = process.env.BACKEND_URL ?? ''
 
 function slugify(title: string, year: number) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + year
@@ -13,14 +14,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const movie = await tmdbFetch(`/movie/${rawId}?language=en-US`)
-
     if (!movie.belongs_to_collection) return NextResponse.json([])
 
     const col = await tmdbFetch(`/collection/${movie.belongs_to_collection.id}?language=en-US`)
 
     const parts = ((col.parts ?? []) as any[])
       .sort((a, b) => {
-        // Push unreleased (no date) to end
         const da = a.release_date || '9999-99-99'
         const db = b.release_date || '9999-99-99'
         return da.localeCompare(db)
@@ -39,7 +38,20 @@ export async function GET(req: NextRequest) {
         }
       })
 
-    return NextResponse.json(parts)
+    if (parts.length === 0) return NextResponse.json([])
+
+    // Filter to only parts that actually exist in our database
+    const slugList = parts.map(p => p.slug).join(',')
+    const existingRes = await fetch(`${BACKEND}/movies/check-slugs?slugs=${encodeURIComponent(slugList)}`)
+    const existingSlugs: string[] = existingRes.ok ? await existingRes.json() : []
+    const existingSet = new Set(existingSlugs)
+
+    const available = parts.filter(p => existingSet.has(p.slug))
+
+    // Only show the section if at least 2 parts are available (no point showing solo)
+    if (available.length < 2) return NextResponse.json([])
+
+    return NextResponse.json(available)
   } catch {
     return NextResponse.json([])
   }

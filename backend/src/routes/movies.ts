@@ -274,6 +274,19 @@ router.get('/related/:slug', async (req, res) => {
   }
 })
 
+// Check which slugs exist in the DB — used by the collection UI to filter unavailable films
+router.get('/check-slugs', async (req, res) => {
+  try {
+    const raw = req.query.slugs
+    if (!raw || typeof raw !== 'string') return res.json([])
+    const slugs = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30)
+    const found = await Movie.find({ slug: { $in: slugs }, type: 'movie' }).select('slug').lean()
+    res.json(found.map(m => m.slug))
+  } catch {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 router.get('/:slug', async (req, res) => {
   try {
     const movie = await Movie.findOne({ slug: req.params.slug, type: 'movie' })

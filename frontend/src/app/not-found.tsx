@@ -4,7 +4,7 @@ import BackButton from '@/components/ui/BackButton'
 
 export default function NotFound() {
   return (
-    <div className="relative min-h-screen bg-background flex flex-col items-center justify-center overflow-hidden">
+    <div className="relative h-screen bg-background flex flex-col items-center justify-center overflow-hidden">
       {/* Grain texture */}
       <div className="grain absolute inset-0 pointer-events-none z-0" />
 
