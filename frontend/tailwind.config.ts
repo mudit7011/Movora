@@ -34,7 +34,7 @@ const config: Config = {
         display: ['var(--font-outfit)', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'hero-gradient': 'linear-gradient(to right, rgba(10,10,10,0.98) 0%, rgba(10,10,10,0.8) 30%, rgba(10,10,10,0.4) 60%, transparent 100%)',
+        'hero-gradient': 'linear-gradient(to right, rgba(10,10,10,0.72) 0%, rgba(10,10,10,0.82) 20%, rgba(10,10,10,0.65) 40%, rgba(10,10,10,0.3) 65%, transparent 100%)',
         'hero-gradient-bottom': 'linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.8) 20%, transparent 50%)',
         'card-fade': 'linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.6) 40%, transparent 100%)',
         'glow-radial': 'radial-gradient(ellipse at center, var(--primary-glow) 0%, transparent 70%)',

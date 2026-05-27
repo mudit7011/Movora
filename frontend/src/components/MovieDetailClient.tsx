@@ -82,7 +82,7 @@ export default function MovieDetailClient({ movie }: Props) {
   }
 
   return (
-    <div className="min-h-screen lg:pl-24">
+    <div className="min-h-screen">
       {/* Hero Background */}
       <div className="relative h-[70vh] w-full overflow-hidden">
         {movie.backdropUrl && (
@@ -130,7 +130,7 @@ export default function MovieDetailClient({ movie }: Props) {
       </div>
 
       {/* Content */}
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:pl-28 lg:pr-8 -mt-[40vh] z-10 pb-24 lg:pb-8">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:pl-24 lg:pr-8 -mt-[40vh] z-10 pb-24 lg:pb-8">
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
           {/* Poster */}
           <motion.div
