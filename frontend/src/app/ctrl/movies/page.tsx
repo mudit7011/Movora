@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import AdminShell from '@/components/admin/AdminShell'
 import { adminApi } from '@/lib/adminApi'
@@ -138,7 +137,7 @@ export default function AdminMoviesPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-11 rounded-lg overflow-hidden bg-card flex-shrink-0 ring-1 ring-white/[0.06]">
                           {item.posterUrl
-                            ? <Image src={item.posterUrl} alt={item.title} width={32} height={44} className="object-cover w-full h-full" />
+                            ? <img src={item.posterUrl} alt={item.title} width={32} height={44} className="object-cover w-full h-full" />
                             : <div className="w-full h-full bg-white/5" />
                           }
                         </div>

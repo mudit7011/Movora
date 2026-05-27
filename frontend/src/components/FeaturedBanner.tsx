@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { PlayIcon, PlusIcon } from '@heroicons/react/24/solid'
@@ -23,12 +22,10 @@ export default function FeaturedBanner({ movie }: Props) {
       >
         {/* Background Image */}
         {movie.backdropUrl && (
-          <Image
+          <img
             src={movie.backdropUrl}
             alt={movie.title}
-            fill
-            className="object-cover object-top transition-transform duration-[1.5s] group-hover:scale-105"
-            sizes="(max-width: 1280px) 100vw, 1280px"
+            className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-[1.5s] group-hover:scale-105"
           />
         )}
         

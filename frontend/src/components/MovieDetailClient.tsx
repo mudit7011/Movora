@@ -2,7 +2,6 @@
 
 import { useUserData } from '@/lib/useUserData'
 import type { Movie } from '@/types/movie'
-import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
@@ -93,13 +92,10 @@ export default function MovieDetailClient({ movie }: Props) {
             transition={{ duration: 1.2, ease: 'easeOut' }}
             className="absolute inset-0"
           >
-            <Image
+            <img
               src={movie.backdropUrl}
               alt={movie.title}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover object-top"
+              className="absolute inset-0 w-full h-full object-cover object-top"
             />
           </motion.div>
         )}
@@ -145,12 +141,10 @@ export default function MovieDetailClient({ movie }: Props) {
           >
             <div className="relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
               {movie.posterUrl ? (
-                <Image 
+                <img 
                   src={movie.posterUrl} 
                   alt={movie.title} 
-                  fill 
-                  sizes="(max-width: 1024px) 256px, 288px" 
-                  className="object-cover" 
+                  className="absolute inset-0 w-full h-full object-cover" 
                 />
               ) : (
                 <div className="w-full h-full bg-card" />
@@ -249,7 +243,7 @@ export default function MovieDetailClient({ movie }: Props) {
                     <div key={i} className="flex-shrink-0 text-center w-20">
                       <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2">
                         {member.photo ? (
-                          <Image 
+                          <img 
                             src={member.photo} 
                             alt={member.name} 
                             width={64} 
@@ -301,7 +295,7 @@ export default function MovieDetailClient({ movie }: Props) {
                             : 'border border-white/10 group-hover:border-primary/50 group-hover:shadow-[0_0_16px_rgba(6,214,224,0.15)]'
                         }`}>
                           {part.posterUrl ? (
-                            <Image src={part.posterUrl} alt={part.title} fill sizes="144px" className="object-cover transition-transform duration-500 group-hover:scale-105" />
+                            <img src={part.posterUrl} alt={part.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                           ) : (
                             <div className="w-full h-full bg-card flex items-center justify-center text-muted-foreground text-sm">No Image</div>
                           )}

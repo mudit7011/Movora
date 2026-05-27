@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 import { api } from '@/lib/api'
 import type { Movie, EpisodeInfo } from '@/types/movie'
 
@@ -102,12 +101,10 @@ export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSel
                 {/* Thumbnail */}
                 <div className="relative w-32 h-[72px] rounded-lg overflow-hidden bg-card flex-shrink-0">
                   {ep.stillUrl ? (
-                    <Image
+                    <img
                       src={ep.stillUrl}
                       alt={ep.name}
-                      fill
-                      sizes="128px"
-                      className="object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full bg-white/5 flex items-center justify-center">

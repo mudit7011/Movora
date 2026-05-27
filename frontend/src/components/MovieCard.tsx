@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useCallback } from 'react'
 import type { Movie } from '@/types/movie'
@@ -73,12 +72,12 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
             active ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
           }`}>
             {movie.posterUrl ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={movie.posterUrl}
                 alt={movie.title}
-                fill
-                sizes="(max-width: 640px) 160px, 180px"
-                className="object-cover transition-transform duration-500"
+                className="object-cover w-full h-full transition-transform duration-500"
+                loading="lazy"
               />
             ) : (
               <div className="w-full h-full bg-card flex items-center justify-center">

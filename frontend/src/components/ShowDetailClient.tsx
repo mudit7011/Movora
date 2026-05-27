@@ -2,7 +2,6 @@
 
 import { useUserData } from '@/lib/useUserData'
 import type { Movie } from '@/types/movie'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -60,13 +59,10 @@ export default function ShowDetailClient({ show }: Props) {
             transition={{ duration: 1.2, ease: 'easeOut' }}
             className="absolute inset-0"
           >
-            <Image
+            <img
               src={show.backdropUrl}
               alt={show.title}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover object-top"
+              className="absolute inset-0 w-full h-full object-cover object-top"
             />
           </motion.div>
         )}
@@ -109,12 +105,10 @@ export default function ShowDetailClient({ show }: Props) {
           >
             <div className="relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10">
               {show.posterUrl ? (
-                <Image
+                <img
                   src={show.posterUrl}
                   alt={show.title}
-                  fill
-                  sizes="(max-width: 1024px) 256px, 288px"
-                  className="object-cover"
+                  className="absolute inset-0 w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full bg-card" />
@@ -232,7 +226,7 @@ export default function ShowDetailClient({ show }: Props) {
                     <div key={i} className="flex-shrink-0 text-center w-20">
                       <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2">
                         {member.photo ? (
-                          <Image src={member.photo} alt={member.name} width={64} height={64} className="object-cover w-full h-full" />
+                          <img src={member.photo} alt={member.name} width={64} height={64} className="object-cover w-full h-full" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-xl text-muted">{member.name[0]}</div>
                         )}

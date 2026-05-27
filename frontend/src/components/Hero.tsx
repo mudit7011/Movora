@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useMemo } from 'react'
@@ -98,14 +97,11 @@ export default function Hero({ movie, movies = [] }: Props) {
           className="absolute inset-0"
         >
           {currentMovie.backdropUrl && (
-            <Image
+            <img
               key={currentMovie._id}
               src={currentMovie.backdropUrl}
               alt={currentMovie.title}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover object-center"
+              className="absolute inset-0 w-full h-full object-cover object-center"
             />
           )}
         </motion.div>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Movie } from '@/types/movie'
@@ -103,12 +102,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       {/* Ambient backdrop */}
       {show.backdropUrl && (
         <div className="absolute inset-0 pointer-events-none z-0">
-          <Image
+          <img
             src={show.backdropUrl}
             alt=""
-            fill
-            className="object-cover opacity-[0.07] blur-2xl scale-110"
-            priority
+            className="absolute inset-0 w-full h-full object-cover opacity-[0.07] blur-2xl scale-110"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
         </div>
@@ -231,12 +228,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
             {show.posterUrl && (
               <div className="flex-shrink-0 w-full sm:w-48 sm:self-stretch">
                 <div className="relative h-52 sm:h-full">
-                  <Image
+                  <img
                     src={show.posterUrl}
                     alt={show.title}
-                    fill
-                    sizes="144px"
-                    className="object-cover object-top"
+                    className="absolute inset-0 w-full h-full object-cover object-top"
                   />
                   <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-transparent to-[#0f0f0f]/70" />
                 </div>
@@ -304,7 +299,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
                 <div key={i} className="flex-shrink-0 text-center w-16">
                   <div className="w-12 h-12 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2">
                     {member.photo ? (
-                      <Image src={member.photo} alt={member.name} width={48} height={48} className="object-cover w-full h-full" />
+                      <img src={member.photo} alt={member.name} width={48} height={48} className="object-cover w-full h-full" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-base font-semibold text-muted-foreground">{member.name[0]}</div>
                     )}

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import AdminShell from '@/components/admin/AdminShell'
 import { adminApi } from '@/lib/adminApi'
 
@@ -128,7 +127,7 @@ export default function AdminDashboard() {
                   <Link key={m._id} href={`/${m.type === 'tvshow' ? 'show' : 'movie'}/${m.slug}`} target="_blank">
                     <div className="group relative aspect-[2/3] rounded-xl overflow-hidden bg-card ring-1 ring-white/[0.06] hover:ring-primary/30 transition-all">
                       {m.posterUrl
-                        ? <Image src={m.posterUrl} alt={m.title} fill sizes="120px" className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                        ? <img src={m.posterUrl} alt={m.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         : <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs text-center px-2">{m.title}</div>
                       }
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

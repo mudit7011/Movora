@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from '@/components/Sidebar'
 import { useUserData } from '@/lib/useUserData'
@@ -82,12 +81,10 @@ export default function WatchlistPage() {
                     <Link href={item.type === 'tvshow' ? `/show/${item.slug}` : `/movie/${item.slug}`} className="block">
                       <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card ring-1 ring-white/10 group-hover:ring-primary/50 transition-all">
                         {item.posterUrl ? (
-                          <Image
+                          <img
                             src={item.posterUrl}
                             alt={item.title}
-                            fill
-                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                            className="object-cover"
+                            className="absolute inset-0 w-full h-full object-cover"
                           />
                         ) : (
                           <div className="w-full h-full bg-card flex items-center justify-center">

@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { motion, useMotionValue, useSpring, PanInfo } from 'framer-motion'
 import { useRef, useState, useEffect } from 'react'
 import { useTV } from '@/components/TvProvider'
@@ -178,12 +177,10 @@ export default function ContinueWatchingCarousel({ items, onRemove }: Props) {
                   {/* Thumbnail */}
                   <div className="relative aspect-video rounded-xl overflow-hidden bg-card">
                     {(item.backdropUrl || item.posterUrl) ? (
-                      <Image
+                      <img
                         src={item.backdropUrl || item.posterUrl}
                         alt={item.title}
-                        fill
-                        sizes="(max-width: 640px) 280px, 320px"
-                        className="object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                       />
                     ) : (
                       <div className="w-full h-full bg-card" />

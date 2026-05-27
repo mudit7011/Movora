@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from '@/components/Sidebar'
 import { useUserData } from '@/lib/useUserData'
@@ -117,12 +116,10 @@ export default function HistoryPage() {
                         {/* Thumbnail */}
                         <div className="relative w-32 sm:w-40 aspect-video rounded-xl overflow-hidden bg-card flex-shrink-0">
                           {item.posterUrl ? (
-                            <Image
+                            <img
                               src={item.posterUrl}
                               alt={item.title}
-                              fill
-                              sizes="(max-width: 640px) 128px, 160px"
-                              className="object-cover"
+                              className="absolute inset-0 w-full h-full object-cover"
                             />
                           ) : (
                             <div className="w-full h-full bg-card" />
