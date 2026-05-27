@@ -58,7 +58,7 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
       transition={{ type: 'spring', stiffness: 320, damping: 24 }}
       initial={false}
     >
-      <Link href={detailHref} className="block">
+      <Link href={detailHref} className="block outline-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
         <motion.div
           animate={{
             scale: active && !isTV ? 1.03 : 1,
