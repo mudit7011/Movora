@@ -184,6 +184,10 @@ router.get('/search', async (req, res) => {
       return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] }
     })
 
+    // Prefix fallback using first 2 chars — brings abbreviation-style queries
+    // like "avgrs" into the candidate pool so fuse can find "Avengers"
+    const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
     const candidates = await Movie.find({
       type: 'movie',
       $or: [
@@ -191,20 +195,21 @@ router.get('/search', async (req, res) => {
         { title: { $regex: escapedFull, $options: 'i' } },
         { titleHindi: { $regex: escapedFull, $options: 'i' } },
         { synopsis: { $regex: escapedFull, $options: 'i' } },
+        { title: { $regex: `^${prefix2}`, $options: 'i' } },
       ],
     })
-      .limit(100)
+      .limit(150)
       .select('-sources')
       .lean()
 
-    // Fuzzy-rank the candidates so typos and word-order differences still surface
+    // Fuzzy-rank the candidates so typos and abbreviations still surface
     const fuse = new Fuse(candidates, {
       keys: [
         { name: 'title', weight: 2 },
         { name: 'titleHindi', weight: 1.5 },
         { name: 'synopsis', weight: 0.5 },
       ],
-      threshold: 0.45,
+      threshold: 0.6,
       includeScore: true,
       ignoreLocation: true,
       minMatchCharLength: 2,
