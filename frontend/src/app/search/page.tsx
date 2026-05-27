@@ -18,13 +18,14 @@ async function SearchResults({ q, sort, type }: { q: string; sort: string; type:
     api.searchShows(q).catch(() => []),
   ])
 
-  // Interleave by index, deduplicating by _id
+  // Interleave by index, deduplicating by tmdbId (same title may live in both collections)
   const seen = new Set<string>()
+  const key = (m: typeof movies[number]) => m.tmdbId || m._id
   const merged: (typeof movies[number])[] = []
   const len = Math.max(movies.length, shows.length)
   for (let i = 0; i < len; i++) {
-    if (i < movies.length && !seen.has(movies[i]._id)) { seen.add(movies[i]._id); merged.push(movies[i]) }
-    if (i < shows.length && !seen.has(shows[i]._id))  { seen.add(shows[i]._id);  merged.push(shows[i])  }
+    if (i < movies.length && !seen.has(key(movies[i]))) { seen.add(key(movies[i])); merged.push(movies[i]) }
+    if (i < shows.length && !seen.has(key(shows[i])))  { seen.add(key(shows[i]));  merged.push(shows[i])  }
   }
 
   // Apply type filter
