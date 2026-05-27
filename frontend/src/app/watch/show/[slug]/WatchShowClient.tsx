@@ -152,9 +152,9 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         </div>
       </div>
 
-      {/* ── Player — full bleed ── */}
-      <div className="relative z-10 w-full bg-black">
-        <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+      {/* ── Player ── */}
+      <div className="relative z-10 w-full bg-black lg:bg-transparent lg:px-6 lg:pt-4">
+        <div className="relative w-full lg:rounded-2xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
           <iframe
             key={`${active.url}`}
             src={active.url}
