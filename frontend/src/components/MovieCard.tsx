@@ -66,12 +66,14 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           style={{ transformOrigin: 'top center' }}
-          className={`relative rounded-xl transition-shadow duration-300 ${
-            active ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
-          }`}
+          className="relative rounded-xl"
         >
           {/* Poster */}
           <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card">
+            {/* Inset ring — lives inside the card, never clips against track overflow */}
+            {active && (
+              <div className="absolute inset-0 rounded-xl ring-2 ring-inset ring-primary/70 pointer-events-none z-20" />
+            )}
             {movie.posterUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
