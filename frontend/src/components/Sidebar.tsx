@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -468,8 +467,9 @@ export default function Sidebar() {
                                 {/* Poster — 2:3 ratio, 48×72 */}
                                 <div className={`flex-shrink-0 w-12 h-[72px] rounded-lg overflow-hidden bg-white/[0.06] ring-1 transition-all ${isSelected ? 'ring-primary/40 shadow-lg shadow-primary/10' : 'ring-white/[0.07]'}`}>
                                   {item.posterUrl ? (
-                                    <Image src={item.posterUrl} alt={item.title} width={48} height={72}
-                                      className="object-cover w-full h-full" />
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={item.posterUrl} alt={item.title}
+                                      className="object-cover w-full h-full" loading="lazy" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                       <svg className="w-4 h-4 text-white/10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v14l11-7-11-7z"/></svg>
