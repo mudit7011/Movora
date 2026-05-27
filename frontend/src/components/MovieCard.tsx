@@ -65,12 +65,12 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
             zIndex: active ? 20 : 1,
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          className="relative"
+          className={`relative rounded-xl transition-shadow duration-300 ${
+            active ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
+          }`}
         >
           {/* Poster */}
-          <div className={`relative aspect-[2/3] rounded-xl overflow-hidden bg-card transition-shadow duration-300 ${
-            active ? 'shadow-[0_0_0_2px_rgba(6,214,224,0.6),0_8px_32px_rgba(6,214,224,0.15)]' : ''
-          }`}>
+          <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card">
             {movie.posterUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
