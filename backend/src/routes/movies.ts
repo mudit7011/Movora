@@ -274,14 +274,24 @@ router.get('/related/:slug', async (req, res) => {
   }
 })
 
-// Check which slugs exist in the DB — used by the collection UI to filter unavailable films
-router.get('/check-slugs', async (req, res) => {
+// Return slugs for collection parts that actually exist — accepts tmdbIds (bare numbers)
+router.get('/check-collection', async (req, res) => {
   try {
-    const raw = req.query.slugs
+    const raw = req.query.ids
     if (!raw || typeof raw !== 'string') return res.json([])
-    const slugs = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30)
-    const found = await Movie.find({ slug: { $in: slugs }, type: 'movie' }).select('slug').lean()
-    res.json(found.map(m => m.slug))
+    const ids = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30)
+    // DB may store as "123" or "movie_123" — match both
+    const orList = ids.flatMap(id => [id, `movie_${id}`])
+    const found = await Movie.find({ tmdbId: { $in: orList }, type: 'movie' })
+      .select('tmdbId slug')
+      .lean()
+    // Return map: bare_tmdb_id → slug
+    const result: Record<string, string> = {}
+    for (const m of found) {
+      const bare = String(m.tmdbId).replace(/^movie_/, '')
+      result[bare] = m.slug
+    }
+    res.json(result)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
