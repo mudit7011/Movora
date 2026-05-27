@@ -68,9 +68,15 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   // Track watch progress for Continue Watching
   useEffect(() => {
     const episodeDuration = 2700 // ~45 min default
-    // next episode within same season, or undefined if last ep
     const nextEp = episode < episodeCount ? episode + 1 : undefined
+    // Resume from saved position so progress accumulates across sessions
     let elapsed = 60
+    try {
+      const stored: { movieId: string; timestamp: number; season?: number; episode?: number }[] =
+        JSON.parse(localStorage.getItem('movora_progress') || '[]')
+      const saved = stored.find(p => p.movieId === show._id && p.season === season && p.episode === episode)
+      if (saved?.timestamp) elapsed = saved.timestamp
+    } catch {}
     updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
     const interval = setInterval(() => {
       elapsed = Math.min(elapsed + 60, episodeDuration - 30)

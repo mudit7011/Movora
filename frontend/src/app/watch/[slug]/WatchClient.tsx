@@ -26,10 +26,18 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const isDirect = active.type === 'direct'
   const hasNext  = activeIdx < sources.length - 1
 
-  // Track watch progress: register on mount, tick every 60 s
+  // Track watch progress: resume from saved position, tick every 60 s
   useEffect(() => {
     const duration = (movie.runtime || 120) * 60
+    // Start from previously saved timestamp so progress accumulates across sessions
     let elapsed = 60
+    try {
+      const stored: { movieId: string; timestamp: number }[] =
+        JSON.parse(localStorage.getItem('movora_progress') || '[]')
+      const saved = stored.find(p => p.movieId === movie._id)
+      if (saved?.timestamp) elapsed = saved.timestamp
+    } catch {}
+
     updateProgress(movie, elapsed, duration)
     const interval = setInterval(() => {
       elapsed = Math.min(elapsed + 60, duration - 30)
