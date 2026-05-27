@@ -417,11 +417,15 @@ export default function Sidebar() {
                 onClick={e => e.stopPropagation()}
               >
                 <div className="relative rounded-2xl"
-                  style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 40px 80px rgba(0,0,0,0.7), 0 0 80px rgba(6,214,224,0.07)' }}
+                  style={{
+                    background: 'linear-gradient(160deg, rgba(6,214,224,0.07) 0%, rgba(10,10,10,0.52) 35%, rgba(10,10,10,0.48) 100%)',
+                    backdropFilter: 'blur(40px)',
+                    WebkitBackdropFilter: 'blur(40px)',
+                    border: '1px solid rgba(6,214,224,0.10)',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.03), 0 40px 80px rgba(0,0,0,0.5), 0 0 60px rgba(6,214,224,0.08)',
+                  }}
                 >
-                  <div className="rounded-2xl overflow-hidden"
-                    style={{ background: 'rgba(12,12,18,0.98)', backdropFilter: 'blur(60px)', WebkitBackdropFilter: 'blur(60px)' }}
-                  >
+                  <div className="rounded-2xl overflow-hidden">
 
                     {/* ── Input row ── */}
                     <div className="flex items-center gap-3 px-5 py-4 pb-3.5">
