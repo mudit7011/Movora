@@ -134,7 +134,7 @@ export default function SearchInput() {
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="relative"
       >
-        <div className={`relative rounded-2xl transition-all duration-300 ${dropdownOpen ? 'ring-2 ring-primary/60 shadow-2xl shadow-primary/10' : 'ring-1 ring-white/10'}`}
+        <div className="relative rounded-2xl transition-all duration-300 ring-1 ring-white/[0.06]"
           style={{ background: 'rgba(14,14,20,0.92)', backdropFilter: 'blur(40px)' }}
         >
           {/* Input row */}

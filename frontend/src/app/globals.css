@@ -190,10 +190,15 @@ body {
   animation: shimmer 2s infinite;
 }
 
-/* Focus states for accessibility */
-:focus-visible {
+/* Focus states for accessibility — skip inputs/textareas (they use ring styles instead) */
+:focus-visible:not(input):not(textarea) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
 }
 
 /* Selection color */
