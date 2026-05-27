@@ -161,7 +161,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               key={`${active.url}`}
               src={active.url}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+              allow="autoplay; fullscreen *; picture-in-picture; encrypted-media; gyroscope; accelerometer"
               allowFullScreen
               referrerPolicy="no-referrer"
               className="w-full h-full bg-black"

@@ -131,7 +131,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
                 key={active.url}
                 src={active.url}
                 title={`${movie.title} — ${active.serverName}`}
-                allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+                allow="autoplay; fullscreen *; picture-in-picture; encrypted-media; gyroscope; accelerometer"
                 allowFullScreen
                 referrerPolicy="no-referrer"
                 className="w-full h-full bg-black"
