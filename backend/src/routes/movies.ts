@@ -222,7 +222,15 @@ router.get('/search', async (req, res) => {
       ? fuseResults.map(r => r.item)
       : candidates.sort((a, b) => (b as any).rating - (a as any).rating)
 
-    res.json(ranked.slice(0, 20))
+    const seenKeys = new Set<string>()
+    const deduped = ranked.filter(item => {
+      const key = String((item as any).tmdbId ?? '').replace(/^movie_/, '') || String((item as any)._id)
+      if (seenKeys.has(key)) return false
+      seenKeys.add(key)
+      return true
+    })
+
+    res.json(deduped.slice(0, 20))
   } catch {
     res.status(500).json({ error: 'Server error' })
   }

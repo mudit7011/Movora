@@ -190,6 +190,7 @@ router.get('/search', async (req, res) => {
             const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] };
         });
+        const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const candidates = await Movie_1.Movie.find({
             type: 'tvshow',
             $or: [
@@ -197,9 +198,10 @@ router.get('/search', async (req, res) => {
                 { title: { $regex: escapedFull, $options: 'i' } },
                 { titleHindi: { $regex: escapedFull, $options: 'i' } },
                 { synopsis: { $regex: escapedFull, $options: 'i' } },
+                { title: { $regex: `^${prefix2}`, $options: 'i' } },
             ],
         })
-            .limit(100)
+            .limit(150)
             .select('-sources')
             .lean();
         const fuse = new fuse_js_1.default(candidates, {
@@ -208,7 +210,7 @@ router.get('/search', async (req, res) => {
                 { name: 'titleHindi', weight: 1.5 },
                 { name: 'synopsis', weight: 0.5 },
             ],
-            threshold: 0.45,
+            threshold: 0.6,
             includeScore: true,
             ignoreLocation: true,
             minMatchCharLength: 2,
@@ -217,7 +219,15 @@ router.get('/search', async (req, res) => {
         const ranked = fuseResults.length > 0
             ? fuseResults.map(r => r.item)
             : candidates.sort((a, b) => b.rating - a.rating);
-        res.json(ranked.slice(0, 20));
+        const seenKeys = new Set();
+        const deduped = ranked.filter(item => {
+            const key = String(item.tmdbId ?? '').replace(/^tv_/, '') || String(item._id);
+            if (seenKeys.has(key))
+                return false;
+            seenKeys.add(key);
+            return true;
+        });
+        res.json(deduped.slice(0, 20));
     }
     catch {
         res.status(500).json({ error: 'Server error' });

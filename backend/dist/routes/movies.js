@@ -188,6 +188,9 @@ router.get('/search', async (req, res) => {
             const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] };
         });
+        // Prefix fallback using first 2 chars — brings abbreviation-style queries
+        // like "avgrs" into the candidate pool so fuse can find "Avengers"
+        const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const candidates = await Movie_1.Movie.find({
             type: 'movie',
             $or: [
@@ -195,19 +198,20 @@ router.get('/search', async (req, res) => {
                 { title: { $regex: escapedFull, $options: 'i' } },
                 { titleHindi: { $regex: escapedFull, $options: 'i' } },
                 { synopsis: { $regex: escapedFull, $options: 'i' } },
+                { title: { $regex: `^${prefix2}`, $options: 'i' } },
             ],
         })
-            .limit(100)
+            .limit(150)
             .select('-sources')
             .lean();
-        // Fuzzy-rank the candidates so typos and word-order differences still surface
+        // Fuzzy-rank the candidates so typos and abbreviations still surface
         const fuse = new fuse_js_1.default(candidates, {
             keys: [
                 { name: 'title', weight: 2 },
                 { name: 'titleHindi', weight: 1.5 },
                 { name: 'synopsis', weight: 0.5 },
             ],
-            threshold: 0.45,
+            threshold: 0.6,
             includeScore: true,
             ignoreLocation: true,
             minMatchCharLength: 2,
@@ -217,7 +221,15 @@ router.get('/search', async (req, res) => {
         const ranked = fuseResults.length > 0
             ? fuseResults.map(r => r.item)
             : candidates.sort((a, b) => b.rating - a.rating);
-        res.json(ranked.slice(0, 20));
+        const seenKeys = new Set();
+        const deduped = ranked.filter(item => {
+            const key = String(item.tmdbId ?? '').replace(/^movie_/, '') || String(item._id);
+            if (seenKeys.has(key))
+                return false;
+            seenKeys.add(key);
+            return true;
+        });
+        res.json(deduped.slice(0, 20));
     }
     catch {
         res.status(500).json({ error: 'Server error' });
@@ -262,6 +274,30 @@ router.get('/related/:slug', async (req, res) => {
             }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
         ]);
         res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) });
+    }
+    catch {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+// Return slugs for collection parts that actually exist — accepts tmdbIds (bare numbers)
+router.get('/check-collection', async (req, res) => {
+    try {
+        const raw = req.query.ids;
+        if (!raw || typeof raw !== 'string')
+            return res.json([]);
+        const ids = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30);
+        // DB may store as "123" or "movie_123" — match both
+        const orList = ids.flatMap(id => [id, `movie_${id}`]);
+        const found = await Movie_1.Movie.find({ tmdbId: { $in: orList }, type: 'movie' })
+            .select('tmdbId slug')
+            .lean();
+        // Return map: bare_tmdb_id → slug
+        const result = {};
+        for (const m of found) {
+            const bare = String(m.tmdbId).replace(/^movie_/, '');
+            result[bare] = m.slug;
+        }
+        res.json(result);
     }
     catch {
         res.status(500).json({ error: 'Server error' });
