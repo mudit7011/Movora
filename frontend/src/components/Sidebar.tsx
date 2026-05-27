@@ -421,7 +421,7 @@ export default function Sidebar() {
                     background: 'linear-gradient(160deg, rgba(6,214,224,0.04) 0%, rgba(10,10,10,0.78) 35%, rgba(10,10,10,0.75) 100%)',
                     backdropFilter: 'blur(40px)',
                     WebkitBackdropFilter: 'blur(40px)',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: 'none',
                     boxShadow: '0 0 0 1px rgba(255,255,255,0.02), 0 40px 80px rgba(0,0,0,0.6), 0 0 50px rgba(6,214,224,0.05)',
                   }}
                 >
