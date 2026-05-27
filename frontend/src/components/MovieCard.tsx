@@ -70,10 +70,15 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
         >
           {/* Poster */}
           <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card">
-            {/* Inset ring — lives inside the card, never clips against track overflow */}
-            {active && (
-              <div className="absolute inset-0 rounded-xl ring-2 ring-inset ring-primary/70 pointer-events-none z-20" />
-            )}
+            {/* Inset border — fully inside overflow-hidden, zero clip risk, exact Play button cyan */}
+            <div
+              className="absolute inset-0 rounded-xl pointer-events-none z-20 transition-all duration-200"
+              style={{
+                boxShadow: active
+                  ? 'inset 0 0 0 2px rgb(6,214,224), inset 0 0 12px rgba(6,214,224,0.15)'
+                  : 'inset 0 0 0 0px transparent',
+              }}
+            />
             {movie.posterUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
