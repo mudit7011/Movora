@@ -38,6 +38,12 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
+
+  // Pre-warm EmbedMaster sources whenever season/episode changes
+  useEffect(() => {
+    const rawId = show.tmdbId.replace(/^tv_/, '')
+    fetch(`https://embedmaster.com/json/tv/check/${rawId}/${season}/${episode}`).catch(() => {})
+  }, [show.tmdbId, season, episode])
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 

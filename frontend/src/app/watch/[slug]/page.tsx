@@ -26,6 +26,9 @@ export default async function WatchPage({ params }: Props) {
     { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/movie/${id}?autoplay=true&color=%2306D6E0`, type: 'iframe', quality: 'HD', isWorking: true },
   ]
 
+  // Pre-warm EmbedMaster sources in background (fire and forget)
+  fetch(`https://embedmaster.com/json/movie/check/${id}`).catch(() => {})
+
   const related = await api.getRelated(movie.slug).catch(() => ({ similar: [], youMayLove: [] }))
 
   return <WatchClient movie={movie} sources={sources} related={related} />
