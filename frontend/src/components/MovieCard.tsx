@@ -65,20 +65,17 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
             zIndex: active ? 20 : 1,
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          style={{ transformOrigin: 'top center' }}
-          className="relative rounded-xl"
+          style={{
+            transformOrigin: 'top center',
+            /* outline is NOT clipped by parent overflow — the only safe border for carousel cards */
+            outline: '2px solid',
+            outlineColor: active ? 'rgb(6,214,224)' : 'transparent',
+            outlineOffset: '0px',
+          }}
+          className="relative rounded-xl transition-[outline-color] duration-200"
         >
           {/* Poster */}
           <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-card">
-            {/* Inset border — fully inside overflow-hidden, zero clip risk, exact Play button cyan */}
-            <div
-              className="absolute inset-0 rounded-xl pointer-events-none z-20 transition-all duration-200"
-              style={{
-                boxShadow: active
-                  ? 'inset 0 0 0 2px rgb(6,214,224), inset 0 0 12px rgba(6,214,224,0.15)'
-                  : 'inset 0 0 0 0px transparent',
-              }}
-            />
             {movie.posterUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
