@@ -52,11 +52,12 @@ export default function SearchInput() {
           fetch(`/api/movies/search?q=${encoded}`).then(r => r.json()),
           fetch(`/api/shows/search?q=${encoded}`).then(r => r.json()),
         ])
+        const seen = new Set<string>()
         const merged: Movie[] = []
         const max = Math.max((movies as Movie[]).length, (shows as Movie[]).length)
         for (let i = 0; i < max && merged.length < 6; i++) {
-          if (movies[i] && merged.length < 6) merged.push(movies[i])
-          if (shows[i] && merged.length < 6) merged.push(shows[i])
+          if (movies[i] && !seen.has(movies[i]._id) && merged.length < 6) { seen.add(movies[i]._id); merged.push(movies[i]) }
+          if (shows[i]  && !seen.has(shows[i]._id)  && merged.length < 6) { seen.add(shows[i]._id);  merged.push(shows[i])  }
         }
         setSuggestions(merged)
       } catch {
