@@ -152,23 +152,20 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         </div>
       </div>
 
-      {/* ── Player — edge-to-edge on mobile, contained on desktop ── */}
-      <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6">
-        <div className="lg:rounded-2xl overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
-          <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
-            <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
-            <iframe
-              key={`${active.url}`}
-              src={active.url}
-              title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
-              allowFullScreen
-              referrerPolicy="no-referrer"
-              className="w-full h-full bg-black"
-              style={{ border: 'none', display: 'block' }}
-              scrolling="no"
-            />
-          </div>
+      {/* ── Player — full bleed ── */}
+      <div className="relative z-10 w-full bg-black">
+        <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+          <iframe
+            key={`${active.url}`}
+            src={active.url}
+            title={`${show.title} S${season}E${episode} — ${active.serverName}`}
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+            allowFullScreen
+            referrerPolicy="no-referrer"
+            className="w-full h-full bg-black"
+            style={{ border: 'none', display: 'block' }}
+            scrolling="no"
+          />
         </div>
       </div>
 
