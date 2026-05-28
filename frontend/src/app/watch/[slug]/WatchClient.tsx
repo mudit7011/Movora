@@ -26,10 +26,9 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const isDirect = active.type === 'direct'
   const hasNext  = activeIdx < sources.length - 1
 
-  // Track watch progress: resume from saved position, tick every 60 s
+  // Track watch progress — pauses when tab/screen is hidden (iOS background fix)
   useEffect(() => {
     const duration = (movie.runtime || 120) * 60
-    // Start from previously saved timestamp so progress accumulates across sessions
     let elapsed = 60
     try {
       const stored: { movieId: string; timestamp: number }[] =
@@ -39,11 +38,30 @@ export default function WatchClient({ movie, sources, related }: Props) {
     } catch {}
 
     updateProgress(movie, elapsed, duration)
-    const interval = setInterval(() => {
-      elapsed = Math.min(elapsed + 60, duration - 30)
-      updateProgress(movie, elapsed, duration)
-    }, 60_000)
-    return () => clearInterval(interval)
+
+    let interval: ReturnType<typeof setInterval> | null = null
+
+    const start = () => {
+      if (interval) return
+      interval = setInterval(() => {
+        elapsed = Math.min(elapsed + 60, duration - 30)
+        updateProgress(movie, elapsed, duration)
+      }, 60_000)
+    }
+
+    const stop = () => {
+      if (interval) { clearInterval(interval); interval = null }
+    }
+
+    const onVisibility = () => document.hidden ? stop() : start()
+
+    document.addEventListener('visibilitychange', onVisibility)
+    start()
+
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movie._id])
 
