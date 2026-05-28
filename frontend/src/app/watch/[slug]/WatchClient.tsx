@@ -55,12 +55,24 @@ export default function WatchClient({ movie, sources, related }: Props) {
 
     const onVisibility = () => document.hidden ? stop() : start()
 
+    // Listen for player "ended" events via postMessage — marks movie complete immediately
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data
+      if (!d) return
+      const event = d.event ?? d.type ?? d.action ?? ''
+      if (['ended', 'end', 'finish', 'complete', 'videoEnd', 'finished'].includes(String(event).toLowerCase())) {
+        updateProgress(movie, duration, duration)
+      }
+    }
+
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('message', onMessage)
     start()
 
     return () => {
       stop()
       document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('message', onMessage)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movie._id])

@@ -60,7 +60,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       if (storedProgress) {
         const progress: WatchProgress[] = JSON.parse(storedProgress)
         // Filter out already-completed items on load so stale localStorage entries disappear
-        const active = progress.filter(p => !(p.duration > 0 && p.timestamp / p.duration >= 0.9))
+        const active = progress.filter(p => !(p.duration > 0 && p.timestamp / p.duration >= 0.85))
         setContinueWatching(active.sort((a, b) => b.lastWatched - a.lastWatched))
       }
     } catch (error) {
@@ -124,7 +124,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     nextEpisode?: number,
   ) => {
     const isMovie = !movie.type || movie.type === 'movie'
-    const completed = duration > 0 && timestamp / duration >= 0.9
+    const completed = duration > 0 && timestamp / duration >= 0.85
 
     if (completed) {
       if (isMovie) {
