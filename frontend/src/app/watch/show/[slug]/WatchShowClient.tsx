@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import type { Movie } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import EpisodeGrid from '@/components/EpisodeGrid'
@@ -33,8 +32,7 @@ interface Props {
 }
 
 export default function WatchShowClient({ show, initialSeason, initialEpisode, related }: Props) {
-  const isTV   = useTV()
-  const router = useRouter()
+  const isTV = useTV()
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
@@ -101,7 +99,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setSeason(s)
     setEpisode(ep)
     setActiveServerIdx(0)
-    router.replace(`/watch/show/${show.slug}?season=${s}&episode=${ep}`, { scroll: false })
+    window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${ep}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
     // Show fullscreen re-entry prompt so user doesn't lose fullscreen UX
     clearTimeout(fsTimer.current)
