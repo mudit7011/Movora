@@ -38,6 +38,9 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
+  const [showFsPrompt, setShowFsPrompt] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const fsTimer = useRef<ReturnType<typeof setTimeout>>()
 
   // Pre-warm EmbedMaster sources whenever season/episode changes
   useEffect(() => {
@@ -60,6 +63,8 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   useEffect(() => {
     return () => clearTimeout(bannerTimer.current)
   }, [activeServerIdx, season, episode])
+
+  useEffect(() => () => clearTimeout(fsTimer.current), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -98,6 +103,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setActiveServerIdx(0)
     router.replace(`/watch/show/${show.slug}?season=${s}&episode=${ep}`, { scroll: false })
     window.scrollTo({ top: 0, behavior: 'smooth' })
+    // Show fullscreen re-entry prompt so user doesn't lose fullscreen UX
+    clearTimeout(fsTimer.current)
+    setShowFsPrompt(true)
+    fsTimer.current = setTimeout(() => setShowFsPrompt(false), 7000)
   }
 
   function tryNextServer() {
@@ -164,7 +173,8 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
           <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             <iframe
-              key={`${active.url}`}
+              ref={iframeRef}
+              key={activeServerIdx}
               src={active.url}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *"
@@ -176,6 +186,20 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               className="w-full h-full bg-black"
               style={{ border: 'none', display: 'block' }}
             />
+            {showFsPrompt && (
+              <button
+                className="absolute bottom-10 right-3 z-20 flex items-center gap-1.5 bg-black/75 backdrop-blur-sm text-white rounded-xl px-3 py-2 text-xs font-semibold border border-white/10 shadow-lg"
+                onClick={() => {
+                  iframeRef.current?.requestFullscreen().catch(() => {})
+                  setShowFsPrompt(false)
+                }}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+                Fullscreen
+              </button>
+            )}
           </div>
         </div>
       </div>
