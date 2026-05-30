@@ -71,25 +71,38 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
   // Listen for episode-change postMessages from embedded players (Videasy etc.)
   useEffect(() => {
-    const trusted = ['https://player.videasy.net', 'https://vidlink.pro']
     const onMessage = (e: MessageEvent) => {
-      if (!trusted.some(o => e.origin === o)) return
       const d = e.data
-      if (!d || typeof d !== 'object') return
+      if (!d || typeof d !== 'object' || Array.isArray(d)) return
 
-      // Extract episode/season from various possible payload shapes
+      // Flatten one level of nesting to handle {data:{...}} and {payload:{...}} shapes
+      const flat: Record<string, unknown> = {
+        ...d,
+        ...(d.data   && typeof d.data   === 'object' ? d.data   : {}),
+        ...(d.payload && typeof d.payload === 'object' ? d.payload : {}),
+      }
+
       const newEp: unknown =
-        d.episode ?? d.episodeNumber ?? d.ep ??
-        d.nextEpisode ?? d.next_episode ??
-        d.data?.episode ?? d.data?.ep
+        flat.episode ?? flat.episodeNumber ?? flat.ep ??
+        flat.currentEpisode ?? flat.current_episode ??
+        flat.nextEpisode ?? flat.next_episode
 
       const newS: unknown =
-        d.season ?? d.seasonNumber ?? d.s ??
-        d.nextSeason ?? d.next_season ??
-        d.data?.season ?? d.data?.s
+        flat.season ?? flat.seasonNumber ?? flat.s ??
+        flat.currentSeason ?? flat.current_season ??
+        flat.nextSeason ?? flat.next_season
 
-      if (typeof newEp === 'number' && newEp !== episodeRef.current) {
-        const s = typeof newS === 'number' ? newS : seasonRef.current
+      // Sanity: must be a positive integer ≤100, and different from what's showing
+      if (
+        typeof newEp === 'number' &&
+        Number.isInteger(newEp) &&
+        newEp >= 1 && newEp <= 100 &&
+        newEp !== episodeRef.current
+      ) {
+        const s =
+          typeof newS === 'number' && Number.isInteger(newS) && newS >= 1
+            ? newS
+            : seasonRef.current
         setSeason(s)
         setEpisode(newEp)
         window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${newEp}`)
