@@ -166,7 +166,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             <iframe
               ref={iframeRef}
-              key={activeServerIdx}
+              key={active.url}
               src={active.url}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay *; fullscreen *; picture-in-picture *; encrypted-media *"
