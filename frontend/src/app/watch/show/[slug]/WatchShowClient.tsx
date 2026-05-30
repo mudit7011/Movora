@@ -63,6 +63,42 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
   useEffect(() => () => clearTimeout(fsTimer.current), [])
 
+  // Refs to avoid stale closures in the message listener below
+  const episodeRef = useRef(episode)
+  const seasonRef  = useRef(season)
+  useEffect(() => { episodeRef.current = episode }, [episode])
+  useEffect(() => { seasonRef.current  = season  }, [season])
+
+  // Listen for episode-change postMessages from embedded players (Videasy etc.)
+  useEffect(() => {
+    const trusted = ['https://player.videasy.net', 'https://vidlink.pro']
+    const onMessage = (e: MessageEvent) => {
+      if (!trusted.some(o => e.origin === o)) return
+      const d = e.data
+      if (!d || typeof d !== 'object') return
+
+      // Extract episode/season from various possible payload shapes
+      const newEp: unknown =
+        d.episode ?? d.episodeNumber ?? d.ep ??
+        d.nextEpisode ?? d.next_episode ??
+        d.data?.episode ?? d.data?.ep
+
+      const newS: unknown =
+        d.season ?? d.seasonNumber ?? d.s ??
+        d.nextSeason ?? d.next_season ??
+        d.data?.season ?? d.data?.s
+
+      if (typeof newEp === 'number' && newEp !== episodeRef.current) {
+        const s = typeof newS === 'number' ? newS : seasonRef.current
+        setSeason(s)
+        setEpisode(newEp)
+        window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${newEp}`)
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [show.slug])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'n' || e.key === 'N') {
