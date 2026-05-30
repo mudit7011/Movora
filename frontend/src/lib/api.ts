@@ -32,6 +32,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getTrending: () => apiFetch<Movie[]>('/api/movies/trending'),
   getLatest: () => apiFetch<Movie[]>('/api/movies/latest'),
+  getPopularMovies: () => apiFetch<Movie[]>('/api/movies/popular'),
+  getTopRatedMovies: () => apiFetch<Movie[]>('/api/movies/top-rated'),
   getByLanguage: (lang: string) => apiFetch<Movie[]>(`/api/movies/by-language/${encodeURIComponent(lang)}`),
   getMovies: (filters: MovieFilters = {}) => {
     const params = new URLSearchParams(filters as Record<string, string>)
@@ -46,6 +48,8 @@ export const api = {
   // TV Shows
   getTrendingShows: () => apiFetch<Movie[]>('/api/shows/trending'),
   getLatestShows: () => apiFetch<Movie[]>('/api/shows/latest'),
+  getPopularShows: () => apiFetch<Movie[]>('/api/shows/popular'),
+  getTopRatedShows: () => apiFetch<Movie[]>('/api/shows/top-rated'),
   getShowsByLanguage: (lang: string) => apiFetch<Movie[]>(`/api/shows/by-language/${encodeURIComponent(lang)}`),
   getShows: (filters: MovieFilters = {}) => {
     const params = new URLSearchParams(filters as Record<string, string>)

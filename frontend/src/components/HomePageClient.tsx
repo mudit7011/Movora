@@ -12,15 +12,35 @@ import type { Movie } from '@/types/movie'
 interface Props {
   trending: Movie[]
   latest: Movie[]
+  popularMovies: Movie[]
+  topRatedMovies: Movie[]
   hindi: Movie[]
   english: Movie[]
   trendingShows: Movie[]
   latestShows: Movie[]
+  popularShows: Movie[]
+  topRatedShows: Movie[]
   hindiShows: Movie[]
-  englishShows: Movie[]
+  koreanShows: Movie[]
+  japaneseShows: Movie[]
 }
 
-export default function HomePageClient({ trending, latest, hindi, english, trendingShows, latestShows, hindiShows, englishShows }: Props) {
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div className="pt-6 pb-2 px-4 sm:px-6 lg:pl-24 lg:pr-8">
+      <div className="flex items-center gap-3">
+        <div className="w-1 h-5 bg-primary rounded-full" />
+        <span className="text-xs font-semibold text-primary uppercase tracking-widest">{label}</span>
+      </div>
+    </div>
+  )
+}
+
+export default function HomePageClient({
+  trending, latest, popularMovies, topRatedMovies, hindi, english,
+  trendingShows, latestShows, popularShows, topRatedShows,
+  hindiShows, koreanShows, japaneseShows,
+}: Props) {
   const isTV = useTV()
   const { continueWatching, addToWatchlist, removeFromHistory } = useUserData()
 
@@ -37,7 +57,7 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
   const featuredItems: Movie[] = []
   for (let i = 0; i < 4; i++) {
     if (topMovies[i]) featuredItems.push(topMovies[i])
-    if (topShows[i]) featuredItems.push(topShows[i])
+    if (topShows[i])  featuredItems.push(topShows[i])
   }
   const hero = featuredItems[0] ?? latest[0] ?? trending[0]
 
@@ -49,31 +69,52 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
         {hero && <Hero movie={hero} movies={featuredItems} />}
 
         <div className="relative -mt-20 z-10">
-          {/* Continue Watching - Personal section */}
           {continueWatching.length > 0 && (
-            <ContinueWatchingCarousel 
+            <ContinueWatchingCarousel
               items={continueWatching}
               onRemove={removeFromHistory}
             />
           )}
 
-          {/* Trending Now */}
-          <Carousel
-            title="Trending Now"
-            movies={trending}
-            seeAllHref="/movies?sort=rating"
-            onAddToWatchlist={handleAddToWatchlist}
-          />
+          {/* ── Movies ── */}
+          <SectionDivider label="Movies" />
 
-          {/* Latest Releases */}
-          <Carousel
-            title="Latest Releases"
-            movies={latest}
-            seeAllHref="/movies?sort=recent"
-            onAddToWatchlist={handleAddToWatchlist}
-          />
+          {trending.length > 0 && (
+            <Carousel
+              title="Trending This Week"
+              movies={trending}
+              seeAllHref="/movies?sort=rating"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
 
-          {/* Hindi Movies */}
+          {latest.length > 0 && (
+            <Carousel
+              title="Now Playing"
+              movies={latest}
+              seeAllHref="/movies?sort=recent"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {popularMovies.length > 0 && (
+            <Carousel
+              title="Popular Movies"
+              movies={popularMovies}
+              seeAllHref="/movies?sort=rating"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {topRatedMovies.length > 0 && (
+            <Carousel
+              title="Top Rated Movies"
+              movies={topRatedMovies}
+              seeAllHref="/movies?sort=rating"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
           {hindi.length > 0 && (
             <Carousel
               title="Hindi Movies"
@@ -83,7 +124,6 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
             />
           )}
 
-          {/* English Movies */}
           {english.length > 0 && (
             <Carousel
               title="English Movies"
@@ -93,19 +133,12 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
             />
           )}
 
-          {/* ── TV Shows Section ── */}
-          {(trendingShows.length > 0 || latestShows.length > 0) && (
-            <div className="pt-4 pb-2 px-4 sm:px-6 lg:pl-24 lg:pr-8">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-5 bg-primary rounded-full" />
-                <span className="text-xs font-semibold text-primary uppercase tracking-widest">TV Shows</span>
-              </div>
-            </div>
-          )}
+          {/* ── TV Shows ── */}
+          <SectionDivider label="TV Shows" />
 
           {trendingShows.length > 0 && (
             <Carousel
-              title="Trending Web Series"
+              title="Trending This Week"
               movies={trendingShows}
               seeAllHref="/shows?sort=rating"
               onAddToWatchlist={handleAddToWatchlist}
@@ -114,9 +147,45 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
 
           {latestShows.length > 0 && (
             <Carousel
-              title="Latest Web Series"
+              title="Airing Today"
               movies={latestShows}
               seeAllHref="/shows?sort=recent"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {popularShows.length > 0 && (
+            <Carousel
+              title="Popular Shows"
+              movies={popularShows}
+              seeAllHref="/shows?sort=rating"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {topRatedShows.length > 0 && (
+            <Carousel
+              title="Top Rated Shows"
+              movies={topRatedShows}
+              seeAllHref="/shows?sort=rating"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {koreanShows.length > 0 && (
+            <Carousel
+              title="Korean Dramas & Shows"
+              movies={koreanShows}
+              seeAllHref="/shows?language=Korean"
+              onAddToWatchlist={handleAddToWatchlist}
+            />
+          )}
+
+          {japaneseShows.length > 0 && (
+            <Carousel
+              title="Japanese Shows & Anime"
+              movies={japaneseShows}
+              seeAllHref="/shows?language=Japanese"
               onAddToWatchlist={handleAddToWatchlist}
             />
           )}
@@ -126,15 +195,6 @@ export default function HomePageClient({ trending, latest, hindi, english, trend
               title="Hindi Web Series"
               movies={hindiShows}
               seeAllHref="/shows?language=Hindi"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
-          )}
-
-          {englishShows.length > 0 && (
-            <Carousel
-              title="English Web Series"
-              movies={englishShows}
-              seeAllHref="/shows?language=English"
               onAddToWatchlist={handleAddToWatchlist}
             />
           )}

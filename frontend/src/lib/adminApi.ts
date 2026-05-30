@@ -79,18 +79,60 @@ export const adminApi = {
     await checkRes(res)
   },
 
-  async triggerScrape() {
-    const res = await fetch(`${BASE}/scrape/trigger`, {
+  async getScrapeActions() {
+    const res = await fetch(`${BASE}/scrape/actions`, { headers: headers() })
+    await checkRes(res)
+    return res.json() as Promise<{ key: string; label: string; mediaType: 'movie' | 'tv' }[]>
+  },
+
+  async runFetchAction(action: string, pages = 3) {
+    const res = await fetch(`${BASE}/scrape/fetch/${action}?pages=${pages}`, {
       method: 'POST',
       headers: headers(),
     })
     await checkRes(res)
-    return res.json()
+    return res.json() as Promise<{ jobId: string; label: string; added: number; skipped: number; errors: number; addedTitles: string[] }>
   },
 
   async getScrapeJobs() {
     const res = await fetch(`${BASE}/scrape/jobs`, { headers: headers() })
     await checkRes(res)
     return res.json() as Promise<any[]>
+  },
+
+  async deleteAllDuplicates() {
+    const res = await fetch(`${BASE}/movies/delete-duplicates`, {
+      method: 'POST',
+      headers: headers(),
+    })
+    await checkRes(res)
+    return res.json() as Promise<{ deleted: number; message: string }>
+  },
+
+  async getDuplicates() {
+    const res = await fetch(`${BASE}/movies/duplicates`, { headers: headers() })
+    await checkRes(res)
+    return res.json() as Promise<{
+      byTmdbId: { tmdbId: string; count: number; items: any[] }[]
+      byTitleYear: { title: string; year: number; count: number; items: any[] }[]
+      total: number
+    }>
+  },
+
+  async tmdbSearch(q: string, type: 'movie' | 'tv') {
+    const params = new URLSearchParams({ q, type })
+    const res = await fetch(`${BASE}/movies/tmdb-search?${params}`, { headers: headers() })
+    await checkRes(res)
+    return res.json() as Promise<{ id: number; title: string; year: number; poster: string | null; rating: number; overview: string }[]>
+  },
+
+  async tmdbImport(tmdbId: number, type: 'movie' | 'tv') {
+    const res = await fetch(`${BASE}/movies/tmdb-import`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ tmdbId, type }),
+    })
+    await checkRes(res)
+    return res.json() as Promise<{ message: string; slug: string; title: string; type: string }>
   },
 }

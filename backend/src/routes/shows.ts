@@ -150,6 +150,57 @@ router.get('/latest', async (_req, res) => {
   }
 })
 
+router.get('/popular', async (_req, res) => {
+  try {
+    const shows = await Movie.find({
+      type:           'tvshow',
+      streamVerified: { $ne: false },
+      language:       { $in: ['Hindi', 'English', 'Korean', 'Japanese', 'Tamil', 'Telugu'] },
+      releaseYear:    { $gte: 2015 },
+      rating:         { $gte: 6.5, $lte: 9.5 },
+      genres:         { $nin: EXCLUDED_GENRES },
+      posterUrl:      { $ne: '' },
+      backdropUrl:    { $ne: '' },
+      ...NOT_DAILY_SOAP,
+    }).sort({ rating: -1, releaseYear: -1 }).limit(60).select('-sources')
+    const seen = new Set<string>()
+    const unique = shows.filter(s => {
+      const key = s.title.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 20)
+    res.json(unique)
+  } catch {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+router.get('/top-rated', async (_req, res) => {
+  try {
+    const shows = await Movie.find({
+      type:           'tvshow',
+      streamVerified: { $ne: false },
+      releaseYear:    { $gte: 2000 },
+      rating:         { $gte: 8.0, $lte: 9.5 },
+      genres:         { $nin: EXCLUDED_GENRES },
+      posterUrl:      { $ne: '' },
+      backdropUrl:    { $ne: '' },
+      ...NOT_DAILY_SOAP,
+    }).sort({ rating: -1, releaseYear: -1 }).limit(60).select('-sources')
+    const seen = new Set<string>()
+    const unique = shows.filter(s => {
+      const key = s.title.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 20)
+    res.json(unique)
+  } catch {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 router.get('/by-language/:lang', async (req, res) => {
   try {
     const raw = await Movie.find({
@@ -162,8 +213,8 @@ router.get('/by-language/:lang', async (req, res) => {
       backdropUrl:    { $ne: '' },
       ...NOT_DAILY_SOAP,
     })
-      .sort({ releaseYear: -1 })
-      .limit(60)
+      .sort({ rating: -1, releaseYear: -1 })
+      .limit(300)
       .select('-sources')
     const seen = new Set<string>()
     const shows = raw.filter(s => {
@@ -171,7 +222,7 @@ router.get('/by-language/:lang', async (req, res) => {
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).slice(0, 20)
+    })
     res.json(shows)
   } catch {
     res.status(500).json({ error: 'Server error' })
@@ -193,16 +244,21 @@ router.get('/search', async (req, res) => {
     })
 
     const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Only use prefix2 for single-word queries — for multi-word, it floods candidates with
+    // irrelevant results (e.g. "The Society" → prefix "Th" brings 100+ "The ..." shows)
+    const orClauses: object[] = [
+      { $and: anyTokenFilter },
+      { title: { $regex: escapedFull, $options: 'i' } },
+      { titleHindi: { $regex: escapedFull, $options: 'i' } },
+      { synopsis: { $regex: escapedFull, $options: 'i' } },
+    ]
+    if (tokens.length === 1) {
+      orClauses.push({ title: { $regex: `^${prefix2}`, $options: 'i' } })
+    }
 
     const candidates = await Movie.find({
       type: 'tvshow',
-      $or: [
-        { $and: anyTokenFilter },
-        { title: { $regex: escapedFull, $options: 'i' } },
-        { titleHindi: { $regex: escapedFull, $options: 'i' } },
-        { synopsis: { $regex: escapedFull, $options: 'i' } },
-        { title: { $regex: `^${prefix2}`, $options: 'i' } },
-      ],
+      $or: orClauses,
     })
       .limit(150)
       .select('-sources')

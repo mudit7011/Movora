@@ -4,8 +4,11 @@ exports.ScrapeJob = void 0;
 const mongoose_1 = require("mongoose");
 const scrapeJobSchema = new mongoose_1.Schema({
     site: { type: String, required: true },
+    label: { type: String, default: '' },
     status: { type: String, enum: ['running', 'completed', 'failed'], default: 'running' },
-    moviesFound: { type: Number, default: 0 },
+    added: { type: Number, default: 0 },
+    skipped: { type: Number, default: 0 },
+    addedTitles: [String],
     scrapeErrors: [String],
     startedAt: { type: Date, default: Date.now },
     completedAt: Date,

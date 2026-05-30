@@ -145,6 +145,59 @@ router.get('/latest', async (_req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+router.get('/popular', async (_req, res) => {
+    try {
+        const movies = await Movie_1.Movie.find({
+            type: 'movie',
+            streamVerified: { $ne: false },
+            language: { $in: ['Hindi', 'English', 'Korean', 'Japanese', 'Tamil', 'Telugu'] },
+            releaseYear: { $gte: 2015 },
+            rating: { $gte: 6.5, $lte: 9.5 },
+            runtime: { $gte: 60 },
+            genres: { $nin: EXCLUDED_GENRES },
+            posterUrl: { $ne: '' },
+            backdropUrl: { $ne: '' },
+        }).sort({ rating: -1, releaseYear: -1 }).limit(60).select('-sources');
+        const seen = new Set();
+        const unique = movies.filter(m => {
+            const key = m.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 20);
+        res.json(unique);
+    }
+    catch {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+router.get('/top-rated', async (_req, res) => {
+    try {
+        const movies = await Movie_1.Movie.find({
+            type: 'movie',
+            streamVerified: { $ne: false },
+            releaseYear: { $gte: 2000 },
+            rating: { $gte: 8.0, $lte: 9.5 },
+            runtime: { $gte: 60 },
+            genres: { $nin: EXCLUDED_GENRES },
+            posterUrl: { $ne: '' },
+            backdropUrl: { $ne: '' },
+        }).sort({ rating: -1, releaseYear: -1 }).limit(60).select('-sources');
+        const seen = new Set();
+        const unique = movies.filter(m => {
+            const key = m.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            return true;
+        }).slice(0, 20);
+        res.json(unique);
+    }
+    catch {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 router.get('/by-language/:lang', async (req, res) => {
     try {
         const raw = await Movie_1.Movie.find({
@@ -159,7 +212,7 @@ router.get('/by-language/:lang', async (req, res) => {
             backdropUrl: { $ne: '' },
         })
             .sort({ rating: -1, releaseYear: -1 })
-            .limit(60)
+            .limit(300)
             .select('-sources');
         const seen = new Set();
         const movies = raw.filter(m => {
@@ -168,7 +221,7 @@ router.get('/by-language/:lang', async (req, res) => {
                 return false;
             seen.add(key);
             return true;
-        }).slice(0, 20);
+        });
         res.json(movies);
     }
     catch {
@@ -191,15 +244,18 @@ router.get('/search', async (req, res) => {
         // Prefix fallback using first 2 chars — brings abbreviation-style queries
         // like "avgrs" into the candidate pool so fuse can find "Avengers"
         const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const orClauses = [
+            { $and: anyTokenFilter },
+            { title: { $regex: escapedFull, $options: 'i' } },
+            { titleHindi: { $regex: escapedFull, $options: 'i' } },
+            { synopsis: { $regex: escapedFull, $options: 'i' } },
+        ];
+        if (tokens.length === 1) {
+            orClauses.push({ title: { $regex: `^${prefix2}`, $options: 'i' } });
+        }
         const candidates = await Movie_1.Movie.find({
             type: 'movie',
-            $or: [
-                { $and: anyTokenFilter },
-                { title: { $regex: escapedFull, $options: 'i' } },
-                { titleHindi: { $regex: escapedFull, $options: 'i' } },
-                { synopsis: { $regex: escapedFull, $options: 'i' } },
-                { title: { $regex: `^${prefix2}`, $options: 'i' } },
-            ],
+            $or: orClauses,
         })
             .limit(150)
             .select('-sources')

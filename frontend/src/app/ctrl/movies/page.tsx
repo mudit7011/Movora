@@ -16,6 +16,25 @@ export default function AdminMoviesPage() {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError]   = useState('')
 
+  // Duplicates panel state
+  const [showDupes, setShowDupes]           = useState(false)
+  const [dupesData, setDupesData]           = useState<any>(null)
+  const [dupesLoading, setDupesLoading]     = useState(false)
+  const [dupesError, setDupesError]         = useState('')
+  const [deletingDupe, setDeletingDupe]     = useState<string | null>(null)
+  const [deletingAll, setDeletingAll]       = useState(false)
+  const [deleteAllMsg, setDeleteAllMsg]     = useState('')
+
+  // Import modal state
+  const [showImport, setShowImport]         = useState(false)
+  const [importSearch, setImportSearch]     = useState('')
+  const [importType, setImportType]         = useState<'movie' | 'tv'>('movie')
+  const [tmdbResults, setTmdbResults]       = useState<any[]>([])
+  const [tmdbLoading, setTmdbLoading]       = useState(false)
+  const [importingId, setImportingId]       = useState<number | null>(null)
+  const [importMsg, setImportMsg]           = useState<{ ok: boolean; text: string } | null>(null)
+  const [importedIds, setImportedIds]       = useState<Set<number>>(new Set())
+
   const load = useCallback(async (p: number, q: string) => {
     setLoading(true)
     setError('')
@@ -53,6 +72,93 @@ export default function AdminMoviesPage() {
     }
   }
 
+  async function handleDeleteAll() {
+    if (!confirm('Saare duplicates delete kar dun? Har group ka best entry rakhega, baaki delete ho jayenge.')) return
+    setDeletingAll(true)
+    setDeleteAllMsg('')
+    try {
+      const res = await adminApi.deleteAllDuplicates()
+      setDeleteAllMsg(`${res.deleted} duplicates deleted!`)
+      setTotal(t => t - res.deleted)
+      setDupesData(null)
+      // Refresh duplicate list
+      await loadDuplicates()
+    } catch (e: any) {
+      setDeleteAllMsg(e.message)
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
+  async function loadDuplicates() {
+    setDupesLoading(true)
+    setDupesError('')
+    try {
+      const data = await adminApi.getDuplicates()
+      setDupesData(data)
+    } catch (e: any) {
+      setDupesError(e.message)
+    } finally {
+      setDupesLoading(false)
+    }
+  }
+
+  async function handleDeleteDupe(id: string) {
+    setDeletingDupe(id)
+    try {
+      await adminApi.deleteMovie(id)
+      // Remove from both groups
+      setDupesData((prev: any) => {
+        if (!prev) return prev
+        const strip = (groups: any[]) => groups
+          .map((g: any) => ({ ...g, items: g.items.filter((it: any) => String(it._id) !== id) }))
+          .filter((g: any) => g.items.length > 1)
+        return {
+          ...prev,
+          byTmdbId:    strip(prev.byTmdbId),
+          byTitleYear: strip(prev.byTitleYear),
+          total: prev.total,
+        }
+      })
+      setTotal(t => t - 1)
+    } catch (e: any) {
+      setDupesError(e.message)
+    } finally {
+      setDeletingDupe(null)
+    }
+  }
+
+  async function handleTmdbSearch(e: React.FormEvent) {
+    e.preventDefault()
+    if (!importSearch.trim()) return
+    setTmdbLoading(true)
+    setTmdbResults([])
+    setImportMsg(null)
+    try {
+      const results = await adminApi.tmdbSearch(importSearch.trim(), importType)
+      setTmdbResults(results)
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: e.message })
+    } finally {
+      setTmdbLoading(false)
+    }
+  }
+
+  async function handleImport(tmdbId: number) {
+    setImportingId(tmdbId)
+    setImportMsg(null)
+    try {
+      const res = await adminApi.tmdbImport(tmdbId, importType)
+      setImportMsg({ ok: true, text: `"${res.title}" added successfully!` })
+      setImportedIds(prev => new Set(prev).add(tmdbId))
+      setTotal(t => t + 1)
+    } catch (e: any) {
+      setImportMsg({ ok: false, text: e.message })
+    } finally {
+      setImportingId(null)
+    }
+  }
+
   return (
     <AdminShell>
       <div className="p-8">
@@ -62,7 +168,264 @@ export default function AdminMoviesPage() {
             <h1 className="text-2xl font-bold text-foreground">Content</h1>
             <p className="text-sm text-muted-foreground mt-1">{total.toLocaleString()} movies &amp; shows in database</p>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowDupes(d => !d); if (!dupesData) loadDuplicates() }}
+              className={`flex items-center gap-2 px-4 py-2.5 font-semibold text-sm rounded-xl transition-all border ${
+                showDupes
+                  ? 'bg-orange-500/15 border-orange-500/30 text-orange-400'
+                  : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="8" y="8" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              Duplicates
+            </button>
+            <button
+              onClick={() => { setShowImport(true); setImportMsg(null); setTmdbResults([]); setImportSearch(''); setImportedIds(new Set()) }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-background font-semibold text-sm rounded-xl hover:bg-primary/90 transition-all"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 5v14M5 12h14" strokeLinecap="round"/>
+              </svg>
+              Add from TMDB
+            </button>
+          </div>
         </div>
+
+        {/* Import Modal */}
+        {showImport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
+                <h2 className="text-base font-bold text-foreground">Import from TMDB</h2>
+                <button
+                  onClick={() => setShowImport(false)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Type toggle */}
+                <div className="flex gap-2 p-1 bg-white/5 rounded-xl w-fit">
+                  {(['movie', 'tv'] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => { setImportType(t); setTmdbResults([]); setImportMsg(null); setImportedIds(new Set()) }}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                        importType === t ? 'bg-primary text-background' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {t === 'movie' ? 'Movie' : 'TV Show'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search */}
+                <form onSubmit={handleTmdbSearch} className="flex gap-2">
+                  <input
+                    value={importSearch}
+                    onChange={e => setImportSearch(e.target.value)}
+                    placeholder={importType === 'movie' ? 'e.g. Inception' : 'e.g. The Society'}
+                    className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 focus:border-primary/50 rounded-xl text-sm text-foreground placeholder-muted-foreground outline-none transition-all"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    disabled={tmdbLoading}
+                    className="px-4 py-2.5 bg-primary text-background font-semibold text-sm rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all"
+                  >
+                    {tmdbLoading ? (
+                      <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                    ) : 'Search'}
+                  </button>
+                </form>
+
+                {/* Status message */}
+                {importMsg && (
+                  <div className={`px-4 py-3 rounded-xl text-sm border ${
+                    importMsg.ok
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                      : 'bg-red-500/10 border-red-500/20 text-red-400'
+                  }`}>
+                    {importMsg.text}
+                  </div>
+                )}
+
+                {/* Results */}
+                {tmdbResults.length > 0 && (
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {tmdbResults.map(r => (
+                      <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-white/10 transition-all">
+                        <div className="w-9 h-12 rounded-lg overflow-hidden bg-card flex-shrink-0">
+                          {r.poster
+                            ? <img src={r.poster} alt={r.title} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full bg-white/5 flex items-center justify-center text-[8px] text-muted-foreground">N/A</div>
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
+                          <p className="text-xs text-muted-foreground">{r.year || '—'} · ★ {r.rating.toFixed(1)}</p>
+                        </div>
+                        {importedIds.has(r.id) ? (
+                          <span className="flex-shrink-0 px-3 py-1.5 text-emerald-400 text-xs font-semibold">Added</span>
+                        ) : (
+                          <button
+                            onClick={() => handleImport(r.id)}
+                            disabled={importingId === r.id}
+                            className="flex-shrink-0 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary text-xs font-semibold rounded-lg hover:bg-primary/20 disabled:opacity-50 transition-all"
+                          >
+                            {importingId === r.id ? (
+                              <div className="w-3.5 h-3.5 border border-primary border-t-transparent rounded-full animate-spin" />
+                            ) : 'Import'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!tmdbLoading && tmdbResults.length === 0 && importSearch && !importMsg && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No results — try a different title</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Duplicates Panel */}
+        {showDupes && (
+          <div className="glass rounded-2xl border border-orange-500/20 overflow-hidden mb-6">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-bold text-foreground">Duplicate Finder</h2>
+                {dupesData && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20 font-semibold">
+                    {(dupesData.byTmdbId?.length ?? 0) + (dupesData.byTitleYear?.length ?? 0)} groups found
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {deleteAllMsg && (
+                  <span className="text-xs text-emerald-400 font-medium">{deleteAllMsg}</span>
+                )}
+                {dupesData && ((dupesData.byTmdbId?.length ?? 0) + (dupesData.byTitleYear?.length ?? 0)) > 0 && (
+                  <button
+                    onClick={handleDeleteAll}
+                    disabled={deletingAll || dupesLoading}
+                    className="px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 disabled:opacity-50 transition-all"
+                  >
+                    {deletingAll ? 'Deleting...' : 'Delete All Duplicates'}
+                  </button>
+                )}
+                <button onClick={loadDuplicates} disabled={dupesLoading} className="text-xs text-primary hover:text-primary/80 disabled:opacity-50 transition-colors font-medium">
+                  {dupesLoading ? 'Scanning...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+
+            {dupesLoading && (
+              <div className="px-5 py-10 text-center text-muted-foreground text-sm flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                Scanning {total.toLocaleString()} items...
+              </div>
+            )}
+
+            {dupesError && (
+              <div className="px-5 py-4 text-sm text-red-400">{dupesError}</div>
+            )}
+
+            {dupesData && !dupesLoading && (
+              <>
+                {dupesData.byTmdbId?.length === 0 && dupesData.byTitleYear?.length === 0 ? (
+                  <div className="px-5 py-10 text-center text-emerald-400 text-sm font-medium">
+                    No duplicates found
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/[0.04] max-h-[500px] overflow-y-auto">
+                    {/* TMDB ID duplicates */}
+                    {dupesData.byTmdbId?.map((group: any) => (
+                      <div key={group.tmdbId} className="px-5 py-4">
+                        <p className="text-[10px] text-orange-400/70 font-semibold uppercase tracking-wider mb-3">
+                          Same TMDB ID: <span className="text-orange-400">{group.tmdbId}</span> · {group.count} copies
+                        </p>
+                        <div className="space-y-2">
+                          {group.items.map((item: any, idx: number) => (
+                            <div key={String(item._id)} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                              <div className="w-8 h-11 rounded-lg overflow-hidden bg-card flex-shrink-0">
+                                {item.posterUrl ? <img src={item.posterUrl} alt={item.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                                <p className="text-xs text-muted-foreground">{item.slug} · {item.releaseYear} · {item.sources?.length ?? 0} servers</p>
+                              </div>
+                              {idx === 0 && (
+                                <span className="flex-shrink-0 text-[10px] px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">KEEP</span>
+                              )}
+                              {idx > 0 && (
+                                <button
+                                  onClick={() => handleDeleteDupe(String(item._id))}
+                                  disabled={deletingDupe === String(item._id)}
+                                  className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 disabled:opacity-50 transition-all"
+                                >
+                                  {deletingDupe === String(item._id) ? (
+                                    <div className="w-3.5 h-3.5 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : 'Delete'}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Title+Year duplicates */}
+                    {dupesData.byTitleYear?.map((group: any, gi: number) => (
+                      <div key={gi} className="px-5 py-4">
+                        <p className="text-[10px] text-yellow-400/70 font-semibold uppercase tracking-wider mb-3">
+                          Same Title+Year: <span className="text-yellow-400">"{group.title}" ({group.year})</span> · {group.count} copies
+                        </p>
+                        <div className="space-y-2">
+                          {group.items.map((item: any, idx: number) => (
+                            <div key={String(item._id)} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                              <div className="w-8 h-11 rounded-lg overflow-hidden bg-card flex-shrink-0">
+                                {item.posterUrl ? <img src={item.posterUrl} alt={item.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                                <p className="text-xs text-muted-foreground">{item.slug} · tmdbId: {item.tmdbId} · {item.sources?.length ?? 0} servers</p>
+                              </div>
+                              {idx === 0 && (
+                                <span className="flex-shrink-0 text-[10px] px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">KEEP</span>
+                              )}
+                              {idx > 0 && (
+                                <button
+                                  onClick={() => handleDeleteDupe(String(item._id))}
+                                  disabled={deletingDupe === String(item._id)}
+                                  className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 disabled:opacity-50 transition-all"
+                                >
+                                  {deletingDupe === String(item._id) ? (
+                                    <div className="w-3.5 h-3.5 border border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : 'Delete'}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Search */}
         <form onSubmit={handleSearch} className="flex gap-3 mb-6">

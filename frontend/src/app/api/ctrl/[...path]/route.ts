@@ -6,7 +6,7 @@ const BACKEND = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'h
 
 async function proxy(req: NextRequest, context: { params: { path: string[] } }) {
   const { path } = context.params
-  const url = `${BACKEND}/api/admin/${path.join('/')}`
+  const url = `${BACKEND}/api/admin/${path.join('/')}${req.nextUrl.search}`
 
   const forwardHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -24,7 +24,7 @@ async function proxy(req: NextRequest, context: { params: { path: string[] } }) 
     method,
     headers: forwardHeaders,
     body,
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(180000),
   })
 
   const data = await res.text()
