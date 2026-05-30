@@ -55,7 +55,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const activeSeason = seasons.find(s => s.seasonNumber === season)
   const episodeCount = activeSeason?.episodeCount ?? 0
 
-  const hasNextEpisode = episode < episodeCount
   const hasNextServer = activeServerIdx < sources.length - 1
 
   useEffect(() => {
@@ -109,10 +108,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
   function tryNextServer() {
     if (hasNextServer) setActiveServerIdx(i => i + 1)
-  }
-
-  function nextEpisode() {
-    if (hasNextEpisode) selectEpisode(season, episode + 1)
   }
 
   return (
@@ -246,19 +241,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         {/* Episode selector */}
         {seasons.length > 0 && (
           <div className="glass rounded-2xl p-5">
-            {hasNextEpisode && (
-              <div className="flex justify-end mb-3">
-                <button
-                  onClick={nextEpisode}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/20 transition-all"
-                >
-                  Next Episode
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-              </div>
-            )}
             <EpisodeGrid
               show={show}
               currentSeason={season}
