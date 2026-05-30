@@ -63,55 +63,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
   useEffect(() => () => clearTimeout(fsTimer.current), [])
 
-  // Refs to avoid stale closures in the message listener below
-  const episodeRef = useRef(episode)
-  const seasonRef  = useRef(season)
-  useEffect(() => { episodeRef.current = episode }, [episode])
-  useEffect(() => { seasonRef.current  = season  }, [season])
-
-  // Listen for episode-change postMessages from embedded players (Videasy etc.)
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      const d = e.data
-      if (!d || typeof d !== 'object' || Array.isArray(d)) return
-
-      // Flatten one level of nesting to handle {data:{...}} and {payload:{...}} shapes
-      const flat: Record<string, unknown> = {
-        ...d,
-        ...(d.data   && typeof d.data   === 'object' ? d.data   : {}),
-        ...(d.payload && typeof d.payload === 'object' ? d.payload : {}),
-      }
-
-      const newEp: unknown =
-        flat.episode ?? flat.episodeNumber ?? flat.ep ??
-        flat.currentEpisode ?? flat.current_episode ??
-        flat.nextEpisode ?? flat.next_episode
-
-      const newS: unknown =
-        flat.season ?? flat.seasonNumber ?? flat.s ??
-        flat.currentSeason ?? flat.current_season ??
-        flat.nextSeason ?? flat.next_season
-
-      // Sanity: must be a positive integer ≤100, and different from what's showing
-      if (
-        typeof newEp === 'number' &&
-        Number.isInteger(newEp) &&
-        newEp >= 1 && newEp <= 100 &&
-        newEp !== episodeRef.current
-      ) {
-        const s =
-          typeof newS === 'number' && Number.isInteger(newS) && newS >= 1
-            ? newS
-            : seasonRef.current
-        setSeason(s)
-        setEpisode(newEp)
-        window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${newEp}`)
-      }
-    }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [show.slug])
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'n' || e.key === 'N') {
@@ -149,7 +100,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setActiveServerIdx(0)
     window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${ep}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-    // Show fullscreen re-entry prompt so user doesn't lose fullscreen UX
     clearTimeout(fsTimer.current)
     setShowFsPrompt(true)
     fsTimer.current = setTimeout(() => setShowFsPrompt(false), 7000)
