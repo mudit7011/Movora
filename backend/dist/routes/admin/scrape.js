@@ -3,132 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminScrapeRouter = void 0;
 const express_1 = require("express");
 const ScrapeJob_1 = require("../../models/ScrapeJob");
-const Movie_1 = require("../../models/Movie");
 const tmdb_1 = require("../../utils/tmdb");
+const importer_1 = require("../../utils/importer");
 const authenticate_1 = require("../../middleware/authenticate");
 const router = (0, express_1.Router)();
 exports.adminScrapeRouter = router;
 router.use(authenticate_1.authenticate);
-const IMG_W = 'https://image.tmdb.org/t/p/w500';
-const IMG_O = 'https://image.tmdb.org/t/p/original';
-const IMG_FACE = 'https://image.tmdb.org/t/p/w185';
-const LANG_MAP = {
-    en: 'English', hi: 'Hindi', ta: 'Tamil', te: 'Telugu',
-    ml: 'Malayalam', ko: 'Korean', ja: 'Japanese', fr: 'French',
-    es: 'Spanish', de: 'German', zh: 'Chinese', it: 'Italian',
-};
-function slugify(title, year) {
-    return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + year;
-}
-// Fetch and insert a single movie by TMDB id
-async function importMovie(id) {
-    try {
-        const exists = await Movie_1.Movie.exists({ tmdbId: String(id) });
-        if (exists)
-            return { status: 'skipped' };
-        const [detail, credits, videos] = await Promise.all([
-            (0, tmdb_1.tmdbFetch)(`/movie/${id}?language=en-US`),
-            (0, tmdb_1.tmdbFetch)(`/movie/${id}/credits?language=en-US`),
-            (0, tmdb_1.tmdbFetch)(`/movie/${id}/videos?language=en-US`),
-        ]);
-        if (!detail?.title)
-            return { status: 'error' };
-        const year = parseInt((detail.release_date || '0').slice(0, 4)) || 0;
-        const trailer = (videos.results || []).find((v) => v.type === 'Trailer' && v.site === 'YouTube');
-        const cast = (credits.cast || []).slice(0, 15).map((c) => ({
-            name: c.name, character: c.character || '',
-            photo: c.profile_path ? `${IMG_FACE}${c.profile_path}` : undefined,
-        }));
-        const title = detail.title;
-        await Movie_1.Movie.create({
-            tmdbId: String(id),
-            type: 'movie',
-            title,
-            slug: slugify(detail.title, year),
-            language: [LANG_MAP[detail.original_language] || detail.original_language || 'English'],
-            genres: (detail.genres || []).map((g) => g.name),
-            releaseYear: year,
-            rating: Math.round((detail.vote_average || 0) * 10) / 10,
-            runtime: detail.runtime || 0,
-            synopsis: detail.overview || '',
-            posterUrl: detail.poster_path ? `${IMG_W}${detail.poster_path}` : '',
-            backdropUrl: detail.backdrop_path ? `${IMG_O}${detail.backdrop_path}` : '',
-            trailerKey: trailer?.key,
-            cast,
-            sources: [
-                { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}?color=06D6E0&autoplay=1&overlay=true`, type: 'iframe', quality: 'HD', isWorking: true },
-                { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}?primaryColor=06D6E0&autoplay=true`, type: 'iframe', quality: 'HD', isWorking: true },
-                { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/movie/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
-                { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/movie/${id}?autoplay=true&color=%2306D6E0`, type: 'iframe', quality: 'HD', isWorking: true },
-            ],
-            streamVerified: true,
-            scrapedFrom: 'admin-fetch',
-        });
-        return { status: 'added', title };
-    }
-    catch (e) {
-        if (e?.code === 11000)
-            return { status: 'skipped' };
-        return { status: 'error' };
-    }
-}
-// Fetch and insert a single TV show by TMDB id
-async function importShow(id) {
-    try {
-        const exists = await Movie_1.Movie.exists({ tmdbId: `tv_${id}` });
-        if (exists)
-            return { status: 'skipped' };
-        const [detail, credits, videos] = await Promise.all([
-            (0, tmdb_1.tmdbFetch)(`/tv/${id}?language=en-US`),
-            (0, tmdb_1.tmdbFetch)(`/tv/${id}/credits?language=en-US`),
-            (0, tmdb_1.tmdbFetch)(`/tv/${id}/videos?language=en-US`),
-        ]);
-        if (!detail?.name)
-            return { status: 'error' };
-        const year = parseInt((detail.first_air_date || '0').slice(0, 4)) || 0;
-        const trailer = (videos.results || []).find((v) => v.type === 'Trailer' && v.site === 'YouTube');
-        const cast = (credits.cast || []).slice(0, 15).map((c) => ({
-            name: c.name, character: c.character || '',
-            photo: c.profile_path ? `${IMG_FACE}${c.profile_path}` : undefined,
-        }));
-        const validSeasons = (detail.seasons || []).filter((s) => s.season_number > 0);
-        const title = detail.name;
-        await Movie_1.Movie.create({
-            tmdbId: `tv_${id}`,
-            type: 'tvshow',
-            title,
-            slug: slugify(detail.name, year),
-            language: [LANG_MAP[detail.original_language] || detail.original_language || 'English'],
-            genres: (detail.genres || []).map((g) => g.name),
-            releaseYear: year,
-            rating: Math.round((detail.vote_average || 0) * 10) / 10,
-            runtime: detail.episode_run_time?.[0] || 0,
-            synopsis: detail.overview || '',
-            posterUrl: detail.poster_path ? `${IMG_W}${detail.poster_path}` : '',
-            backdropUrl: detail.backdrop_path ? `${IMG_O}${detail.backdrop_path}` : '',
-            trailerKey: trailer?.key,
-            cast,
-            sources: [
-                { serverName: 'Server 1', url: `https://player.videasy.net/tv/${id}/1/1?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&overlay=true`, type: 'iframe', quality: 'HD', isWorking: true },
-                { serverName: 'Server 2', url: `https://vidlink.pro/tv/${id}/1/1?primaryColor=06D6E0&autoplay=true&nextbutton=true`, type: 'iframe', quality: 'HD', isWorking: true },
-                { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${id}/1/1`, type: 'iframe', quality: 'HD', isWorking: true },
-                { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${id}/1/1?autoplay=true&color=%2306D6E0`, type: 'iframe', quality: 'HD', isWorking: true },
-            ],
-            streamVerified: true,
-            scrapedFrom: 'admin-fetch',
-            seasons: validSeasons.length,
-            totalEpisodes: detail.number_of_episodes || 0,
-            status: detail.status || '',
-            seasonData: validSeasons.map((s) => ({ seasonNumber: s.season_number, episodeCount: s.episode_count, name: s.name })),
-        });
-        return { status: 'added', title };
-    }
-    catch (e) {
-        if (e?.code === 11000)
-            return { status: 'skipped' };
-        return { status: 'error' };
-    }
-}
 const FETCH_ACTIONS = {
     'trending-movies': { label: 'Trending Movies (Week)', endpoint: '/trending/movie/week?language=en-US', mediaType: 'movie' },
     'popular-movies': { label: 'Popular Movies', endpoint: '/movie/popular?language=en-US&page=1', mediaType: 'movie' },
@@ -167,7 +47,7 @@ router.post('/fetch/:action', async (req, res) => {
             if (results.length === 0)
                 break;
             for (const item of results) {
-                const result = action.mediaType === 'movie' ? await importMovie(item.id) : await importShow(item.id);
+                const result = action.mediaType === 'movie' ? await (0, importer_1.importMovie)(item.id) : await (0, importer_1.importShow)(item.id);
                 if (result.status === 'added') {
                     added++;
                     if (result.title)

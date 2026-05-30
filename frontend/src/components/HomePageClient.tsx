@@ -11,13 +11,13 @@ import type { Movie } from '@/types/movie'
 
 interface Props {
   trending: Movie[]
-  latest: Movie[]
+  nowPlaying: Movie[]
   popularMovies: Movie[]
   topRatedMovies: Movie[]
-  hindi: Movie[]
-  english: Movie[]
+  hindiMovies: Movie[]
+  koreanMovies: Movie[]
+  japaneseMovies: Movie[]
   trendingShows: Movie[]
-  latestShows: Movie[]
   popularShows: Movie[]
   topRatedShows: Movie[]
   hindiShows: Movie[]
@@ -37,21 +37,17 @@ function SectionDivider({ label }: { label: string }) {
 }
 
 export default function HomePageClient({
-  trending, latest, popularMovies, topRatedMovies, hindi, english,
-  trendingShows, latestShows, popularShows, topRatedShows,
-  hindiShows, koreanShows, japaneseShows,
+  trending, nowPlaying, popularMovies, topRatedMovies, hindiMovies, koreanMovies, japaneseMovies,
+  trendingShows, popularShows, topRatedShows, hindiShows, koreanShows, japaneseShows,
 }: Props) {
   const isTV = useTV()
   const { continueWatching, addToWatchlist, removeFromHistory } = useUserData()
+  const handleAddToWatchlist = useCallback((movie: Movie) => addToWatchlist(movie), [addToWatchlist])
 
-  const handleAddToWatchlist = useCallback((movie: Movie) => {
-    addToWatchlist(movie)
-  }, [addToWatchlist])
-
-  // 8-slide hero: daily-rotating window through trending pool
-  const daySeed = Math.floor(Date.now() / 86400000)
-  const mOff = trending.length > 4 ? daySeed % (trending.length - 3) : 0
-  const sOff = trendingShows.length > 4 ? (daySeed + 3) % (trendingShows.length - 3) : 0
+  // Hero: daily-rotating window mixing trending movies + shows
+  const daySeed  = Math.floor(Date.now() / 86400000)
+  const mOff     = trending.length > 4 ? daySeed % (trending.length - 3) : 0
+  const sOff     = trendingShows.length > 4 ? (daySeed + 3) % (trendingShows.length - 3) : 0
   const topMovies = trending.slice(mOff, mOff + 4)
   const topShows  = trendingShows.slice(sOff, sOff + 4)
   const featuredItems: Movie[] = []
@@ -59,144 +55,77 @@ export default function HomePageClient({
     if (topMovies[i]) featuredItems.push(topMovies[i])
     if (topShows[i])  featuredItems.push(topShows[i])
   }
-  const hero = featuredItems[0] ?? latest[0] ?? trending[0]
+  const hero = featuredItems[0] ?? nowPlaying[0] ?? trending[0]
 
   return (
     <>
       <Sidebar />
-
       <main className={`min-h-screen pb-24 lg:pb-8 ${isTV ? 'pt-20' : ''}`}>
         {hero && <Hero movie={hero} movies={featuredItems} />}
 
         <div className="relative -mt-20 z-10">
           {continueWatching.length > 0 && (
-            <ContinueWatchingCarousel
-              items={continueWatching}
-              onRemove={removeFromHistory}
-            />
+            <ContinueWatchingCarousel items={continueWatching} onRemove={removeFromHistory} />
           )}
 
           {/* ── Movies ── */}
           <SectionDivider label="Movies" />
 
           {trending.length > 0 && (
-            <Carousel
-              title="Trending This Week"
-              movies={trending}
-              seeAllHref="/movies?sort=rating"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Trending This Week" movies={trending}
+              seeAllHref="/category?type=movies&cat=trending&title=Trending+Movies+This+Week" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
-          {latest.length > 0 && (
-            <Carousel
-              title="Now Playing"
-              movies={latest}
-              seeAllHref="/movies?sort=recent"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+          {nowPlaying.length > 0 && (
+            <Carousel title="New in Cinemas" movies={nowPlaying}
+              seeAllHref="/category?type=movies&cat=now-playing&title=New+in+Cinemas" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
           {popularMovies.length > 0 && (
-            <Carousel
-              title="Popular Movies"
-              movies={popularMovies}
-              seeAllHref="/movies?sort=rating"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Popular Movies" movies={popularMovies}
+              seeAllHref="/category?type=movies&cat=popular&title=Popular+Movies" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
           {topRatedMovies.length > 0 && (
-            <Carousel
-              title="Top Rated Movies"
-              movies={topRatedMovies}
-              seeAllHref="/movies?sort=rating"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Top Rated Movies" movies={topRatedMovies}
+              seeAllHref="/category?type=movies&cat=top-rated&title=Top+Rated+Movies" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
-          {hindi.length > 0 && (
-            <Carousel
-              title="Hindi Movies"
-              movies={hindi}
-              seeAllHref="/movies?language=Hindi"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+          {hindiMovies.length > 0 && (
+            <Carousel title="Hindi Movies" movies={hindiMovies}
+              seeAllHref="/category?type=movies&cat=hindi&title=Hindi+Movies" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
-          {english.length > 0 && (
-            <Carousel
-              title="English Movies"
-              movies={english}
-              seeAllHref="/movies?language=English"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+          {koreanMovies.length > 0 && (
+            <Carousel title="Korean Movies" movies={koreanMovies}
+              seeAllHref="/category?type=movies&cat=korean&title=Korean+Movies" onAddToWatchlist={handleAddToWatchlist} />
+          )}
+          {japaneseMovies.length > 0 && (
+            <Carousel title="Japanese Movies" movies={japaneseMovies}
+              seeAllHref="/category?type=movies&cat=japanese&title=Japanese+Movies" onAddToWatchlist={handleAddToWatchlist} />
           )}
 
           {/* ── TV Shows ── */}
           <SectionDivider label="TV Shows" />
 
           {trendingShows.length > 0 && (
-            <Carousel
-              title="Trending This Week"
-              movies={trendingShows}
-              seeAllHref="/shows?sort=rating"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Trending This Week" movies={trendingShows}
+              seeAllHref="/category?type=shows&cat=trending&title=Trending+Shows+This+Week" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
-          {latestShows.length > 0 && (
-            <Carousel
-              title="Airing Today"
-              movies={latestShows}
-              seeAllHref="/shows?sort=recent"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
-          )}
-
           {popularShows.length > 0 && (
-            <Carousel
-              title="Popular Shows"
-              movies={popularShows}
-              seeAllHref="/shows?sort=rating"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Popular Shows" movies={popularShows}
+              seeAllHref="/category?type=shows&cat=popular&title=Popular+Shows" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
           {topRatedShows.length > 0 && (
-            <Carousel
-              title="Top Rated Shows"
-              movies={topRatedShows}
-              seeAllHref="/shows?sort=rating"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Top Rated Shows" movies={topRatedShows}
+              seeAllHref="/category?type=shows&cat=top-rated&title=Top+Rated+Shows" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
           {koreanShows.length > 0 && (
-            <Carousel
-              title="Korean Dramas & Shows"
-              movies={koreanShows}
-              seeAllHref="/shows?language=Korean"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Korean Dramas & Shows" movies={koreanShows}
+              seeAllHref="/category?type=shows&cat=korean&title=Korean+Dramas+%26+Shows" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
           {japaneseShows.length > 0 && (
-            <Carousel
-              title="Japanese Shows & Anime"
-              movies={japaneseShows}
-              seeAllHref="/shows?language=Japanese"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Japanese Shows & Anime" movies={japaneseShows}
+              seeAllHref="/category?type=shows&cat=japanese&title=Japanese+Shows+%26+Anime" onAddToWatchlist={handleAddToWatchlist} />
           )}
-
           {hindiShows.length > 0 && (
-            <Carousel
-              title="Hindi Web Series"
-              movies={hindiShows}
-              seeAllHref="/shows?language=Hindi"
-              onAddToWatchlist={handleAddToWatchlist}
-            />
+            <Carousel title="Hindi Web Series" movies={hindiShows}
+              seeAllHref="/category?type=shows&cat=hindi&title=Hindi+Web+Series" onAddToWatchlist={handleAddToWatchlist} />
           )}
         </div>
       </main>

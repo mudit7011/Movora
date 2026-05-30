@@ -34,9 +34,7 @@ router.get('/', async (req, res) => {
         if (language && typeof language === 'string') {
             filter.language = language;
         }
-        else {
-            filter.language = { $in: ['Hindi', 'English'] };
-        }
+        // no default language filter — show all languages
         // Always cap at 9.5 to exclude concert films / data anomalies; optionally floor from param
         const ratingFilter = { $lte: 9.5 };
         if (minRating)

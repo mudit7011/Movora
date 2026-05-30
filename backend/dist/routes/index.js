@@ -5,6 +5,7 @@ const express_1 = require("express");
 const movies_1 = require("./movies");
 const shows_1 = require("./shows");
 const new_1 = require("./new");
+const realtime_1 = require("./realtime");
 const auth_1 = require("./admin/auth");
 const movies_2 = require("./admin/movies");
 const scrape_1 = require("./admin/scrape");
@@ -16,6 +17,7 @@ router.get('/health', (_req, res) => {
 router.use('/movies', movies_1.moviesRouter);
 router.use('/shows', shows_1.showsRouter);
 router.use('/new', new_1.newRouter);
+router.use('/realtime', realtime_1.realtimeRouter);
 router.use('/admin/auth', auth_1.adminAuthRouter);
 router.use('/admin/movies', movies_2.adminMoviesRouter);
 router.use('/admin/scrape', scrape_1.adminScrapeRouter);

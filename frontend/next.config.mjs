@@ -6,10 +6,11 @@ const nextConfig = {
   async rewrites() {
     return [
       // Forward public API calls to EB backend (server-side rewrite, no mixed-content issue)
-      { source: '/api/movies/:path*', destination: `${BACKEND}/api/movies/:path*` },
-      { source: '/api/shows/:path*',  destination: `${BACKEND}/api/shows/:path*` },
-      { source: '/api/new',           destination: `${BACKEND}/api/new` },
-      { source: '/api/health',        destination: `${BACKEND}/api/health` },
+      { source: '/api/movies/:path*',   destination: `${BACKEND}/api/movies/:path*` },
+      { source: '/api/shows/:path*',    destination: `${BACKEND}/api/shows/:path*` },
+      { source: '/api/realtime/:path*', destination: `${BACKEND}/api/realtime/:path*` },
+      { source: '/api/new',             destination: `${BACKEND}/api/new` },
+      { source: '/api/health',          destination: `${BACKEND}/api/health` },
     ]
   },
   images: {

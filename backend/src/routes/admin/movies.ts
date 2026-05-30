@@ -2,8 +2,10 @@ import { Router } from 'express'
 import { z } from 'zod'
 import mongoose from 'mongoose'
 import { Movie } from '../../models/Movie'
+import { BlockedContent } from '../../models/BlockedContent'
 import { authenticate } from '../../middleware/authenticate'
 import { tmdbFetch } from '../../utils/tmdb'
+import { clearRealtimeCache } from '../realtime'
 
 const IMG_W    = 'https://image.tmdb.org/t/p/w500'
 const IMG_O    = 'https://image.tmdb.org/t/p/original'
@@ -159,6 +161,12 @@ router.delete('/:id', async (req, res) => {
       res.status(404).json({ error: 'Movie not found' })
       return
     }
+    // Block this tmdbId so realtime importer never re-adds it
+    if (movie.tmdbId) {
+      await BlockedContent.updateOne({ tmdbId: movie.tmdbId }, { tmdbId: movie.tmdbId }, { upsert: true })
+    }
+    // Clear realtime cache so deleted item disappears immediately
+    clearRealtimeCache()
     res.json({ message: 'Deleted' })
   } catch {
     res.status(500).json({ error: 'Server error' })

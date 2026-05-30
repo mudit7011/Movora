@@ -50,9 +50,7 @@ router.get('/', async (req, res) => {
         if (language && typeof language === 'string') {
             matchFilter.language = language;
         }
-        else {
-            matchFilter.language = { $in: ['Hindi', 'English'] };
-        }
+        // no default language filter — show all languages
         if (minRating)
             matchFilter.rating = { $gte: Number(minRating) };
         if (genre && typeof genre === 'string') {

@@ -29,11 +29,31 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+export type RealtimePage = { results: Movie[]; page: number; totalPages: number }
+
+async function realtimeFetch(path: string, page = 1): Promise<RealtimePage> {
+  const data = await apiFetch<any>(`${path}?page=${page}`)
+  // old backend returns plain array, new backend returns { results, page, totalPages }
+  if (Array.isArray(data)) return { results: data, page: 1, totalPages: 1 }
+  return data as RealtimePage
+}
+
 export const api = {
-  getTrending: () => apiFetch<Movie[]>('/api/movies/trending'),
+  // Realtime homepage (always page 1, just extract results)
+  getTrending:      () => realtimeFetch('/api/realtime/movies/trending').then(d => d.results),
+  getNowPlaying:    () => realtimeFetch('/api/realtime/movies/now-playing').then(d => d.results),
+  getPopularMovies: () => realtimeFetch('/api/realtime/movies/popular').then(d => d.results),
+  getTopRatedMovies:() => realtimeFetch('/api/realtime/movies/top-rated').then(d => d.results),
+  getHindiMovies:   () => realtimeFetch('/api/realtime/movies/hindi').then(d => d.results),
+  getKoreanMovies:  () => realtimeFetch('/api/realtime/movies/korean').then(d => d.results),
+  getJapaneseMovies:() => realtimeFetch('/api/realtime/movies/japanese').then(d => d.results),
+
+  // Paginated realtime — for category browse pages
+  getRealtimeMovies: (cat: string, page: number) => realtimeFetch(`/api/realtime/movies/${cat}`, page),
+  getRealtimeShows:  (cat: string, page: number) => realtimeFetch(`/api/realtime/shows/${cat}`, page),
+
+  // kept for browse/search pages
   getLatest: () => apiFetch<Movie[]>('/api/movies/latest'),
-  getPopularMovies: () => apiFetch<Movie[]>('/api/movies/popular'),
-  getTopRatedMovies: () => apiFetch<Movie[]>('/api/movies/top-rated'),
   getByLanguage: (lang: string) => apiFetch<Movie[]>(`/api/movies/by-language/${encodeURIComponent(lang)}`),
   getMovies: (filters: MovieFilters = {}) => {
     const params = new URLSearchParams(filters as Record<string, string>)
@@ -45,11 +65,17 @@ export const api = {
   getRelated: (slug: string) =>
     apiFetch<{ similar: Movie[]; youMayLove: Movie[] }>(`/api/movies/related/${slug}`),
 
-  // TV Shows
-  getTrendingShows: () => apiFetch<Movie[]>('/api/shows/trending'),
+  // TV Shows — realtime homepage
+  getTrendingShows:  () => realtimeFetch('/api/realtime/shows/trending').then(d => d.results),
+  getAiringToday:    () => realtimeFetch('/api/realtime/shows/airing-today').then(d => d.results),
+  getPopularShows:   () => realtimeFetch('/api/realtime/shows/popular').then(d => d.results),
+  getTopRatedShows:  () => realtimeFetch('/api/realtime/shows/top-rated').then(d => d.results),
+  getHindiShows:     () => realtimeFetch('/api/realtime/shows/hindi').then(d => d.results),
+  getKoreanShows:    () => realtimeFetch('/api/realtime/shows/korean').then(d => d.results),
+  getJapaneseShows:  () => realtimeFetch('/api/realtime/shows/japanese').then(d => d.results),
+
+  // kept for browse/search pages
   getLatestShows: () => apiFetch<Movie[]>('/api/shows/latest'),
-  getPopularShows: () => apiFetch<Movie[]>('/api/shows/popular'),
-  getTopRatedShows: () => apiFetch<Movie[]>('/api/shows/top-rated'),
   getShowsByLanguage: (lang: string) => apiFetch<Movie[]>(`/api/shows/by-language/${encodeURIComponent(lang)}`),
   getShows: (filters: MovieFilters = {}) => {
     const params = new URLSearchParams(filters as Record<string, string>)

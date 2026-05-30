@@ -8,8 +8,10 @@ const express_1 = require("express");
 const zod_1 = require("zod");
 const mongoose_1 = __importDefault(require("mongoose"));
 const Movie_1 = require("../../models/Movie");
+const BlockedContent_1 = require("../../models/BlockedContent");
 const authenticate_1 = require("../../middleware/authenticate");
 const tmdb_1 = require("../../utils/tmdb");
+const realtime_1 = require("../realtime");
 const IMG_W = 'https://image.tmdb.org/t/p/w500';
 const IMG_O = 'https://image.tmdb.org/t/p/original';
 const IMG_FACE = 'https://image.tmdb.org/t/p/w185';
@@ -153,6 +155,12 @@ router.delete('/:id', async (req, res) => {
             res.status(404).json({ error: 'Movie not found' });
             return;
         }
+        // Block this tmdbId so realtime importer never re-adds it
+        if (movie.tmdbId) {
+            await BlockedContent_1.BlockedContent.updateOne({ tmdbId: movie.tmdbId }, { tmdbId: movie.tmdbId }, { upsert: true });
+        }
+        // Clear realtime cache so deleted item disappears immediately
+        (0, realtime_1.clearRealtimeCache)();
         res.json({ message: 'Deleted' });
     }
     catch {

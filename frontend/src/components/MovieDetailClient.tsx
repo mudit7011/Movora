@@ -4,6 +4,7 @@ import { useUserData } from '@/lib/useUserData'
 import type { Movie } from '@/types/movie'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 interface CollectionPart {
@@ -62,6 +63,7 @@ interface Props {
 }
 
 export default function MovieDetailClient({ movie }: Props) {
+  const router = useRouter()
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
   const inWatchlist = isInWatchlist(movie._id)
   const [collection, setCollection] = useState<CollectionPart[]>([])
@@ -111,15 +113,15 @@ export default function MovieDetailClient({ movie }: Props) {
 
         {/* Top Bar — Back + Logo */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-4 px-4 sm:px-6 lg:pl-24 lg:pr-8 pt-5 pb-4">
-          <Link
-            href="/"
+          <button
+            onClick={() => router.back()}
             className="flex items-center justify-center w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 hover:border-white/20 transition-all duration-200 flex-shrink-0"
-            aria-label="Go home"
+            aria-label="Go back"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-          </Link>
+          </button>
 
           <Link href="/" className="lg:hidden flex items-center gap-1.5 select-none">
             <span className="text-xl font-bold tracking-tight">

@@ -1,4 +1,5 @@
 import { Movie } from '../models/Movie'
+import { BlockedContent } from '../models/BlockedContent'
 import { tmdbFetch } from './tmdb'
 
 const IMG_W    = 'https://image.tmdb.org/t/p/w500'
@@ -19,6 +20,8 @@ export type ImportResult = { status: 'added' | 'skipped' | 'error'; title?: stri
 
 export async function importMovie(id: number): Promise<ImportResult> {
   try {
+    const blocked = await BlockedContent.exists({ tmdbId: String(id) })
+    if (blocked) return { status: 'skipped' }
     const exists = await Movie.exists({ tmdbId: String(id) })
     if (exists) return { status: 'skipped' }
     const [detail, credits, videos] = await Promise.all([
@@ -67,6 +70,8 @@ export async function importMovie(id: number): Promise<ImportResult> {
 
 export async function importShow(id: number): Promise<ImportResult> {
   try {
+    const blocked = await BlockedContent.exists({ tmdbId: `tv_${id}` })
+    if (blocked) return { status: 'skipped' }
     const exists = await Movie.exists({ tmdbId: `tv_${id}` })
     if (exists) return { status: 'skipped' }
     const [detail, credits, videos] = await Promise.all([
@@ -83,6 +88,11 @@ export async function importShow(id: number): Promise<ImportResult> {
       photo: c.profile_path ? `${IMG_FACE}${c.profile_path}` : undefined,
     }))
     const validSeasons = (detail.seasons || []).filter((s: any) => s.season_number > 0)
+
+    // Skip daily soaps: any season with >100 episodes
+    const isDailySoap = validSeasons.some((s: any) => s.episode_count > 100)
+    if (isDailySoap) return { status: 'skipped' }
+
     await Movie.create({
       tmdbId:    `tv_${id}`,
       type:      'tvshow',
