@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { Movie } from '@/types/movie'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
@@ -23,6 +23,18 @@ const InfoIcon = () => (
 const PlusIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 5v14M5 12h14" />
+  </svg>
+)
+
+const ChevronLeftIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+  </svg>
+)
+
+const ChevronRightIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
   </svg>
 )
 
@@ -52,6 +64,7 @@ function extractDominantColor(index: number): string {
 export default function Hero({ movie, movies = [] }: Props) {
   const isTV = useTV()
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [rotateKey, setRotateKey] = useState(0)
   const featuredMovies = movies.length > 0 ? movies.slice(0, 8) : [movie]
   const currentMovie = featuredMovies[currentIndex]
   const isShow = currentMovie.type === 'tvshow'
@@ -68,14 +81,22 @@ export default function Hero({ movie, movies = [] }: Props) {
     else addToWatchlist(currentMovie)
   }
 
-  // Auto-rotate through featured movies
+  const goTo = useCallback((index: number) => {
+    setCurrentIndex(index)
+    setRotateKey(k => k + 1) // reset auto-rotate timer
+  }, [])
+
+  const goPrev = useCallback(() => goTo((currentIndex - 1 + featuredMovies.length) % featuredMovies.length), [currentIndex, featuredMovies.length, goTo])
+  const goNext = useCallback(() => goTo((currentIndex + 1) % featuredMovies.length), [currentIndex, featuredMovies.length, goTo])
+
+  // Auto-rotate through featured movies — resets when user manually navigates
   useEffect(() => {
     if (featuredMovies.length <= 1) return
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % featuredMovies.length)
     }, 8000)
     return () => clearInterval(timer)
-  }, [featuredMovies.length])
+  }, [featuredMovies.length, rotateKey])
 
   // Generate bokeh positions
   const bokehElements = useMemo(() => [
@@ -287,32 +308,53 @@ export default function Hero({ movie, movies = [] }: Props) {
             </motion.div>
           </AnimatePresence>
 
-          {/* Movie Selector Dots */}
+          {/* Dots + Arrows */}
           {featuredMovies.length > 1 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="flex items-center gap-2 mt-10"
+              className="flex items-center gap-3 mt-10"
             >
-              {featuredMovies.map((m, i) => (
-                <button
-                  key={m._id}
-                  onClick={() => setCurrentIndex(i)}
-                  className={`relative h-1 rounded-full transition-all duration-500 ${
-                    i === currentIndex ? 'w-10 bg-primary' : 'w-6 bg-white/20 hover:bg-white/40'
-                  }`}
-                  aria-label={`View ${m.title}`}
-                >
-                  {i === currentIndex && (
-                    <motion.div
-                      layoutId="heroProgress"
-                      className="absolute inset-0 bg-primary rounded-full"
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    />
-                  )}
-                </button>
-              ))}
+              {/* Prev */}
+              <button
+                onClick={goPrev}
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 hover:border-white/20 transition-all duration-200"
+                aria-label="Previous"
+              >
+                <ChevronLeftIcon />
+              </button>
+
+              {/* Dots */}
+              <div className="flex items-center gap-2">
+                {featuredMovies.map((m, i) => (
+                  <button
+                    key={m._id}
+                    onClick={() => goTo(i)}
+                    className={`relative h-1 rounded-full transition-all duration-500 ${
+                      i === currentIndex ? 'w-10 bg-primary' : 'w-6 bg-white/20 hover:bg-white/40'
+                    }`}
+                    aria-label={`View ${m.title}`}
+                  >
+                    {i === currentIndex && (
+                      <motion.div
+                        layoutId="heroProgress"
+                        className="absolute inset-0 bg-primary rounded-full"
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Next */}
+              <button
+                onClick={goNext}
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 hover:border-white/20 transition-all duration-200"
+                aria-label="Next"
+              >
+                <ChevronRightIcon />
+              </button>
             </motion.div>
           )}
         </div>
