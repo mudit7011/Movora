@@ -174,39 +174,39 @@ export default function ContinueWatchingCarousel({ items, onRemove, onComplete }
                       <span className="text-xs font-medium text-foreground">{formatTime(timeLeft)} left</span>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="absolute top-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-all">
-                      {onComplete && (
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onComplete(item.movieId) }}
-                          className="p-1.5 rounded-full bg-primary/90 backdrop-blur-sm text-background hover:bg-primary transition-all"
-                          aria-label="Mark as complete"
-                          title="Mark as complete"
-                        >
-                          <CheckIcon />
-                        </button>
-                      )}
-                      {onRemove && (
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(item.movieId) }}
-                          className="p-1.5 rounded-full bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground transition-all"
-                          aria-label="Remove from history"
-                          title="Remove"
-                        >
-                          <XIcon />
-                        </button>
-                      )}
-                    </div>
+                    {/* X remove button — thumbnail only */}
+                    {onRemove && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(item.movieId) }}
+                        className="absolute top-2 left-2 p-1.5 rounded-full bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-all"
+                        aria-label="Remove from history"
+                        title="Remove"
+                      >
+                        <XIcon />
+                      </button>
+                    )}
                   </div>
 
-                  {/* Title */}
-                  <div className="mt-3 px-1">
-                    <h3 className="text-sm font-medium text-foreground line-clamp-1">{item.title}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {item.type === 'tvshow' && item.season && item.episode
-                        ? `S${String(item.season).padStart(2, '0')} E${String(item.episode).padStart(2, '0')}`
-                        : `${Math.round(progress)}% watched`}
-                    </p>
+                  {/* Title + Mark Complete */}
+                  <div className="mt-3 px-1 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-medium text-foreground line-clamp-1">{item.title}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {item.type === 'tvshow' && item.season && item.episode
+                          ? `S${String(item.season).padStart(2, '0')} E${String(item.episode).padStart(2, '0')}`
+                          : `${Math.round(progress)}% watched`}
+                      </p>
+                    </div>
+                    {onComplete && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onComplete(item.movieId) }}
+                        className="flex-shrink-0 p-1.5 rounded-full bg-white/5 border border-white/10 text-muted-foreground hover:bg-primary hover:text-background hover:border-primary transition-all"
+                        aria-label="Mark as complete"
+                        title="Mark as complete"
+                      >
+                        <CheckIcon />
+                      </button>
+                    )}
                   </div>
                 </Link>
               </div>
