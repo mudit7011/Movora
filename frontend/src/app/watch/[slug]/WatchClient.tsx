@@ -55,12 +55,17 @@ export default function WatchClient({ movie, sources, related }: Props) {
 
     const onVisibility = () => document.hidden ? stop() : start()
 
-    // Listen for player "ended" events via postMessage — marks movie complete immediately
+    // StreamVault: use real timeupdate for accurate progress; all others: ended event only
     const onMessage = (e: MessageEvent) => {
       const d = e.data
       if (!d) return
-      const event = d.event ?? d.type ?? d.action ?? ''
-      if (['ended', 'end', 'finish', 'complete', 'videoEnd', 'finished'].includes(String(event).toLowerCase())) {
+      const type = d.type ?? d.event ?? d.action ?? ''
+      if (String(type).toLowerCase() === 'timeupdate' && typeof d.data?.time === 'number') {
+        elapsed = d.data.time
+        updateProgress(movie, elapsed, duration)
+        return
+      }
+      if (['ended', 'end', 'finish', 'complete', 'videoEnd', 'finished'].includes(String(type).toLowerCase())) {
         updateProgress(movie, duration, duration)
       }
     }

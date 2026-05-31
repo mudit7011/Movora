@@ -20,7 +20,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 1', url: `https://player.videasy.net/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&color=%2306D6E0&autonext=false`, quality: 'HD' },
+    { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&autonext=false`, quality: 'HD' },
   ]
 }
 
@@ -77,7 +77,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   useEffect(() => {
     const episodeDuration = 2700 // ~45 min default
     const nextEp = episode < episodeCount ? episode + 1 : undefined
-    // Resume from saved position so progress accumulates across sessions
     let elapsed = 60
     try {
       const stored: { movieId: string; timestamp: number; season?: number; episode?: number }[] =
@@ -86,11 +85,28 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       if (saved?.timestamp) elapsed = saved.timestamp
     } catch {}
     updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
+
     const interval = setInterval(() => {
       elapsed = Math.min(elapsed + 60, episodeDuration - 30)
       updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
     }, 60_000)
-    return () => clearInterval(interval)
+
+    // StreamVault: real timeupdate for accurate progress
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data
+      if (!d) return
+      const type = d.type ?? d.event ?? ''
+      if (String(type).toLowerCase() === 'timeupdate' && typeof d.data?.time === 'number') {
+        elapsed = d.data.time
+        updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
+      }
+      if (['ended', 'end', 'finish', 'complete'].includes(String(type).toLowerCase())) {
+        updateProgress(show, episodeDuration, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
+      }
+    }
+    window.addEventListener('message', onMessage)
+
+    return () => { clearInterval(interval); window.removeEventListener('message', onMessage) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show._id, season, episode, episodeCount])
 
