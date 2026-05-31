@@ -65,7 +65,7 @@ export default function HomePageClient({
 
         <div className="relative -mt-20 z-10">
           {continueWatching.length > 0 && (
-            <ContinueWatchingCarousel items={continueWatching} onRemove={removeFromHistory} />
+            <ContinueWatchingCarousel items={continueWatching} onRemove={removeFromHistory} onComplete={removeFromHistory} />
           )}
 
           {/* ── Movies ── */}
