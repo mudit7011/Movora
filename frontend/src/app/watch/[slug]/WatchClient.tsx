@@ -38,7 +38,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const activeUrl = (() => {
     if (!active.url.includes('streamvaultsrc.click')) return active.url
     const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
-    let url = `https://streamvaultsrc.click/embed/movie/${rawId}?autoplay=true&muted=true&color=06D6E0&quality=1080p`
+    let url = `https://streamvaultsrc.click/embed/movie/${rawId}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p`
     if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
     return url
   })()
@@ -186,7 +186,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                 allowFullScreen
                 referrerPolicy="no-referrer"
-                {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}
                 className="w-full h-full bg-black"
                 style={{ border: 'none', display: 'block' }}
               />
