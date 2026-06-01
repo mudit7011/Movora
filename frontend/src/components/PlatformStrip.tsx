@@ -23,7 +23,7 @@ export default function PlatformStrip() {
   }, [])
 
   return (
-    <section className="pt-6 pb-2">
+    <section className="pt-6 pb-2 lg:hidden">
       <div className={`mb-3 px-4 sm:px-6 ${isTV ? 'lg:px-16' : 'lg:pl-24 lg:pr-8'}`}>
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stream by Platform</h2>
       </div>

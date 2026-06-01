@@ -6,7 +6,7 @@ import Sidebar from '@/components/Sidebar'
 import { PLATFORMS } from '@/lib/platforms'
 import { api } from '@/lib/api'
 
-const TMDB_LOGO = 'https://image.tmdb.org/t/p/w92'
+const TMDB_LOGO = 'https://image.tmdb.org/t/p/w185'
 
 export default function PlatformsPage() {
   const [logoMap, setLogoMap] = useState<Record<number, string>>({})
