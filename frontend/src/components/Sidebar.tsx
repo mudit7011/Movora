@@ -27,6 +27,15 @@ const TvIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const GridIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 const BookmarkIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
     <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
@@ -63,6 +72,7 @@ const navItems: NavItem[] = [
   { href: '/new', icon: FlameIcon, label: 'New & Popular' },
   { href: '/movies', icon: FilmIcon, label: 'Movies' },
   { href: '/shows', icon: TvIcon, label: 'TV Shows' },
+  { href: '/platforms', icon: GridIcon, label: 'Platforms' },
   { href: '/watchlist', icon: BookmarkIcon, label: 'Watch Later' },
   { href: '/history', icon: ClockIcon, label: 'Continue' },
 ]

@@ -114,6 +114,45 @@ router.get('/shows/:category', async (req, res) => {
   }
 })
 
+const PLATFORM_PROVIDERS: Record<string, number> = {
+  netflix:       8,
+  prime:         9,
+  'apple-tv':    350,
+  max:           1899,
+  'disney-plus': 337,
+  hulu:          15,
+}
+
+router.get('/providers', async (_req, res) => {
+  try {
+    const hit = cache.get('providers')
+    if (hit && Date.now() - hit.ts < TTL) { res.json(hit.docs); return }
+    const data = await tmdbFetch('/watch/providers/movie?watch_region=US&language=en-US')
+    const wanted = new Set(Object.values(PLATFORM_PROVIDERS))
+    const docs = (data.results || []).filter((p: any) => wanted.has(p.provider_id))
+    cache.set('providers', { docs, ts: Date.now(), totalPages: 1 })
+    res.json(docs)
+  } catch {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+router.get('/platform/:name/:type', async (req, res) => {
+  const { name, type } = req.params
+  const providerId = PLATFORM_PROVIDERS[name]
+  if (!providerId) { res.status(400).json({ error: 'Unknown platform' }); return }
+  if (type !== 'movies' && type !== 'shows') { res.status(400).json({ error: 'Invalid type' }); return }
+  const mediaType = type === 'shows' ? 'tv' : 'movie'
+  const page = Math.max(1, Number(req.query.page ?? 1))
+  const endpoint = `/discover/${mediaType}?with_watch_providers=${providerId}&watch_region=US&sort_by=popularity.desc&language=en-US`
+  try {
+    const { docs, totalPages } = await getRealtime(`plat:${name}:${mediaType}:${page}`, endpoint, mediaType, page)
+    res.json({ results: docs, page, totalPages })
+  } catch {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 export function clearRealtimeCache() {
   cache.clear()
 }

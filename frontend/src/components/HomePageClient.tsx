@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import Hero from '@/components/Hero'
 import Carousel from '@/components/Carousel'
 import ContinueWatchingCarousel from '@/components/ContinueWatchingCarousel'
+import PlatformStrip from '@/components/PlatformStrip'
 import Sidebar from '@/components/Sidebar'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
@@ -64,6 +65,8 @@ export default function HomePageClient({
         {hero && <Hero movie={hero} movies={featuredItems} />}
 
         <div className="relative -mt-20 z-10">
+          <PlatformStrip />
+
           {continueWatching.length > 0 && (
             <ContinueWatchingCarousel items={continueWatching} onRemove={removeFromHistory} onComplete={removeFromHistory} />
           )}

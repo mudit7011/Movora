@@ -89,4 +89,9 @@ export const api = {
   getEpisodes: (slug: string, season: number) =>
     apiFetch<EpisodeInfo[]>(`/api/shows/${slug}/season/${season}`),
   getNew: () => apiFetch<Movie[]>('/api/new'),
+
+  // Streaming platforms
+  getProviders: () => apiFetch<{ provider_id: number; provider_name: string; logo_path: string }[]>('/api/realtime/providers'),
+  getPlatformContent: (slug: string, type: 'movies' | 'shows', page: number) =>
+    realtimeFetch(`/api/realtime/platform/${slug}/${type}`, page),
 }
