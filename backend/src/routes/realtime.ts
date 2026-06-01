@@ -97,8 +97,8 @@ router.get('/movies/:category', async (req, res) => {
   try {
     const { docs, totalPages } = await getRealtime(`m:${req.params.category}:${page}`, endpoint, 'movie', page)
     res.json({ results: docs, page, totalPages })
-  } catch (e: any) {
-    res.status(500).json({ error: e.message })
+  } catch {
+    res.status(500).json({ error: 'Server error' })
   }
 })
 
@@ -109,8 +109,8 @@ router.get('/shows/:category', async (req, res) => {
   try {
     const { docs, totalPages } = await getRealtime(`s:${req.params.category}:${page}`, endpoint, 'tv', page)
     res.json({ results: docs, page, totalPages })
-  } catch (e: any) {
-    res.status(500).json({ error: e.message })
+  } catch {
+    res.status(500).json({ error: 'Server error' })
   }
 })
 
