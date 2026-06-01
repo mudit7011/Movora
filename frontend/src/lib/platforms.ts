@@ -4,6 +4,7 @@ export interface PlatformConfig {
   providerId: number
   bg: string
   logoFilter: string
+  logoExt?: string
 }
 
 export const PLATFORMS: PlatformConfig[] = [

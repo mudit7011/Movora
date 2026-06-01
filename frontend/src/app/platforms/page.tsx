@@ -26,7 +26,7 @@ export default function PlatformsPage() {
                 style={{ background: p.bg }}
               >
                 <img
-                  src={`/platforms/${p.slug}.svg`}
+                  src={`/platforms/${p.slug}.${p.logoExt ?? 'svg'}`}
                   alt={p.name}
                   className="w-full h-full object-contain p-4"
                   style={{ filter: p.logoFilter }}

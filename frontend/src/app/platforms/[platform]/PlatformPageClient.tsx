@@ -52,7 +52,7 @@ export default function PlatformPageClient({ platform }: Props) {
             className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg"
             style={{ background: platform.bg }}
           >
-            <img src={`/platforms/${platform.slug}.svg`} alt={platform.name} className="w-full h-full object-contain p-2" style={{ filter: platform.logoFilter }} />
+            <img src={`/platforms/${platform.slug}.${platform.logoExt ?? 'svg'}`} alt={platform.name} className="w-full h-full object-contain p-2" style={{ filter: platform.logoFilter }} />
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{platform.name}</h1>
