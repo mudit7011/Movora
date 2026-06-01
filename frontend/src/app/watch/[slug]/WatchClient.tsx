@@ -22,9 +22,26 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 
+  // Saved timestamp for Server 4 seek
+  const savedTimestamp = (() => {
+    try {
+      const stored: { movieId: string; timestamp: number }[] = JSON.parse(localStorage.getItem('movora_progress') || '[]')
+      return stored.find(p => p.movieId === movie._id)?.timestamp ?? 0
+    } catch { return 0 }
+  })()
+
   const active   = sources[activeIdx]
   const isDirect = active.type === 'direct'
   const hasNext  = activeIdx < sources.length - 1
+
+  // Override Server 4 URL with correct color, quality, and seek position
+  const activeUrl = (() => {
+    if (!active.url.includes('streamvaultsrc.click')) return active.url
+    const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
+    let url = `https://streamvaultsrc.click/embed/movie/${rawId}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p`
+    if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
+    return url
+  })()
 
   // Track watch progress — pauses when tab/screen is hidden (iOS background fix)
   useEffect(() => {
@@ -163,8 +180,8 @@ export default function WatchClient({ movie, sources, related }: Props) {
               />
             ) : (
               <iframe
-                key={active.url}
-                src={active.url}
+                key={activeUrl}
+                src={activeUrl}
                 title={`${movie.title} — ${active.serverName}`}
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                 allowFullScreen

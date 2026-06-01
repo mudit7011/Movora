@@ -51,6 +51,20 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const sources = buildSources(show.tmdbId, season, episode)
   const active = sources[activeServerIdx]
 
+  // For Server 4: inject seek position + quality
+  const activeUrl = (() => {
+    if (!active.url.includes('streamvaultsrc.click')) return active.url
+    try {
+      const stored: { movieId: string; timestamp: number; season?: number; episode?: number }[] =
+        JSON.parse(localStorage.getItem('movora_progress') || '[]')
+      const saved = stored.find(p => p.movieId === show._id && p.season === season && p.episode === episode)
+      const rawId = show.tmdbId.replace(/^tv_/, '')
+      let url = `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p&autonext=false`
+      if (saved?.timestamp && saved.timestamp > 60) url += `&seek=${Math.floor(saved.timestamp)}`
+      return url
+    } catch { return active.url }
+  })()
+
   const seasons = show.seasonData?.filter(s => s.seasonNumber > 0) ?? []
   const activeSeason = seasons.find(s => s.seasonNumber === season)
   const episodeCount = activeSeason?.episodeCount ?? 0
@@ -182,8 +196,8 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             <iframe
               ref={iframeRef}
-              key={active.url}
-              src={active.url}
+              key={activeUrl}
+              src={activeUrl}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
               allowFullScreen
