@@ -59,7 +59,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
         JSON.parse(localStorage.getItem('movora_progress') || '[]')
       const saved = stored.find(p => p.movieId === show._id && p.season === season && p.episode === episode)
       const rawId = show.tmdbId.replace(/^tv_/, '')
-      let url = `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p&autonext=false`
+      let url = `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=06D6E0&quality=1080p&autonext=false`
       if (saved?.timestamp && saved.timestamp > 60) url += `&seek=${Math.floor(saved.timestamp)}`
       return url
     } catch { return active.url }
@@ -202,7 +202,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
               allowFullScreen
               referrerPolicy="no-referrer"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen"
+              {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}
               className="w-full h-full bg-black"
               style={{ border: 'none', display: 'block' }}
             />
