@@ -7,8 +7,6 @@ import { useUserData } from '@/lib/useUserData'
 import type { PlatformConfig } from '@/lib/platforms'
 import type { Movie } from '@/types/movie'
 
-const TMDB_LOGO = 'https://image.tmdb.org/t/p/w92'
-
 interface Props {
   platform: PlatformConfig
 }
@@ -21,16 +19,6 @@ export default function PlatformPageClient({ platform }: Props) {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [logoPath, setLogoPath] = useState('')
-
-  useEffect(() => {
-    api.getProviders()
-      .then(data => {
-        const p = data.find(pr => pr.provider_id === platform.providerId)
-        if (p) setLogoPath(p.logo_path)
-      })
-      .catch(() => {})
-  }, [platform.providerId])
 
   const fetchPage = useCallback(async (p: number, replace = false) => {
     if (replace) setLoading(true)
@@ -64,13 +52,7 @@ export default function PlatformPageClient({ platform }: Props) {
             className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg"
             style={{ background: platform.bg }}
           >
-            {logoPath ? (
-              <img src={`${TMDB_LOGO}${logoPath}`} alt={platform.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">{platform.name[0]}</span>
-              </div>
-            )}
+            <img src={`/platforms/${platform.slug}.svg`} alt={platform.name} className="w-full h-full object-contain p-2" style={{ filter: platform.logoFilter }} />
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{platform.name}</h1>
