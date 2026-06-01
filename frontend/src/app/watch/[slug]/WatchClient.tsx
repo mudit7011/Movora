@@ -186,6 +186,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                 allowFullScreen
                 referrerPolicy="no-referrer"
+                {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}
                 className="w-full h-full bg-black"
                 style={{ border: 'none', display: 'block' }}
               />
