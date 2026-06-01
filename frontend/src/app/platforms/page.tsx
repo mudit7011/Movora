@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
+import HideScrollbar from '@/components/HideScrollbar'
 import { PLATFORMS } from '@/lib/platforms'
 
 export default function PlatformsPage() {
   return (
     <>
+      <HideScrollbar />
       <Sidebar />
-      <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24 px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24 px-4 sm:px-6 lg:px-8 pt-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Streaming Platforms</h1>
           <p className="text-sm text-muted-foreground mt-1">Browse movies & shows by where they stream</p>
