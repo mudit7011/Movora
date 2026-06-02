@@ -7,6 +7,7 @@ import type { Movie, Source } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
+import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
 
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
 
@@ -22,31 +23,45 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const { updateProgress } = useUserData()
 
-  // Saved timestamp for Server 4 seek
-  const savedTimestamp = (() => {
+  // Resume position — captured ONCE at mount so the iframe src stays stable.
+  // (Recomputing per render would change ?progress= continuously and reload the player.)
+  const [savedTimestamp] = useState(() => {
     try {
       const stored: { movieId: string; timestamp: number }[] = JSON.parse(localStorage.getItem('movora_progress') || '[]')
       return stored.find(p => p.movieId === movie._id)?.timestamp ?? 0
     } catch { return 0 }
-  })()
+  })
 
   const active   = sources[activeIdx]
   const isDirect = active.type === 'direct'
   const hasNext  = activeIdx < sources.length - 1
 
-  // Override Server 4 URL with correct color, quality, and seek position
+  // Inject resume position per server
   const activeUrl = (() => {
-    if (!active.url.includes('streamvaultsrc.click')) return active.url
-    const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
-    let url = `https://streamvaultsrc.click/embed/movie/${rawId}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p`
-    if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
-    return url
+    // Server 4 (StreamVault): rebuild with color, quality, and &seek=
+    if (active.url.includes('streamvaultsrc.click')) {
+      const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
+      let url = `https://streamvaultsrc.click/embed/movie/${rawId}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p`
+      if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
+      return url
+    }
+    // Server 1 (Videasy): resume via ?progress=<seconds>
+    if (active.url.includes('player.videasy.net') && savedTimestamp > 60) {
+      return active.url + `&progress=${Math.floor(savedTimestamp)}`
+    }
+    return active.url
   })()
 
-  // Track watch progress — pauses when tab/screen is hidden (iOS background fix)
+  // Track watch progress — counts only real foreground time, pauses when tab hidden.
+  // Iframe embeds can't expose true playback position cross-origin, so for non-StreamVault
+  // servers this is a best-effort estimate. We never save on mount and only persist after
+  // genuine watch time accrues, so opening a page (or re-opening it) can't inflate progress.
   useEffect(() => {
-    const duration = (movie.runtime || 120) * 60
-    let elapsed = 60
+    const fallbackDuration = (movie.runtime || 120) * 60
+    const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
+
+    // Restore prior position as the starting point — but do NOT re-save it on mount.
+    let elapsed = 0
     try {
       const stored: { movieId: string; timestamp: number }[] =
         JSON.parse(localStorage.getItem('movora_progress') || '[]')
@@ -54,45 +69,87 @@ export default function WatchClient({ movie, sources, related }: Props) {
       if (saved?.timestamp) elapsed = saved.timestamp
     } catch {}
 
-    updateProgress(movie, elapsed, duration)
-
+    const resumeTarget = elapsed // position to seek EmbedMaster back to once it's ready
+    let embedSeekSent = false
+    let lastTick = performance.now()
+    let accrued = 0              // real foreground seconds watched this session
+    let realTimeReported = false // a player reported its exact position — trust it, drop the estimate
+    let lastReal: { time: number; duration: number } | null = null
+    let lastRealSave = 0         // throttle real-position saves to ~once per 5s
     let interval: ReturnType<typeof setInterval> | null = null
+
+    const TICK_MS = 15_000
+    const PERSIST_AFTER = 45     // don't create/update an entry until 45s genuinely watched
+
+    const flush = () => {
+      if (realTimeReported) return
+      if (elapsed > 0 && accrued >= PERSIST_AFTER) {
+        updateProgress(movie, Math.min(elapsed, fallbackDuration - 30), fallbackDuration)
+      }
+    }
+
+    // Wall-clock fallback for players that report nothing (e.g. EmbedMaster).
+    // Accumulate the REAL elapsed delta since the last tick (not a flat +60), capped
+    // per-tick so a throttled or slept tab can't dump huge fake progress.
+    const tick = () => {
+      if (realTimeReported) return
+      const now = performance.now()
+      const deltaSec = (now - lastTick) / 1000
+      lastTick = now
+      if (deltaSec > 0 && deltaSec < 90) {
+        elapsed = Math.min(elapsed + deltaSec, fallbackDuration - 30)
+        accrued += deltaSec
+        flush()
+      }
+    }
 
     const start = () => {
       if (interval) return
-      interval = setInterval(() => {
-        elapsed = Math.min(elapsed + 60, duration - 30)
-        updateProgress(movie, elapsed, duration)
-      }, 60_000)
+      lastTick = performance.now()
+      interval = setInterval(tick, TICK_MS)
     }
 
     const stop = () => {
+      tick() // capture the final delta before pausing
       if (interval) { clearInterval(interval); interval = null }
     }
 
     const onVisibility = () => document.hidden ? stop() : start()
 
-    // StreamVault: use real timeupdate for accurate progress; all others: ended event only
+    // Videasy / Vidlink / StreamVault broadcast their real position — use it as the
+    // source of truth (seek-accurate). Once any arrives, the estimate is disabled.
     const onMessage = (e: MessageEvent) => {
-      const d = e.data
-      if (!d) return
-      const type = d.type ?? d.event ?? d.action ?? ''
-      if (String(type).toLowerCase() === 'timeupdate' && typeof d.data?.time === 'number') {
-        elapsed = d.data.time
-        updateProgress(movie, elapsed, duration)
+      if (!isKnownPlayerOrigin(e.origin)) return
+      // EmbedMaster only resumes via command — seek it back once it's ready.
+      if (resumeTarget > 60 && !embedSeekSent && isEmbedMasterReady(e.data)) {
+        seekEmbedMaster(e.source as Window, resumeTarget)
+        embedSeekSent = true
+      }
+      const pb = extractPlayback(e.data, rawId)
+      if (pb && pb.time > 1) {
+        realTimeReported = true
+        lastReal = { time: pb.time, duration: pb.duration > 0 ? pb.duration : fallbackDuration }
+        const now = performance.now()
+        if (now - lastRealSave >= 5000) { // throttle to avoid thrashing state every ~250ms
+          lastRealSave = now
+          updateProgress(movie, lastReal.time, lastReal.duration)
+        }
         return
       }
-      if (['ended', 'end', 'finish', 'complete', 'videoEnd', 'finished'].includes(String(type).toLowerCase())) {
-        updateProgress(movie, duration, duration)
+      if (isEndedEvent(e.data)) {
+        updateProgress(movie, fallbackDuration, fallbackDuration)
       }
     }
 
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('message', onMessage)
-    start()
+    if (!document.hidden) start()
 
     return () => {
       stop()
+      // Persist the exact final position (the throttle may have skipped the last update).
+      if (realTimeReported && lastReal) updateProgress(movie, lastReal.time, lastReal.duration)
+      else flush()
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('message', onMessage)
     }

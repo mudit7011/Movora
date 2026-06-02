@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import type { Movie } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import EpisodeGrid from '@/components/EpisodeGrid'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
+import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
 
 interface Source {
   serverName: string
@@ -51,18 +52,32 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const sources = buildSources(show.tmdbId, season, episode)
   const active = sources[activeServerIdx]
 
-  // For Server 4: inject seek position + quality
-  const activeUrl = (() => {
-    if (!active.url.includes('streamvaultsrc.click')) return active.url
+  // Resume position — captured once per episode so the iframe src stays stable.
+  // (Recomputing per render would change ?progress= continuously and reload the player.)
+  const savedTimestamp = useMemo(() => {
     try {
       const stored: { movieId: string; timestamp: number; season?: number; episode?: number }[] =
         JSON.parse(localStorage.getItem('movora_progress') || '[]')
       const saved = stored.find(p => p.movieId === show._id && p.season === season && p.episode === episode)
+      return saved?.timestamp ?? 0
+    } catch { return 0 }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show._id, season, episode])
+
+  // Inject resume position per server (matched to this exact season/episode)
+  const activeUrl = (() => {
+    // Server 4 (StreamVault): rebuild with quality + &seek=
+    if (active.url.includes('streamvaultsrc.click')) {
       const rawId = show.tmdbId.replace(/^tv_/, '')
       let url = `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p&autonext=false`
-      if (saved?.timestamp && saved.timestamp > 60) url += `&seek=${Math.floor(saved.timestamp)}`
+      if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
       return url
-    } catch { return active.url }
+    }
+    // Server 1 (Videasy): resume via ?progress=<seconds>
+    if (active.url.includes('player.videasy.net') && savedTimestamp > 60) {
+      return active.url + `&progress=${Math.floor(savedTimestamp)}`
+    }
+    return active.url
   })()
 
   const seasons = show.seasonData?.filter(s => s.seasonNumber > 0) ?? []
@@ -87,40 +102,107 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     return () => window.removeEventListener('keydown', onKey)
   }, [hasNextServer])
 
-  // Track watch progress for Continue Watching
+  // Track watch progress for Continue Watching — counts only real foreground time.
+  // Iframe embeds can't report true position cross-origin, so for non-StreamVault servers
+  // this is a best-effort estimate. We never save on mount and only persist after genuine
+  // watch time accrues, so opening/re-opening an episode can't inflate progress.
   useEffect(() => {
     const episodeDuration = 2700 // ~45 min default
+    const rawId = show.tmdbId.replace(/^tv_/, '')
     const nextEp = episode < episodeCount ? episode + 1 : undefined
-    let elapsed = 60
+    const advanceSeason = nextEp !== undefined ? season : undefined
+
+    // Restore prior position as the starting point — but do NOT re-save it on mount.
+    let elapsed = 0
     try {
       const stored: { movieId: string; timestamp: number; season?: number; episode?: number }[] =
         JSON.parse(localStorage.getItem('movora_progress') || '[]')
       const saved = stored.find(p => p.movieId === show._id && p.season === season && p.episode === episode)
       if (saved?.timestamp) elapsed = saved.timestamp
     } catch {}
-    updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
 
-    const interval = setInterval(() => {
-      elapsed = Math.min(elapsed + 60, episodeDuration - 30)
-      updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
-    }, 60_000)
+    const resumeTarget = elapsed // position to seek EmbedMaster back to once it's ready
+    let embedSeekSent = false
+    let lastTick = performance.now()
+    let accrued = 0
+    let realTimeReported = false
+    let lastReal: { time: number; duration: number } | null = null
+    let lastRealSave = 0         // throttle real-position saves to ~once per 5s
+    let interval: ReturnType<typeof setInterval> | null = null
 
-    // StreamVault: real timeupdate for accurate progress
-    const onMessage = (e: MessageEvent) => {
-      const d = e.data
-      if (!d) return
-      const type = d.type ?? d.event ?? ''
-      if (String(type).toLowerCase() === 'timeupdate' && typeof d.data?.time === 'number') {
-        elapsed = d.data.time
-        updateProgress(show, elapsed, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
-      }
-      if (['ended', 'end', 'finish', 'complete'].includes(String(type).toLowerCase())) {
-        updateProgress(show, episodeDuration, episodeDuration, season, episode, nextEp !== undefined ? season : undefined, nextEp)
+    const TICK_MS = 15_000
+    const PERSIST_AFTER = 45
+
+    const flush = () => {
+      if (realTimeReported) return
+      if (elapsed > 0 && accrued >= PERSIST_AFTER) {
+        updateProgress(show, Math.min(elapsed, episodeDuration - 30), episodeDuration, season, episode, advanceSeason, nextEp)
       }
     }
-    window.addEventListener('message', onMessage)
 
-    return () => { clearInterval(interval); window.removeEventListener('message', onMessage) }
+    // Wall-clock fallback for players that report nothing (e.g. EmbedMaster).
+    const tick = () => {
+      if (realTimeReported) return
+      const now = performance.now()
+      const deltaSec = (now - lastTick) / 1000
+      lastTick = now
+      if (deltaSec > 0 && deltaSec < 90) {
+        elapsed = Math.min(elapsed + deltaSec, episodeDuration - 30)
+        accrued += deltaSec
+        flush()
+      }
+    }
+
+    const start = () => {
+      if (interval) return
+      lastTick = performance.now()
+      interval = setInterval(tick, TICK_MS)
+    }
+
+    const stop = () => {
+      tick()
+      if (interval) { clearInterval(interval); interval = null }
+    }
+
+    const onVisibility = () => document.hidden ? stop() : start()
+
+    // Videasy / Vidlink / StreamVault broadcast their real position (seek-accurate).
+    // Match per season/episode and use the real duration when provided.
+    const onMessage = (e: MessageEvent) => {
+      if (!isKnownPlayerOrigin(e.origin)) return
+      // EmbedMaster only resumes via command — seek it back once it's ready.
+      if (resumeTarget > 60 && !embedSeekSent && isEmbedMasterReady(e.data)) {
+        seekEmbedMaster(e.source as Window, resumeTarget)
+        embedSeekSent = true
+      }
+      const pb = extractPlayback(e.data, rawId, season, episode)
+      if (pb && pb.time > 1) {
+        realTimeReported = true
+        lastReal = { time: pb.time, duration: pb.duration > 0 ? pb.duration : episodeDuration }
+        const now = performance.now()
+        if (now - lastRealSave >= 5000) { // throttle to avoid thrashing state every ~250ms
+          lastRealSave = now
+          updateProgress(show, lastReal.time, lastReal.duration, season, episode, advanceSeason, nextEp)
+        }
+        return
+      }
+      if (isEndedEvent(e.data)) {
+        updateProgress(show, episodeDuration, episodeDuration, season, episode, advanceSeason, nextEp)
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('message', onMessage)
+    if (!document.hidden) start()
+
+    return () => {
+      stop()
+      // Persist the exact final position (the throttle may have skipped the last update).
+      if (realTimeReported && lastReal) updateProgress(show, lastReal.time, lastReal.duration, season, episode, advanceSeason, nextEp)
+      else flush()
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('message', onMessage)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show._id, season, episode, episodeCount])
 
