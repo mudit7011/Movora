@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.moviesRouter = void 0;
 const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
+const tmdb_1 = require("../utils/tmdb");
+const importer_1 = require("../utils/importer");
 const fuse_js_1 = __importDefault(require("fuse.js"));
 const router = (0, express_1.Router)();
 exports.moviesRouter = router;
@@ -289,45 +291,73 @@ router.get('/search', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+const relatedCache = new Map();
+const RELATED_TTL = 6 * 60 * 60 * 1000; // 6 hours
 router.get('/related/:slug', async (req, res) => {
     try {
-        const movie = await Movie_1.Movie.findOne({ slug: req.params.slug, type: 'movie' }).select('_id genres language rating');
+        const cached = relatedCache.get(req.params.slug);
+        if (cached && Date.now() - cached.ts < RELATED_TTL)
+            return res.json(cached.data);
+        const movie = await Movie_1.Movie.findOne({ slug: req.params.slug, type: 'movie' }).select('_id tmdbId genres language rating');
         if (!movie)
-            return res.json([]);
-        const topGenres = movie.genres.slice(0, 2);
+            return res.json({ similar: [], youMayLove: [] });
+        const rawId = String(movie.tmdbId ?? '').replace(/^movie_/, '');
+        const movieId = String(movie._id);
         const dedup = (docs) => {
             const seen = new Set();
-            const unique = docs.filter(d => {
-                const idKey = String(d.tmdbId ?? '').replace(/^movie_/, '');
-                const titleKey = `${String(d.title ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')}_${d.releaseYear ?? ''}`;
-                if (seen.has(idKey) || seen.has(titleKey))
+            return docs.filter(d => {
+                const key = String(d.tmdbId ?? '').replace(/^movie_/, '');
+                if (!key || seen.has(key))
                     return false;
-                if (idKey)
-                    seen.add(idKey);
-                seen.add(titleKey);
-                return true;
-            });
-            return shuffle(unique).slice(0, 12);
+                seen.add(key);
+                return !!d.posterUrl;
+            }).slice(0, 12);
         };
+        async function resolveFromTmdb(tmdbItems) {
+            if (!tmdbItems.length)
+                return [];
+            const ids = tmdbItems.map(r => String(r.id));
+            const existing = await Movie_1.Movie.find({ tmdbId: { $in: ids }, type: 'movie' }).select('-sources').lean();
+            const byId = new Map(existing.map((m) => [String(m.tmdbId).replace(/^movie_/, ''), m]));
+            const missing = tmdbItems.filter(r => !byId.has(String(r.id))).slice(0, 10);
+            if (missing.length) {
+                for (let i = 0; i < missing.length; i += 5) {
+                    await Promise.allSettled(missing.slice(i, i + 5).map(r => (0, importer_1.importMovie)(r.id)));
+                }
+                const newDocs = await Movie_1.Movie.find({ tmdbId: { $in: missing.map(r => String(r.id)) } }).select('-sources').lean();
+                for (const d of newDocs)
+                    byId.set(String(d.tmdbId).replace(/^movie_/, ''), d);
+            }
+            return tmdbItems
+                .map(r => byId.get(String(r.id)))
+                .filter((d) => !!d && !!d.posterUrl && String(d._id) !== movieId);
+        }
+        if (rawId) {
+            const [recData, simData] = await Promise.allSettled([
+                (0, tmdb_1.tmdbFetch)(`/movie/${rawId}/recommendations?language=en-US&page=1`),
+                (0, tmdb_1.tmdbFetch)(`/movie/${rawId}/similar?language=en-US&page=1`),
+            ]);
+            const recResults = recData.status === 'fulfilled' ? (recData.value.results || []) : [];
+            const simResults = simData.status === 'fulfilled' ? (simData.value.results || []) : [];
+            const [similar, youMayLove] = await Promise.all([
+                resolveFromTmdb(recResults),
+                resolveFromTmdb(simResults),
+            ]);
+            if (similar.length > 0 || youMayLove.length > 0) {
+                const result = { similar: dedup(similar), youMayLove: dedup(youMayLove) };
+                relatedCache.set(req.params.slug, { data: result, ts: Date.now() });
+                return res.json(result);
+            }
+        }
+        // Fallback: DB genre/language match
+        const topGenres = movie.genres.slice(0, 2);
         const [rawSimilar, rawYouMayLove] = await Promise.all([
-            Movie_1.Movie.find({
-                _id: { $ne: movie._id },
-                genres: { $in: topGenres },
-                language: { $in: movie.language },
-                streamVerified: { $ne: false },
-                rating: { $gte: 5 },
-                posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
-            Movie_1.Movie.find({
-                _id: { $ne: movie._id },
-                genres: { $nin: topGenres },
-                language: { $in: movie.language },
-                streamVerified: { $ne: false },
-                rating: { $gte: 6.5 },
-                posterUrl: { $ne: '' },
-            }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
+            Movie_1.Movie.find({ _id: { $ne: movie._id }, genres: { $in: topGenres }, language: { $in: movie.language }, streamVerified: { $ne: false }, rating: { $gte: 5 }, posterUrl: { $ne: '' } }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
+            Movie_1.Movie.find({ _id: { $ne: movie._id }, genres: { $nin: topGenres }, language: { $in: movie.language }, streamVerified: { $ne: false }, rating: { $gte: 6.5 }, posterUrl: { $ne: '' } }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
         ]);
-        res.json({ similar: dedup(rawSimilar), youMayLove: dedup(rawYouMayLove) });
+        const result = { similar: shuffle(rawSimilar).slice(0, 12), youMayLove: shuffle(rawYouMayLove).slice(0, 12) };
+        relatedCache.set(req.params.slug, { data: result, ts: Date.now() });
+        res.json(result);
     }
     catch {
         res.status(500).json({ error: 'Server error' });
