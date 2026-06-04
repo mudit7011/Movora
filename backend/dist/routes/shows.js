@@ -63,9 +63,11 @@ router.get('/', async (req, res) => {
         else {
             matchFilter.genres = { $nin: EXCLUDED_GENRES };
         }
-        // Fetch all matching docs (dedup in memory — dataset is small enough)
+        // Cap the candidate pool — sorting the entire collection in memory exceeds
+        // MongoDB's 100MB sort limit on large catalogs and crashes the request.
         const allDocs = await Movie_1.Movie.find(matchFilter)
             .sort(sortObj)
+            .limit(1000)
             .select('-sources')
             .lean();
         // Dedup by normalized tmdbId (strip tv_ prefix)

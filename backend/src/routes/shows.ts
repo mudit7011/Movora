@@ -65,9 +65,11 @@ router.get('/', async (req, res) => {
       matchFilter.genres = { $nin: EXCLUDED_GENRES }
     }
 
-    // Fetch all matching docs (dedup in memory — dataset is small enough)
+    // Cap the candidate pool — sorting the entire collection in memory exceeds
+    // MongoDB's 100MB sort limit on large catalogs and crashes the request.
     const allDocs = await Movie.find(matchFilter as any)
       .sort(sortObj)
+      .limit(1000)
       .select('-sources')
       .lean()
 
