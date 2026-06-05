@@ -6,11 +6,13 @@ const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
 const importer_1 = require("../utils/importer");
+const boundedCache_1 = require("../utils/boundedCache");
 const router = (0, express_1.Router)();
 exports.realtimeRouter = router;
 // In-memory cache: fresh for 1 hour, then TMDB is re-fetched
 const cache = new Map();
 const TTL = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_MAX = 400; // cap entries so the cache can't grow unbounded and OOM the process
 const MOVIE_ENDPOINTS = {
     trending: '/trending/movie/week?language=en-US',
     popular: '/movie/popular?language=en-US',
@@ -76,7 +78,7 @@ async function getRealtime(cacheKey, tmdbEndpoint, mediaType, page = 1) {
             return false;
         return true;
     });
-    cache.set(cacheKey, { docs, ts: Date.now(), totalPages });
+    (0, boundedCache_1.cacheSet)(cache, cacheKey, { docs, ts: Date.now(), totalPages }, CACHE_MAX);
     return { docs, totalPages };
 }
 router.get('/movies/:category', async (req, res) => {
@@ -116,9 +118,6 @@ const PLATFORM_PROVIDERS = {
     max: { id: 1899, region: 'US' },
     'disney-plus': { id: 337, region: 'US' },
     hulu: { id: 15, region: 'US' },
-    jiohotstar: { id: 122, region: 'IN' },
-    sonyliv: { id: 237, region: 'IN' },
-    zee5: { id: 232, region: 'IN' },
 };
 router.get('/providers', async (_req, res) => {
     try {
@@ -130,7 +129,7 @@ router.get('/providers', async (_req, res) => {
         const data = await (0, tmdb_1.tmdbFetch)('/watch/providers/movie?watch_region=US&language=en-US');
         const wanted = new Set(Object.values(PLATFORM_PROVIDERS).map(p => p.id));
         const docs = (data.results || []).filter((p) => wanted.has(p.provider_id));
-        cache.set('providers', { docs, ts: Date.now(), totalPages: 1 });
+        (0, boundedCache_1.cacheSet)(cache, 'providers', { docs, ts: Date.now(), totalPages: 1 }, CACHE_MAX);
         res.json(docs);
     }
     catch {

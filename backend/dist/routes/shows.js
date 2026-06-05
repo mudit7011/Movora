@@ -7,6 +7,7 @@ exports.showsRouter = void 0;
 const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
+const boundedCache_1 = require("../utils/boundedCache");
 const fuse_js_1 = __importDefault(require("fuse.js"));
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300';
 function shuffle(arr) {
@@ -317,6 +318,7 @@ router.get('/:slug/season/:n', async (req, res) => {
 });
 const relatedCache = new Map();
 const RELATED_TTL = 6 * 60 * 60 * 1000; // 6 hours
+const RELATED_MAX = 300; // cap entries so a crawler can't grow it unbounded
 router.get('/related/:slug', async (req, res) => {
     try {
         const cached = relatedCache.get(req.params.slug);
@@ -373,7 +375,7 @@ router.get('/related/:slug', async (req, res) => {
             similar: pick([...recMatches, ...shuffle(genrePool)], seen),
             youMayLove: pick([...simMatches, ...shuffle(broadPool)], seen),
         };
-        relatedCache.set(req.params.slug, { data: result, ts: Date.now() });
+        (0, boundedCache_1.cacheSet)(relatedCache, req.params.slug, { data: result, ts: Date.now() }, RELATED_MAX);
         res.json(result);
     }
     catch {

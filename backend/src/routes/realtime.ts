@@ -2,12 +2,14 @@ import { Router } from 'express'
 import { Movie } from '../models/Movie'
 import { tmdbFetch } from '../utils/tmdb'
 import { importMovie, importShow } from '../utils/importer'
+import { cacheSet } from '../utils/boundedCache'
 
 const router = Router()
 
 // In-memory cache: fresh for 1 hour, then TMDB is re-fetched
 const cache = new Map<string, { docs: any[]; ts: number; totalPages: number }>()
 const TTL   = 24 * 60 * 60 * 1000 // 24 hours
+const CACHE_MAX = 400 // cap entries so the cache can't grow unbounded and OOM the process
 
 const MOVIE_ENDPOINTS: Record<string, string> = {
   trending:    '/trending/movie/week?language=en-US',
@@ -86,7 +88,7 @@ async function getRealtime(
       return true
     })
 
-  cache.set(cacheKey, { docs, ts: Date.now(), totalPages })
+  cacheSet(cache, cacheKey, { docs, ts: Date.now(), totalPages }, CACHE_MAX)
   return { docs, totalPages }
 }
 
@@ -130,7 +132,7 @@ router.get('/providers', async (_req, res) => {
     const data = await tmdbFetch('/watch/providers/movie?watch_region=US&language=en-US')
     const wanted = new Set(Object.values(PLATFORM_PROVIDERS).map(p => p.id))
     const docs = (data.results || []).filter((p: any) => wanted.has(p.provider_id))
-    cache.set('providers', { docs, ts: Date.now(), totalPages: 1 })
+    cacheSet(cache, 'providers', { docs, ts: Date.now(), totalPages: 1 }, CACHE_MAX)
     res.json(docs)
   } catch {
     res.status(500).json({ error: 'Server error' })

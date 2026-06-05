@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { Movie } from '../models/Movie'
 import { tmdbFetch } from '../utils/tmdb'
+import { cacheSet } from '../utils/boundedCache'
 import Fuse from 'fuse.js'
 
 const router = Router()
@@ -296,6 +297,7 @@ router.get('/search', async (req, res) => {
 
 const relatedCache = new Map<string, { data: any; ts: number }>()
 const RELATED_TTL = 6 * 60 * 60 * 1000 // 6 hours
+const RELATED_MAX = 300                 // cap entries so a crawler can't grow it unbounded
 
 router.get('/related/:slug', async (req, res) => {
   try {
@@ -356,7 +358,7 @@ router.get('/related/:slug', async (req, res) => {
       similar:    pick([...recMatches, ...shuffle(genrePool as any[])], seen),
       youMayLove: pick([...simMatches, ...shuffle(broadPool as any[])], seen),
     }
-    relatedCache.set(req.params.slug, { data: result, ts: Date.now() })
+    cacheSet(relatedCache, req.params.slug, { data: result, ts: Date.now() }, RELATED_MAX)
     res.json(result)
   } catch {
     res.status(500).json({ error: 'Server error' })
