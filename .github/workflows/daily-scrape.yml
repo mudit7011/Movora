@@ -1,10 +1,13 @@
 name: Daily Content Scrape
 
 on:
-  schedule:
-    # Runs at 12:00 AM IST (6:30 PM UTC) every day
-    - cron: '30 18 * * *'
-  workflow_dispatch:  # allows manual trigger from GitHub UI
+  # Nightly schedule disabled — it re-created duplicate records every morning
+  # (bare tmdbId vs the tv_/realtime-importer convention) with stale server URLs.
+  # The realtime TMDB importer already covers now-playing/popular/latest on demand.
+  # Re-enable the cron below only if you reinstate a deduped scrape.
+  # schedule:
+  #   - cron: '30 18 * * *'   # 12:00 AM IST (6:30 PM UTC)
+  workflow_dispatch:  # manual trigger only (run from GitHub Actions UI)
 
 jobs:
   scrape:

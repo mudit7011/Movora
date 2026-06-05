@@ -32,6 +32,13 @@ export async function importMovie(id: number): Promise<ImportResult> {
     if (!detail?.title) return { status: 'error' }
     const title   = detail.title
     const year    = parseInt((detail.release_date || '0').slice(0, 4)) || 0
+
+    // Quality gate — never persist content the site doesn't surface anyway.
+    // Stops the DB from bloating with obscure/old/unrated junk on every import path.
+    if (!detail.poster_path) return { status: 'skipped' }
+    if (year && year < 2000) return { status: 'skipped' }
+    if ((detail.vote_average || 0) <= 0 || (detail.vote_count || 0) < 5) return { status: 'skipped' }
+    if (detail.runtime && detail.runtime < 40) return { status: 'skipped' }
     const trailer = (videos.results || []).find((v: any) => v.type === 'Trailer' && v.site === 'YouTube')
     const cast    = (credits.cast || []).slice(0, 15).map((c: any) => ({
       name: c.name, character: c.character || '',
@@ -82,6 +89,11 @@ export async function importShow(id: number): Promise<ImportResult> {
     if (!detail?.name) return { status: 'error' }
     const title       = detail.name
     const year        = parseInt((detail.first_air_date || '0').slice(0, 4)) || 0
+
+    // Quality gate — never persist content the site doesn't surface anyway.
+    if (!detail.poster_path) return { status: 'skipped' }
+    if (year && year < 2000) return { status: 'skipped' }
+    if ((detail.vote_average || 0) <= 0 || (detail.vote_count || 0) < 5) return { status: 'skipped' }
     const trailer     = (videos.results || []).find((v: any) => v.type === 'Trailer' && v.site === 'YouTube')
     const cast        = (credits.cast || []).slice(0, 15).map((c: any) => ({
       name: c.name, character: c.character || '',
