@@ -35,6 +35,7 @@ interface UserDataContextType {
   isInWatchlist: (movieId: string) => boolean
   updateProgress: (movie: Movie, timestamp: number, duration: number, season?: number, episode?: number, nextSeason?: number, nextEpisode?: number) => void
   removeFromHistory: (movieId: string) => void
+  isCompleted: (movieId: string) => boolean
   clearAllData: () => void
 }
 
@@ -42,10 +43,14 @@ const UserDataContext = createContext<UserDataContextType | undefined>(undefined
 
 const WATCHLIST_KEY = 'movora_watchlist'
 const PROGRESS_KEY = 'movora_progress'
+const COMPLETED_KEY = 'movora_completed'
 
 export function UserDataProvider({ children }: { children: ReactNode }) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
   const [continueWatching, setContinueWatching] = useState<WatchProgress[]>([])
+  // IDs of titles the user has finished — kept even after they leave Continue Watching,
+  // so detail pages can show "Watch Again".
+  const [completedIds, setCompletedIds] = useState<string[]>([])
   const [isHydrated, setIsHydrated] = useState(false)
 
   // Load data from localStorage on mount
@@ -53,6 +58,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     try {
       const storedWatchlist = localStorage.getItem(WATCHLIST_KEY)
       const storedProgress = localStorage.getItem(PROGRESS_KEY)
+      const storedCompleted = localStorage.getItem(COMPLETED_KEY)
 
       if (storedWatchlist) {
         setWatchlist(JSON.parse(storedWatchlist))
@@ -62,6 +68,9 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         // Filter out already-completed items on load so stale localStorage entries disappear
         const active = progress.filter(p => !(p.duration > 0 && p.timestamp / p.duration >= 0.85))
         setContinueWatching(active.sort((a, b) => b.lastWatched - a.lastWatched))
+      }
+      if (storedCompleted) {
+        setCompletedIds(JSON.parse(storedCompleted))
       }
     } catch (error) {
       console.error('Failed to load user data:', error)
@@ -88,6 +97,16 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save progress:', error)
     }
   }, [continueWatching, isHydrated])
+
+  // Persist completed IDs to localStorage
+  useEffect(() => {
+    if (!isHydrated) return
+    try {
+      localStorage.setItem(COMPLETED_KEY, JSON.stringify(completedIds))
+    } catch (error) {
+      console.error('Failed to save completed list:', error)
+    }
+  }, [completedIds, isHydrated])
 
   const addToWatchlist = useCallback((movie: Movie) => {
     setWatchlist((prev) => {
@@ -128,8 +147,9 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
 
     if (completed) {
       if (isMovie) {
-        // Movie finished — drop from continue watching
+        // Movie finished — drop from continue watching, but remember it as completed
         setContinueWatching(prev => prev.filter(item => item.movieId !== movie._id))
+        setCompletedIds(prev => prev.includes(movie._id) ? prev : [...prev, movie._id])
         return
       }
       if (nextSeason !== undefined && nextEpisode !== undefined) {
@@ -138,8 +158,9 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         episode = nextEpisode
         timestamp = 0
       } else {
-        // Last episode of series — remove
+        // Last episode of series — drop from continue watching, mark completed
         setContinueWatching(prev => prev.filter(item => item.movieId !== movie._id))
+        setCompletedIds(prev => prev.includes(movie._id) ? prev : [...prev, movie._id])
         return
       }
     }
@@ -176,11 +197,17 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
     setContinueWatching((prev) => prev.filter((item) => item.movieId !== movieId))
   }, [])
 
+  const isCompleted = useCallback((movieId: string) => {
+    return completedIds.includes(movieId)
+  }, [completedIds])
+
   const clearAllData = useCallback(() => {
     setWatchlist([])
     setContinueWatching([])
+    setCompletedIds([])
     localStorage.removeItem(WATCHLIST_KEY)
     localStorage.removeItem(PROGRESS_KEY)
+    localStorage.removeItem(COMPLETED_KEY)
   }, [])
 
   return (
@@ -193,6 +220,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
         isInWatchlist,
         updateProgress,
         removeFromHistory,
+        isCompleted,
         clearAllData,
       }}
     >

@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import type { Movie } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import SearchInput from '@/components/SearchInput'
 import SearchFilters from '@/components/SearchFilters'
@@ -13,9 +14,10 @@ async function SearchResults({ q, sort, type }: { q: string; sort: string; type:
     return null
   }
 
-  const [movies, shows] = await Promise.all([
+  const [movies, shows, actor] = await Promise.all([
     api.search(q).catch(() => []),
     api.searchShows(q).catch(() => []),
+    api.searchByActor(q).catch(() => ({ person: null as { id: number; name: string; photo: string | null } | null, results: [] as Movie[] })),
   ])
 
   // Interleave by index, deduplicating by tmdbId (same title may live in both collections)
@@ -40,7 +42,35 @@ async function SearchResults({ q, sort, type }: { q: string; sort: string; type:
   else if (sort === 'newest') results.sort((a, b) => (b.releaseYear ?? 0) - (a.releaseYear ?? 0))
   else if (sort === 'oldest') results.sort((a, b) => (a.releaseYear ?? 0) - (b.releaseYear ?? 0))
 
-  if (results.length === 0) {
+  // Actor matches (respect the type filter), shown as a dedicated "Starring" row
+  const actorResults = (actor.results ?? []).filter(r =>
+    type === 'movie' ? r.type !== 'tvshow' :
+    type === 'show'  ? r.type === 'tvshow' :
+    true,
+  )
+  const ActorSection = actor.person && actorResults.length > 0 ? (
+    <div className="mb-10">
+      <div className="flex items-center gap-3 mb-5">
+        {actor.person.photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={actor.person.photo} alt={actor.person.name} className="w-11 h-11 rounded-full object-cover border border-white/10" />
+        ) : null}
+        <div>
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Starring</p>
+          <h2 className="text-lg font-semibold text-foreground">{actor.person.name}</h2>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+        {actorResults.map((m, i) => (
+          <div key={`actor-${m._id}`} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+            <MovieCard movie={m} />
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null
+
+  if (results.length === 0 && !ActorSection) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <div className="relative mb-6">
@@ -62,18 +92,23 @@ async function SearchResults({ q, sort, type }: { q: string; sort: string; type:
 
   return (
     <div>
-      <SearchFilters total={results.length} />
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
-        {results.map((movie, index) => (
-          <div
-            key={movie._id}
-            className="animate-fade-in-up"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            <MovieCard movie={movie} />
+      {ActorSection}
+      {results.length > 0 && (
+        <>
+          <SearchFilters total={results.length} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-6">
+            {results.map((movie, index) => (
+              <div
+                key={movie._id}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <MovieCard movie={movie} />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   )
 }

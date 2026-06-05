@@ -64,8 +64,9 @@ interface Props {
 
 export default function MovieDetailClient({ movie }: Props) {
   const router = useRouter()
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted } = useUserData()
   const inWatchlist = isInWatchlist(movie._id)
+  const watched = isCompleted(movie._id)
   const [collection, setCollection] = useState<CollectionPart[]>([])
 
   useEffect(() => {
@@ -221,7 +222,7 @@ export default function MovieDetailClient({ movie }: Props) {
                 className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
               >
                 <PlayIcon />
-                <span>Watch Now</span>
+                <span>{watched ? 'Watch Again' : 'Watch Now'}</span>
               </Link>
               <button
                 onClick={handleWatchlistToggle}

@@ -38,8 +38,9 @@ interface Props {
 
 export default function ShowDetailClient({ show }: Props) {
   const router = useRouter()
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted } = useUserData()
   const inWatchlist = isInWatchlist(show._id)
+  const watched = isCompleted(show._id)
 
   const handleWatchlistToggle = () => {
     if (inWatchlist) removeFromWatchlist(show._id)
@@ -190,7 +191,7 @@ export default function ShowDetailClient({ show }: Props) {
                 className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
               >
                 <PlayIcon />
-                <span>Watch S1 E1</span>
+                <span>{watched ? 'Watch Again' : 'Watch S1 E1'}</span>
               </Link>
               <button
                 onClick={handleWatchlistToggle}

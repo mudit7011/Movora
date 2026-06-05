@@ -61,6 +61,10 @@ export const api = {
   },
   search: (q: string) =>
     apiFetch<Movie[]>(`/api/movies/search?q=${encodeURIComponent(q)}`),
+  searchByActor: (q: string) =>
+    apiFetch<{ person: { id: number; name: string; photo: string | null } | null; results: Movie[] }>(
+      `/api/search/actor?q=${encodeURIComponent(q)}`,
+    ),
   getMovie: (slug: string) => apiFetch<Movie>(`/api/movies/${slug}`),
   getRelated: (slug: string) =>
     apiFetch<{ similar: Movie[]; youMayLove: Movie[] }>(`/api/movies/related/${slug}`),
