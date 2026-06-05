@@ -22,7 +22,7 @@ const MOVIE_ENDPOINTS: Record<string, string> = {
 }
 
 // 10766 = Soap, 10763 = News, 10767 = Talk Show — exclude all three
-const NO_SERIALS = 'without_genres=10766,10763,10767&vote_count.gte=50&vote_average.gte=5'
+const NO_SERIALS = 'without_genres=10766,10763,10767&vote_count.gte=10&vote_average.gte=5'
 
 const SHOW_ENDPOINTS: Record<string, string> = {
   trending:       '/trending/tv/week?language=en-US',

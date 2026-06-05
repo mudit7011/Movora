@@ -23,7 +23,7 @@ const MOVIE_ENDPOINTS = {
     japanese: '/discover/movie?with_original_language=ja&sort_by=popularity.desc&primary_release_date.gte=2001-01-01&language=en-US',
 };
 // 10766 = Soap, 10763 = News, 10767 = Talk Show — exclude all three
-const NO_SERIALS = 'without_genres=10766,10763,10767&vote_count.gte=50&vote_average.gte=5';
+const NO_SERIALS = 'without_genres=10766,10763,10767&vote_count.gte=10&vote_average.gte=5';
 const SHOW_ENDPOINTS = {
     trending: '/trending/tv/week?language=en-US',
     popular: `/tv/popular?language=en-US`,
