@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { Movie } from '../models/Movie'
 import { tmdbFetch } from '../utils/tmdb'
+import { importMovie } from '../utils/importer'
 import { cacheSet } from '../utils/boundedCache'
 import Fuse from 'fuse.js'
 
@@ -365,23 +366,35 @@ router.get('/related/:slug', async (req, res) => {
   }
 })
 
-// Return slugs for collection parts that actually exist — accepts tmdbIds (bare numbers)
+// Return slugs for collection parts that actually exist — accepts tmdbIds (bare numbers).
+// Missing parts are imported on the spot (quality-gate bypassed) so franchise
+// collections show complete, even classic pre-2000 entries. Strictly limited to the
+// requested collection part ids — nothing else is ever pulled in.
 router.get('/check-collection', async (req, res) => {
   try {
     const raw = req.query.ids
     if (!raw || typeof raw !== 'string') return res.json([])
     const ids = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30)
-    // DB may store as "123" or "movie_123" — match both
-    const orList = ids.flatMap(id => [id, `movie_${id}`])
-    const found = await Movie.find({ tmdbId: { $in: orList }, type: 'movie' })
-      .select('tmdbId slug')
-      .lean()
-    // Return map: bare_tmdb_id → slug
-    const result: Record<string, string> = {}
-    for (const m of found) {
-      const bare = String(m.tmdbId).replace(/^movie_/, '')
-      result[bare] = m.slug
+
+    const buildMap = async () => {
+      const orList = ids.flatMap(id => [id, `movie_${id}`])
+      const found = await Movie.find({ tmdbId: { $in: orList }, type: 'movie' }).select('tmdbId slug').lean()
+      const map: Record<string, string> = {}
+      for (const m of found) map[String(m.tmdbId).replace(/^movie_/, '')] = m.slug
+      return map
     }
+
+    let result = await buildMap()
+
+    // Import only the requested parts we don't already have (gate bypassed).
+    const missing = ids.filter(id => !result[id])
+    if (missing.length) {
+      for (let i = 0; i < missing.length; i += 5) {
+        await Promise.allSettled(missing.slice(i, i + 5).map(id => importMovie(Number(id), { bypassGate: true })))
+      }
+      result = await buildMap()
+    }
+
     res.json(result)
   } catch {
     res.status(500).json({ error: 'Server error' })
