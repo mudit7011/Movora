@@ -7,7 +7,6 @@ exports.showsRouter = void 0;
 const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
-const importer_1 = require("../utils/importer");
 const fuse_js_1 = __importDefault(require("fuse.js"));
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300';
 function shuffle(arr) {
@@ -328,59 +327,52 @@ router.get('/related/:slug', async (req, res) => {
             return res.json({ similar: [], youMayLove: [] });
         const rawId = String(show.tmdbId ?? '').replace(/^tv_/, '');
         const showId = String(show._id);
-        const dedup = (docs) => {
-            const seen = new Set();
-            return docs.filter(d => {
-                const key = String(d.tmdbId ?? '').replace(/^tv_/, '');
-                if (!key || seen.has(key))
-                    return false;
+        // Pick up to 12 unique, poster-having docs; `seen` is shared so the two rows don't overlap.
+        const pick = (docs, seen) => {
+            const out = [];
+            for (const d of docs) {
+                const key = String(d?.tmdbId ?? '').replace(/^tv_/, '');
+                if (!key || seen.has(key) || !d.posterUrl)
+                    continue;
                 seen.add(key);
-                return !!d.posterUrl;
-            }).slice(0, 12);
+                out.push(d);
+                if (out.length >= 12)
+                    break;
+            }
+            return out;
         };
-        async function resolveFromTmdb(tmdbItems) {
+        // Return the TMDB-recommended titles that ALREADY exist in our DB — no importing.
+        async function dbMatches(tmdbItems) {
             if (!tmdbItems.length)
                 return [];
             const ids = tmdbItems.map(r => `tv_${r.id}`);
             const existing = await Movie_1.Movie.find({ tmdbId: { $in: ids }, type: 'tvshow' }).select('-sources').lean();
             const byId = new Map(existing.map((m) => [String(m.tmdbId).replace(/^tv_/, ''), m]));
-            const missing = tmdbItems.filter(r => !byId.has(String(r.id))).slice(0, 10);
-            if (missing.length) {
-                for (let i = 0; i < missing.length; i += 5) {
-                    await Promise.allSettled(missing.slice(i, i + 5).map(r => (0, importer_1.importShow)(r.id)));
-                }
-                const newDocs = await Movie_1.Movie.find({ tmdbId: { $in: missing.map(r => `tv_${r.id}`) } }).select('-sources').lean();
-                for (const d of newDocs)
-                    byId.set(String(d.tmdbId).replace(/^tv_/, ''), d);
-            }
             return tmdbItems
                 .map(r => byId.get(String(r.id)))
                 .filter((d) => !!d && !!d.posterUrl && String(d._id) !== showId);
         }
+        let recMatches = [];
+        let simMatches = [];
         if (rawId) {
             const [recData, simData] = await Promise.allSettled([
                 (0, tmdb_1.tmdbFetch)(`/tv/${rawId}/recommendations?language=en-US&page=1`),
                 (0, tmdb_1.tmdbFetch)(`/tv/${rawId}/similar?language=en-US&page=1`),
             ]);
-            const recResults = recData.status === 'fulfilled' ? (recData.value.results || []) : [];
-            const simResults = simData.status === 'fulfilled' ? (simData.value.results || []) : [];
-            const [similar, youMayLove] = await Promise.all([
-                resolveFromTmdb(recResults),
-                resolveFromTmdb(simResults),
-            ]);
-            if (similar.length > 0 || youMayLove.length > 0) {
-                const result = { similar: dedup(similar), youMayLove: dedup(youMayLove) };
-                relatedCache.set(req.params.slug, { data: result, ts: Date.now() });
-                return res.json(result);
-            }
+            recMatches = await dbMatches(recData.status === 'fulfilled' ? (recData.value.results || []) : []);
+            simMatches = await dbMatches(simData.status === 'fulfilled' ? (simData.value.results || []) : []);
         }
-        // Fallback: DB genre/language match
+        // Top up from our DB by genre/language so rows stay full — still no imports.
         const topGenres = show.genres.slice(0, 2);
-        const [rawSimilar, rawYouMayLove] = await Promise.all([
+        const [genrePool, broadPool] = await Promise.all([
             Movie_1.Movie.find({ _id: { $ne: show._id }, type: 'tvshow', genres: { $in: topGenres }, language: { $in: show.language }, streamVerified: { $ne: false }, rating: { $gte: 5 }, posterUrl: { $ne: '' } }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
             Movie_1.Movie.find({ _id: { $ne: show._id }, type: 'tvshow', genres: { $nin: topGenres }, language: { $in: show.language }, streamVerified: { $ne: false }, rating: { $gte: 6.5 }, posterUrl: { $ne: '' } }).sort({ rating: -1, releaseYear: -1 }).limit(80).select('-sources').lean(),
         ]);
-        const result = { similar: shuffle(rawSimilar).slice(0, 12), youMayLove: shuffle(rawYouMayLove).slice(0, 12) };
+        const seen = new Set([rawId]); // never include the show itself
+        const result = {
+            similar: pick([...recMatches, ...shuffle(genrePool)], seen),
+            youMayLove: pick([...simMatches, ...shuffle(broadPool)], seen),
+        };
         relatedCache.set(req.params.slug, { data: result, ts: Date.now() });
         res.json(result);
     }
