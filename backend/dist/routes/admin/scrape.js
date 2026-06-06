@@ -20,7 +20,7 @@ const FETCH_ACTIONS = {
     'top-rated-shows': { label: 'Top Rated Shows', endpoint: '/tv/top_rated?language=en-US&page=1', mediaType: 'tv' },
     'airing-today': { label: 'Airing Today Shows', endpoint: '/tv/airing_today?language=en-US&page=1', mediaType: 'tv' },
     'hindi-movies': { label: 'Hindi Movies', endpoint: '/discover/movie?with_original_language=hi&sort_by=popularity.desc&page=1', mediaType: 'movie' },
-    'hindi-shows': { label: 'Hindi Shows', endpoint: '/discover/tv?with_original_language=hi&sort_by=popularity.desc&page=1', mediaType: 'tv' },
+    'hindi-shows': { label: 'Hindi OTT Series', endpoint: '/discover/tv?with_original_language=hi&without_genres=10766,10763,10767&vote_count.gte=200&vote_average.gte=7&sort_by=popularity.desc&page=1', mediaType: 'tv' },
     'korean-shows': { label: 'Korean Shows', endpoint: '/discover/tv?with_original_language=ko&sort_by=popularity.desc&page=1', mediaType: 'tv' },
     'korean-dramas': { label: 'Korean Dramas', endpoint: '/discover/tv?with_original_language=ko&with_genres=18&sort_by=popularity.desc&page=1', mediaType: 'tv' },
     'japanese-shows': { label: 'Japanese Shows', endpoint: '/discover/tv?with_original_language=ja&sort_by=popularity.desc&page=1', mediaType: 'tv' },

@@ -163,7 +163,7 @@ export default function Hero({ movie, movies = [] }: Props) {
 
       {/* Movora Logo — top left (hidden in TV mode; TvNavbar already shows it) */}
       {!isTV && (
-        <div className="absolute top-0 left-0 right-0 z-20 flex items-center px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-5">
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center px-4 sm:px-6 lg:pl-28 lg:pr-8 pt-[calc(1.25rem_+_env(safe-area-inset-top))]">
           <Link href="/" className="select-none">
             <span className="text-2xl font-bold tracking-tight">
               <span className="text-foreground">Mo</span><span className="text-primary">vora</span>

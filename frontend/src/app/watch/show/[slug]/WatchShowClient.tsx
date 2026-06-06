@@ -237,7 +237,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       )}
 
       {/* Top bar */}
-      <div className="relative z-10 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 lg:py-4 border-b border-white/[0.06] bg-background/80 backdrop-blur-md sticky top-0">
+      <div className="relative z-10 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 lg:py-4 border-b border-white/[0.06] bg-background/80 backdrop-blur-md sticky top-0 pt-[calc(0.75rem_+_env(safe-area-inset-top))]">
         <Link
           href={`/show/${show.slug}`}
           className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all flex-shrink-0"

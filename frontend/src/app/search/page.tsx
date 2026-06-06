@@ -126,7 +126,7 @@ export default async function SearchPage({ searchParams }: Props) {
       <Sidebar />
       <div className="min-h-screen lg:pl-24">
         {/* Hero Search Section */}
-        <div className={`relative transition-all duration-500 ${hasQuery ? 'pt-[calc(2rem+env(safe-area-inset-top))] pb-8' : 'pt-[calc(8rem+env(safe-area-inset-top))] pb-20'}`}>
+        <div className={`relative transition-all duration-500 ${hasQuery ? 'pt-[calc(2rem_+_env(safe-area-inset-top))] pb-8' : 'pt-[calc(8rem_+_env(safe-area-inset-top))] pb-20'}`}>
           {/* Animated Background Gradient */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" />

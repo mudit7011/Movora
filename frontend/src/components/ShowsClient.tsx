@@ -85,7 +85,7 @@ export default function ShowsClient({ initialGenre, initialYear, initialLanguage
     <div className={`min-h-screen pb-24 lg:pb-8 ${isTV ? 'pt-20' : 'lg:pl-24'}`}>
 
       {/* Sticky filter bar — same style as movies */}
-      <div className="sticky top-0 z-30 bg-background/85 backdrop-blur-xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-30 bg-background/85 backdrop-blur-xl border-b border-white/[0.06] pt-[env(safe-area-inset-top)]">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:pl-8 lg:pr-8 py-3">
 
           {/* Sort + Language + Year */}

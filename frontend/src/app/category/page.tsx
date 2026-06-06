@@ -50,7 +50,7 @@ function CategoryContent() {
   }, [fetchPage])
 
   return (
-    <div className="min-h-screen pb-24 lg:pb-8 pt-[calc(1.5rem+env(safe-area-inset-top))] px-4 sm:px-6 lg:pl-28 lg:pr-8">
+    <div className="min-h-screen pb-24 lg:pb-8 pt-[calc(1.5rem_+_env(safe-area-inset-top))] px-4 sm:px-6 lg:pl-28 lg:pr-8">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">{title}</h1>
