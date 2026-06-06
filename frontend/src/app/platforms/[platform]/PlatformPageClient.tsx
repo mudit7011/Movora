@@ -46,7 +46,7 @@ export default function PlatformPageClient({ platform }: Props) {
     <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24">
 
       {/* Header */}
-      <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-6 border-b border-white/[0.06]">
+      <div className="px-4 sm:px-6 lg:px-8 pt-[calc(2rem+env(safe-area-inset-top))] pb-6 border-b border-white/[0.06]">
         <div className="flex items-center gap-4 mb-6">
           <div
             className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg"

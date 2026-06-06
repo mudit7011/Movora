@@ -14,7 +14,7 @@ export default async function NewPopularPage() {
       <Sidebar />
       <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24">
         {/* Header */}
-        <div className="px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+        <div className="px-4 sm:px-6 lg:px-8 pt-[calc(2.5rem+env(safe-area-inset-top))] pb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="flex items-center gap-2">
               <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
