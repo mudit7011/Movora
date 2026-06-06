@@ -125,6 +125,10 @@ export default function Sidebar() {
   const isTV    = useTV()
   const pathname = usePathname()
   const router = useRouter()
+  // Optimistic nav highlight: `pathname` only updates AFTER the destination page's
+  // server data finishes loading (backend latency makes this feel slow). Tracking the
+  // tapped href lets us highlight the icon instantly, then clear once navigation lands.
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -176,9 +180,13 @@ export default function Sidebar() {
     if (searchOpen) setTimeout(() => inputRef.current?.focus(), 50)
   }, [searchOpen])
 
+  // Once the new route lands, drop the optimistic highlight.
+  useEffect(() => { setPendingHref(null) }, [pathname])
+
   // Slide underline to active item's text width
   useEffect(() => {
-    const activeIdx = MOBILE_NAV.findIndex(item => pathname === item.href)
+    const active = pendingHref ?? pathname
+    const activeIdx = MOBILE_NAV.findIndex(item => active === item.href)
     for (let i = 0; i <= 4; i++) {
       const itemEl = mobileItemRefs.current[i]
       const textEl = mobileTextRefs.current[i]
@@ -186,7 +194,7 @@ export default function Sidebar() {
       const isActive = i < 4 ? i === activeIdx : searchOpen
       itemEl.style.setProperty('--lineWidth', isActive && textEl ? `${textEl.offsetWidth}px` : '0px')
     }
-  }, [pathname, searchOpen])
+  }, [pathname, pendingHref, searchOpen])
 
   // Debounced live search
   useEffect(() => {
@@ -304,11 +312,12 @@ export default function Sidebar() {
         {/* Navigation Items */}
         <nav className="flex flex-col gap-1 px-3">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = (pendingHref ?? pathname) === item.href
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setPendingHref(item.href)}
                 className={`group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300 ${
                   isActive
                     ? 'bg-primary/10 text-primary'
@@ -363,11 +372,12 @@ export default function Sidebar() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong border-t border-white/[0.06]">
         <div className="flex items-center">
           {MOBILE_NAV.map((item, i) => {
-            const isActive = pathname === item.href
+            const isActive = (pendingHref ?? pathname) === item.href
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setPendingHref(item.href)}
                 className={`mnav__item ${isActive ? 'mnav--active' : ''}`}
                 ref={(el: HTMLAnchorElement | null) => { mobileItemRefs.current[i] = el }}
                 style={{ '--lineWidth': '0px' } as React.CSSProperties}

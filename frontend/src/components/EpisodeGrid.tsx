@@ -9,9 +9,12 @@ interface Props {
   currentSeason: number
   currentEpisode: number
   onSelect: (season: number, episode: number) => void
+  // When provided, changing the season only notifies the parent (no auto-navigation),
+  // so the page's main "Watch" button can reflect the chosen season.
+  onSeasonChange?: (season: number) => void
 }
 
-export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSelect }: Props) {
+export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSelect, onSeasonChange }: Props) {
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSeason, setSelectedSeason] = useState(currentSeason)
@@ -31,7 +34,8 @@ export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSel
 
   const handleSeasonChange = (s: number) => {
     setSelectedSeason(s)
-    if (s !== currentSeason) onSelect(s, 1)
+    if (onSeasonChange) onSeasonChange(s)
+    else if (s !== currentSeason) onSelect(s, 1)
   }
 
   const episodeCount = activeSeason?.episodeCount ?? 0

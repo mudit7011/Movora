@@ -41,6 +41,8 @@ export default function ShowDetailClient({ show }: Props) {
   const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted } = useUserData()
   const inWatchlist = isInWatchlist(show._id)
   const watched = isCompleted(show._id)
+  // Season chosen in the episode grid — drives the main Watch button below.
+  const [selSeason, setSelSeason] = useState(1)
 
   const handleWatchlistToggle = () => {
     if (inWatchlist) removeFromWatchlist(show._id)
@@ -187,11 +189,11 @@ export default function ShowDetailClient({ show }: Props) {
             {/* Action buttons */}
             <div className="flex flex-wrap items-center gap-4 mb-8">
               <Link
-                href={`/watch/show/${show.slug}?season=1&episode=1`}
+                href={`/watch/show/${show.slug}?season=${selSeason}&episode=1`}
                 className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
               >
                 <PlayIcon />
-                <span>{watched ? 'Watch Again' : 'Watch S1 E1'}</span>
+                <span>{watched ? 'Watch Again' : `Watch S${selSeason} E1`}</span>
               </Link>
               <button
                 onClick={handleWatchlistToggle}
@@ -211,8 +213,9 @@ export default function ShowDetailClient({ show }: Props) {
               <div className="mb-8">
                 <EpisodeGrid
                   show={show}
-                  currentSeason={1}
+                  currentSeason={selSeason}
                   currentEpisode={0}
+                  onSeasonChange={setSelSeason}
                   onSelect={(s, ep) => router.push(`/watch/show/${show.slug}?season=${s}&episode=${ep}`)}
                 />
               </div>
