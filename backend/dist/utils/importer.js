@@ -18,7 +18,7 @@ exports.LANG_MAP = {
 function slugify(title, year) {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + year;
 }
-async function importMovie(id) {
+async function importMovie(id, opts) {
     try {
         const blocked = await BlockedContent_1.BlockedContent.exists({ tmdbId: String(id) });
         if (blocked)
@@ -37,14 +37,17 @@ async function importMovie(id) {
         const year = parseInt((detail.release_date || '0').slice(0, 4)) || 0;
         // Quality gate — never persist content the site doesn't surface anyway.
         // Stops the DB from bloating with obscure/old/unrated junk on every import path.
-        if (!detail.poster_path)
-            return { status: 'skipped' };
-        if (year && year < 2000)
-            return { status: 'skipped' };
-        if ((detail.vote_average || 0) <= 0 || (detail.vote_count || 0) < 5)
-            return { status: 'skipped' };
-        if (detail.runtime && detail.runtime < 40)
-            return { status: 'skipped' };
+        // Bypassed for explicitly-wanted imports (e.g. missing parts of a collection).
+        if (!opts?.bypassGate) {
+            if (!detail.poster_path)
+                return { status: 'skipped' };
+            if (year && year < 2000)
+                return { status: 'skipped' };
+            if ((detail.vote_average || 0) <= 0 || (detail.vote_count || 0) < 5)
+                return { status: 'skipped' };
+            if (detail.runtime && detail.runtime < 40)
+                return { status: 'skipped' };
+        }
         const trailer = (videos.results || []).find((v) => v.type === 'Trailer' && v.site === 'YouTube');
         const cast = (credits.cast || []).slice(0, 15).map((c) => ({
             name: c.name, character: c.character || '',
@@ -66,7 +69,7 @@ async function importMovie(id) {
             trailerKey: trailer?.key,
             cast,
             sources: [
-                { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}?color=%2306D6E0&autoplay=1&overlay=true`, type: 'iframe', quality: 'HD', isWorking: true },
+                { serverName: 'Server 1', url: `https://player.videasy.to/movie/${id}?color=%2306D6E0&autoplay=1&overlay=true`, type: 'iframe', quality: 'HD', isWorking: true },
                 { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}?primaryColor=06D6E0&autoplay=true`, type: 'iframe', quality: 'HD', isWorking: true },
                 { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/movie/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
                 { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/movie/${id}?autoplay=true&muted=true&color=%2306D6E0`, type: 'iframe', quality: 'HD', isWorking: true },
@@ -132,7 +135,7 @@ async function importShow(id) {
             trailerKey: trailer?.key,
             cast,
             sources: [
-                { serverName: 'Server 1', url: `https://player.videasy.net/tv/${id}/1/1?color=%2306D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&overlay=true`, type: 'iframe', quality: 'HD', isWorking: true },
+                { serverName: 'Server 1', url: `https://player.videasy.to/tv/${id}/1/1?color=%2306D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&overlay=true`, type: 'iframe', quality: 'HD', isWorking: true },
                 { serverName: 'Server 2', url: `https://vidlink.pro/tv/${id}/1/1?primaryColor=06D6E0&autoplay=true&nextbutton=true`, type: 'iframe', quality: 'HD', isWorking: true },
                 { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${id}/1/1`, type: 'iframe', quality: 'HD', isWorking: true },
                 { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${id}/1/1?autoplay=true&muted=true&color=%2306D6E0`, type: 'iframe', quality: 'HD', isWorking: true },

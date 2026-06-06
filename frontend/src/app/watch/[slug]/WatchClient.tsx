@@ -46,7 +46,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
       return url
     }
     // Server 1 (Videasy): resume via ?progress=<seconds>
-    if (active.url.includes('player.videasy.net') && savedTimestamp > 60) {
+    if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
     }
     return active.url

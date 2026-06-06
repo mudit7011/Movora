@@ -334,7 +334,7 @@ router.post('/tmdb-import', async (req, res) => {
         trailerKey: trailer?.key,
         cast,
         sources: [
-          { serverName: 'Server 1', url: `https://player.videasy.net/movie/${id}?color=06D6E0&autoplay=1&overlay=true`, type: 'iframe' as const, quality: 'HD', isWorking: true },
+          { serverName: 'Server 1', url: `https://player.videasy.to/movie/${id}?color=06D6E0&autoplay=1&overlay=true`, type: 'iframe' as const, quality: 'HD', isWorking: true },
           { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}?primaryColor=06D6E0&autoplay=true`, type: 'iframe' as const, quality: 'HD', isWorking: true },
           { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/movie/${id}`, type: 'iframe' as const, quality: 'HD', isWorking: true },
           { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/movie/${id}?autoplay=true&color=%2306D6E0`, type: 'iframe' as const, quality: 'HD', isWorking: true },
@@ -377,7 +377,7 @@ router.post('/tmdb-import', async (req, res) => {
         trailerKey:    trailer?.key,
         cast,
         sources: [
-          { serverName: 'Server 1', url: `https://player.videasy.net/tv/${id}/1/1?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&overlay=true`, type: 'iframe' as const, quality: 'HD', isWorking: true },
+          { serverName: 'Server 1', url: `https://player.videasy.to/tv/${id}/1/1?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&overlay=true`, type: 'iframe' as const, quality: 'HD', isWorking: true },
           { serverName: 'Server 2', url: `https://vidlink.pro/tv/${id}/1/1?primaryColor=06D6E0&autoplay=true&nextbutton=true`, type: 'iframe' as const, quality: 'HD', isWorking: true },
           { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${id}/1/1`, type: 'iframe' as const, quality: 'HD', isWorking: true },
           { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${id}/1/1?autoplay=true&color=%2306D6E0`, type: 'iframe' as const, quality: 'HD', isWorking: true },
