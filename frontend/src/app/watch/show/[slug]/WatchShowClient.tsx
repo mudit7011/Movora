@@ -337,6 +337,16 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               </button>
             ))}
           </div>
+          {activeServerIdx === 0 && (
+            <div className="flex items-start gap-2 mb-4 p-3 rounded-xl bg-amber-500/[0.08] border border-amber-500/20">
+              <svg className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              </svg>
+              <p className="text-[11px] text-amber-200/70 leading-relaxed">
+                If Server 1 does not load, please disable your ad blocker or browser shields, or select another server.
+              </p>
+            </div>
+          )}
           <div className="flex items-start gap-2 pt-3 border-t border-white/[0.05]">
             <svg className="w-3.5 h-3.5 text-white/20 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
