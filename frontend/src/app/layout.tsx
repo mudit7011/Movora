@@ -38,6 +38,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover', // lets content use env(safe-area-inset-*) on notched iPhones
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

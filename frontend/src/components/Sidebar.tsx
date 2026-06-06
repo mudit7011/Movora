@@ -369,7 +369,10 @@ export default function Sidebar() {
       </motion.aside>
 
       {/* Mobile Bottom Navigation — InteractiveMenu style */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong border-t border-white/[0.06]">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong border-t border-white/[0.06]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <div className="flex items-center">
           {MOBILE_NAV.map((item, i) => {
             const isActive = (pendingHref ?? pathname) === item.href
