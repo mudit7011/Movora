@@ -37,10 +37,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [season, setSeason] = useState(initialSeason)
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
-  const [showFsPrompt, setShowFsPrompt] = useState(false)
+
   const [showFallback, setShowFallback] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const fsTimer = useRef<ReturnType<typeof setTimeout>>()
+
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
 
   // Pre-warm EmbedMaster sources whenever season/episode changes
@@ -99,7 +99,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     }
   }, [activeServerIdx, season, episode])
 
-  useEffect(() => () => clearTimeout(fsTimer.current), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -221,9 +220,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     setActiveServerIdx(0)
     window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${ep}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-    clearTimeout(fsTimer.current)
-    setShowFsPrompt(true)
-    fsTimer.current = setTimeout(() => setShowFsPrompt(false), 7000)
   }
 
   function tryNextServer() {
@@ -298,20 +294,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               style={{ border: 'none', display: 'block' }}
               onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
             />
-            {showFsPrompt && (
-              <button
-                className="absolute bottom-10 right-3 z-20 flex items-center gap-1.5 bg-black/75 backdrop-blur-sm text-white rounded-xl px-3 py-2 text-xs font-semibold border border-white/10 shadow-lg"
-                onClick={() => {
-                  iframeRef.current?.requestFullscreen().catch(() => {})
-                  setShowFsPrompt(false)
-                }}
-              >
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                </svg>
-                Fullscreen
-              </button>
-            )}
             {/* Mobile fallback hint */}
             {showFallback && hasNextServer && (
               <div className="absolute bottom-4 left-4 right-4 z-20 animate-fade-in-up">
