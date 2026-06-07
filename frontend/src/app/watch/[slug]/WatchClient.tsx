@@ -260,18 +260,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
                 />
-                {/* Mobile fallback hint */}
-                {showFallback && hasNext && (
-                  <div className="absolute bottom-4 left-4 right-4 z-20 animate-fade-in-up">
-                    <button
-                      onClick={() => { setActiveIdx(i => i + 1); setShowFallback(false) }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary/90 text-background text-sm font-semibold shadow-lg backdrop-blur-md"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6" strokeLinecap="round" strokeLinejoin="round"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      Not loading? Try {sources[activeIdx + 1]?.serverName ?? 'next server'}
-                    </button>
-                  </div>
-                )}
               </>
             )}
           </div>
