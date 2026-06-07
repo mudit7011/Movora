@@ -254,8 +254,8 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   title={`${movie.title} — ${active.serverName}`}
                   allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
                   allowFullScreen
-                  referrerPolicy="no-referrer-when-downgrade"
-                  {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}
+                  referrerPolicy={activeUrl.includes('streamvaultsrc.click') ? 'no-referrer' : 'no-referrer-when-downgrade'}
+                  {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation' } : {})}
                   className="w-full h-full bg-black"
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
