@@ -18,7 +18,7 @@ interface Source {
 function buildSources(tmdbId: string, season: number, episode: number): Source[] {
   const rawId = tmdbId.replace(/^tv_/, '')
   return [
-    { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true&overlay=true`,   quality: 'HD' },
+    { serverName: 'Server 1', url: `https://player.videasy.net/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true&overlay=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&autonext=false`, quality: 'HD' },
@@ -76,7 +76,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
       return url
     }
     // Server 1 (Videasy): resume via ?progress=<seconds>
-    if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
+    if (active.url.includes('player.videasy.net') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
     }
     return active.url
