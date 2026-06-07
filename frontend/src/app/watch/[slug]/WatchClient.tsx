@@ -252,7 +252,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   key={activeUrl}
                   src={activeUrl}
                   title={`${movie.title} — ${active.serverName}`}
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+                  allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
                   {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}

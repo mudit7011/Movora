@@ -286,7 +286,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               key={activeUrl}
               src={activeUrl}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+              allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
               allowFullScreen
               referrerPolicy="no-referrer-when-downgrade"
               {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}
