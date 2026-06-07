@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Outfit } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import { UserDataProvider } from '@/lib/useUserData'
 import { TvProvider } from '@/components/TvProvider'
 import Footer from '@/components/Footer'
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </UserDataProvider>
         </TvProvider>
         <ServiceWorkerRegister />
+        <Analytics />
       </body>
     </html>
   )
