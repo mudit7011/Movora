@@ -10,6 +10,7 @@ const nextConfig = {
       { source: '/api/shows/:path*',    destination: `${BACKEND}/api/shows/:path*` },
       { source: '/api/realtime/:path*', destination: `${BACKEND}/api/realtime/:path*` },
       { source: '/api/new',             destination: `${BACKEND}/api/new` },
+      { source: '/api/search/:path*',   destination: `${BACKEND}/api/search/:path*` },
       { source: '/api/health',          destination: `${BACKEND}/api/health` },
     ]
   },
@@ -27,7 +28,7 @@ const nextConfig = {
         headers: [
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Referrer-Policy', value: 'no-referrer-when-downgrade' },
         ],
       },
     ]
