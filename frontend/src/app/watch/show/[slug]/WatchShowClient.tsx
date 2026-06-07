@@ -38,8 +38,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const [episode, setEpisode] = useState(initialEpisode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
   const [showFsPrompt, setShowFsPrompt] = useState(false)
+  const [showFallback, setShowFallback] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const fsTimer = useRef<ReturnType<typeof setTimeout>>()
+  const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
 
   // Pre-warm EmbedMaster sources whenever season/episode changes
   useEffect(() => {
@@ -86,8 +88,15 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
   const hasNextServer = activeServerIdx < sources.length - 1
 
+  // Auto-suggest fallback if server doesn't respond within 15s
   useEffect(() => {
-    return () => clearTimeout(bannerTimer.current)
+    setShowFallback(false)
+    clearTimeout(fallbackTimer.current)
+    fallbackTimer.current = setTimeout(() => setShowFallback(true), 15000)
+    return () => {
+      clearTimeout(bannerTimer.current)
+      clearTimeout(fallbackTimer.current)
+    }
   }, [activeServerIdx, season, episode])
 
   useEffect(() => () => clearTimeout(fsTimer.current), [])
@@ -281,12 +290,13 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               key={activeUrl}
               src={activeUrl}
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-              allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *"
+              allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope"
               allowFullScreen
-              referrerPolicy="no-referrer"
+              referrerPolicy="no-referrer-when-downgrade"
               {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-fullscreen' } : {})}
               className="w-full h-full bg-black"
               style={{ border: 'none', display: 'block' }}
+              onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
             />
             {showFsPrompt && (
               <button
@@ -301,6 +311,18 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
                 </svg>
                 Fullscreen
               </button>
+            )}
+            {/* Mobile fallback hint */}
+            {showFallback && hasNextServer && (
+              <div className="absolute bottom-4 left-4 right-4 z-20 animate-fade-in-up">
+                <button
+                  onClick={() => { setActiveServerIdx(i => i + 1); setShowFallback(false) }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary/90 text-background text-sm font-semibold shadow-lg backdrop-blur-md"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6" strokeLinecap="round" strokeLinejoin="round"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Not loading? Try {sources[activeServerIdx + 1]?.serverName ?? 'next server'}
+                </button>
+              </div>
             )}
           </div>
         </div>
