@@ -21,7 +21,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true&overlay=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://multiembed.mov/?video_id=${rawId}&tmdb=1&s=${season}&e=${episode}`, quality: 'HD' },
+    { serverName: 'Server 4', url: `/api/player?video_id=${rawId}&tmdb=1&s=${season}&e=${episode}`, quality: 'HD' },
   ]
 }
 

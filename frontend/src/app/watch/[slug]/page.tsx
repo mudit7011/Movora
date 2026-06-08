@@ -23,7 +23,7 @@ export default async function WatchPage({ params }: Props) {
     { serverName: 'Server 1', url: `https://player.videasy.to/movie/${id}?color=06D6E0&autoplay=1&overlay=true`,   type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 2', url: `https://vidlink.pro/movie/${id}?primaryColor=06D6E0&autoplay=true`, type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/movie/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
-    { serverName: 'Server 4', url: `https://multiembed.mov/?video_id=${id}&tmdb=1`, type: 'iframe', quality: 'HD', isWorking: true },
+    { serverName: 'Server 4', url: `/api/player?video_id=${id}&tmdb=1`, type: 'iframe', quality: 'HD', isWorking: true },
   ]
 
   // Pre-warm EmbedMaster sources in background (fire and forget)
