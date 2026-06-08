@@ -22,7 +22,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 4', url: `https://cinesrc.st/embed/tv/${rawId}?s=${season}&e=${episode}&autoplay=true&color=%2306D6E0&quality=1080&autonext=true&autoskip=true`, quality: 'HD' },
-    { serverName: 'Hindi', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&lang=Hindi&primarycolor=06D6E0&autonext=true&subtitle=Off`, quality: 'HD' },
+    { serverName: 'Hindi', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&lang=Hindi&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&glasscolor=000000&glassopacity=80&glassblur=20&fontcolor=FFFFFF&autonext=true&subtitle=Off`, quality: 'HD' },
   ]
 }
 
