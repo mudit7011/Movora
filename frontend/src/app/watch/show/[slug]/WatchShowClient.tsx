@@ -21,7 +21,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true&overlay=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&autonext=false`, quality: 'HD' },
+    { serverName: 'Server 4', url: `https://autoembed.co/tv/tmdb/${rawId}/${season}/${episode}`, quality: 'HD' },
   ]
 }
 
@@ -288,8 +288,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
               allowFullScreen
-              referrerPolicy={activeUrl.includes('streamvaultsrc.click') ? 'no-referrer' : 'no-referrer-when-downgrade'}
-              {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation' } : {})}
+              referrerPolicy="no-referrer-when-downgrade"
               className="w-full h-full bg-black"
               style={{ border: 'none', display: 'block' }}
               onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
