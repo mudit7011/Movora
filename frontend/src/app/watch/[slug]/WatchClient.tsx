@@ -311,7 +311,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
               <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
             </svg>
             <p className="text-[11px] text-white/25 leading-relaxed">
-              Audio language depends on server availability. For Hindi audio, tap <span className="text-white/40">⚙ Settings → Servers → Fade</span> inside the player (Server 1 only). Not all titles have Hindi available.
+              Audio language depends on server availability. Server 4 plays Hindi audio by default where available. Not all titles have Hindi dubbed content.
             </p>
           </div>
         </div>
