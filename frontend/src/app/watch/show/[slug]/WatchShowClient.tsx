@@ -68,13 +68,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
   // Inject resume position per server (matched to this exact season/episode)
   const activeUrl = (() => {
-    // Server 4 (StreamVault): rebuild with quality + &seek=
-    if (active.url.includes('streamvaultsrc.click')) {
-      const rawId = show.tmdbId.replace(/^tv_/, '')
-      let url = `https://streamvaultsrc.click/embed/tv/${rawId}/${season}/${episode}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p&autonext=false`
-      if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
-      return url
-    }
     // Server 1 (Videasy): resume via ?progress=<seconds>
     if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`

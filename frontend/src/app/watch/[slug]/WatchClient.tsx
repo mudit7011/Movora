@@ -40,13 +40,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
 
   // Inject resume position per server
   const activeUrl = (() => {
-    // Server 4 (StreamVault): rebuild with color, quality, and &seek=
-    if (active.url.includes('streamvaultsrc.click')) {
-      const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
-      let url = `https://streamvaultsrc.click/embed/movie/${rawId}?autoplay=true&muted=true&color=%2306D6E0&quality=1080p`
-      if (savedTimestamp > 60) url += `&seek=${Math.floor(savedTimestamp)}`
-      return url
-    }
     // Server 1 (Videasy): resume via ?progress=<seconds>
     if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
@@ -258,8 +251,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   title={`${movie.title} — ${active.serverName}`}
                   allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
                   allowFullScreen
-                  referrerPolicy={activeUrl.includes('streamvaultsrc.click') ? 'no-referrer' : 'no-referrer-when-downgrade'}
-                  {...(activeUrl.includes('streamvaultsrc.click') ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation' } : {})}
+                  referrerPolicy="no-referrer-when-downgrade"
                   className="w-full h-full bg-black"
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}

@@ -22,8 +22,8 @@ export default async function WatchShowPage({ params, searchParams }: Props) {
   const show = await api.getShow(slug).catch(() => null)
   if (!show) notFound()
 
-  const season = Number(sp.season ?? 1)
-  const episode = Number(sp.episode ?? 1)
+  const season = Math.max(1, Number.isFinite(Number(sp.season)) ? Number(sp.season) : 1)
+  const episode = Math.max(1, Number.isFinite(Number(sp.episode)) ? Number(sp.episode) : 1)
 
   const related = await api.getRelatedShows(show.slug).catch(() => ({ similar: [], youMayLove: [] }))
 
