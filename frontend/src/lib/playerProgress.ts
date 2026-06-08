@@ -6,7 +6,7 @@
 export interface Playback { time: number; duration: number }
 
 // Only trust progress messages coming from players we actually embed.
-export const PLAYER_ORIGINS = ['player.videasy.to', 'vidlink.pro', 'cinesrc.st', 'embedmaster.link', 'embdmstrplayer.com', 'nhdapi.com']
+export const PLAYER_ORIGINS = ['player.videasy.to', 'vidlink.pro', 'embedmaster.link', 'embdmstrplayer.com', 'nhdapi.com']
 
 export function isKnownPlayerOrigin(origin: string): boolean {
   return PLAYER_ORIGINS.some(h => origin.includes(h))
@@ -74,11 +74,6 @@ export function extractPlayback(
     return { time: d.timestamp, duration: d.duration }
   }
 
-  // CineSrc: { type:'cinesrc:timeupdate', currentTime, duration }
-  if (type === 'cinesrc:timeupdate' && typeof d.currentTime === 'number') {
-    return { time: d.currentTime, duration: typeof d.duration === 'number' ? d.duration : 0 }
-  }
-
   // EmbedMaster: { source:'embedmaster_player', event:'time', info:'<seconds>' }
   // info is a STRING holding the current playback time; no duration is provided.
   if (d.source === 'embedmaster_player') {
@@ -103,7 +98,7 @@ export function isEndedEvent(raw: unknown): boolean {
   let d: any = raw
   if (typeof d === 'string') { try { d = JSON.parse(d) } catch { return false } }
   const type = String(d?.type ?? d?.event ?? d?.action ?? '').toLowerCase()
-  return ['ended', 'end', 'finish', 'complete', 'videoend', 'finished', 'cinesrc:ended'].includes(type)
+  return ['ended', 'end', 'finish', 'complete', 'videoend', 'finished'].includes(type)
 }
 
 // EmbedMaster resumes only by being sent a command, so we wait for it to signal

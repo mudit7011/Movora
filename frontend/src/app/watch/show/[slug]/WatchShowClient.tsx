@@ -21,8 +21,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true&overlay=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://cinesrc.st/embed/tv/${rawId}?s=${season}&e=${episode}&autoplay=true&color=%2306D6E0&quality=1080&autonext=true&autoskip=true`, quality: 'HD' },
-    { serverName: 'Hindi', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&lang=Hindi&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&glasscolor=000000&glassopacity=80&glassblur=20&fontcolor=FFFFFF&autonext=true&subtitle=Off`, quality: 'HD' },
+    { serverName: 'Server 4', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&lang=Hindi&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&glasscolor=000000&glassopacity=80&glassblur=20&fontcolor=FFFFFF&autonext=true&subtitle=Off`, quality: 'HD' },
   ]
 }
 
@@ -72,10 +71,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     // Server 1 (Videasy): resume via ?progress=<seconds>
     if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
-    }
-    // CineSrc: resume via ?t=<seconds>
-    if (active.url.includes('cinesrc.st') && savedTimestamp > 60) {
-      return active.url + `&t=${Math.floor(savedTimestamp)}`
     }
     // NHD API: resume via ?progress=<seconds>
     if (active.url.includes('nhdapi.com') && savedTimestamp > 60) {
@@ -180,11 +175,6 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     // Match per season/episode and use the real duration when provided.
     const onMessage = (e: MessageEvent) => {
       if (!isKnownPlayerOrigin(e.origin)) return
-      // CineSrc: auto-navigated to next episode — update our UI to match
-      if (e.data?.type === 'cinesrc:nextepisode' && e.data.season != null && e.data.episode != null) {
-        selectEpisode(e.data.season, e.data.episode)
-        return
-      }
       // EmbedMaster only resumes via command — seek it back once it's ready.
       if (resumeTarget > 60 && !embedSeekSent && isEmbedMasterReady(e.data)) {
         seekEmbedMaster(e.source as Window, resumeTarget)

@@ -4,6 +4,8 @@ import { env } from '../config/env'
 
 export interface AuthRequest extends Request {
   adminId?: string
+  cookies: Record<string, string>
+  headers: Record<string, string | string[] | undefined> & { authorization?: string }
 }
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {

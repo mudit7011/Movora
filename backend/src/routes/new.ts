@@ -30,7 +30,7 @@ router.get('/', async (_req, res) => {
     ])
 
     // Interleave: 2 movies then 1 show, repeating
-    const result = []
+    const result: any[] = []
     let mi = 0, si = 0
     while (mi < movies.length || si < shows.length) {
       if (mi < movies.length) result.push(movies[mi++])
