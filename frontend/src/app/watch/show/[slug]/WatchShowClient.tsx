@@ -22,6 +22,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 4', url: `https://cinesrc.st/embed/tv/${rawId}?s=${season}&e=${episode}&autoplay=true&color=%2306D6E0&quality=1080&autonext=true&autoskip=true`, quality: 'HD' },
+    { serverName: 'Hindi', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&lang=Hindi&primarycolor=06D6E0&autonext=true&subtitle=Off`, quality: 'HD' },
   ]
 }
 
@@ -75,6 +76,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     // CineSrc: resume via ?t=<seconds>
     if (active.url.includes('cinesrc.st') && savedTimestamp > 60) {
       return active.url + `&t=${Math.floor(savedTimestamp)}`
+    }
+    // NHD API: resume via ?progress=<seconds>
+    if (active.url.includes('nhdapi.com') && savedTimestamp > 60) {
+      return active.url + `&progress=${Math.floor(savedTimestamp)}`
     }
     return active.url
   })()

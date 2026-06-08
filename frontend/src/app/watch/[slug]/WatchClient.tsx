@@ -48,6 +48,10 @@ export default function WatchClient({ movie, sources, related }: Props) {
     if (active.url.includes('cinesrc.st') && savedTimestamp > 60) {
       return active.url + `&t=${Math.floor(savedTimestamp)}`
     }
+    // NHD API: resume via ?progress=<seconds>
+    if (active.url.includes('nhdapi.com') && savedTimestamp > 60) {
+      return active.url + `&progress=${Math.floor(savedTimestamp)}`
+    }
     return active.url
   })()
 
