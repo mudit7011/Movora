@@ -6,7 +6,7 @@
 export interface Playback { time: number; duration: number }
 
 // Only trust progress messages coming from players we actually embed.
-export const PLAYER_ORIGINS = ['player.videasy.to', 'vidlink.pro', 'multiembed.mov', 'embedmaster.link', 'embdmstrplayer.com']
+export const PLAYER_ORIGINS = ['player.videasy.to', 'vidlink.pro', 'autoembed.co', 'embedmaster.link', 'embdmstrplayer.com']
 
 export function isKnownPlayerOrigin(origin: string): boolean {
   return PLAYER_ORIGINS.some(h => origin.includes(h))
