@@ -23,6 +23,14 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const [showFallback, setShowFallback] = useState(false)
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  function requestIframeFullscreen() {
+    const el = iframeRef.current as any
+    if (!el) return
+    const fn = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen ?? el.msRequestFullscreen
+    fn?.call(el)
+  }
   const { updateProgress } = useUserData()
 
   // Resume position — captured ONCE at mount so the iframe src stays stable.
@@ -234,7 +242,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
 
       {/* ── Player ── */}
       <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:bg-transparent">
-        <div className="lg:rounded-2xl overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
+        <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
           <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             {isDirect ? (
@@ -246,6 +254,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
             ) : (
               <>
                 <iframe
+                  ref={iframeRef}
                   key={activeUrl}
                   src={activeUrl}
                   title={`${movie.title} — ${active.serverName}`}
@@ -256,6 +265,16 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
                 />
+                {/* Mobile fullscreen button — triggers OS-level fullscreen for the iframe */}
+                <button
+                  onClick={requestIframeFullscreen}
+                  className="lg:hidden absolute bottom-2 right-2 z-20 flex items-center justify-center w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white hover:bg-black/80 transition-all"
+                  aria-label="Fullscreen"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                  </svg>
+                </button>
               </>
             )}
           </div>

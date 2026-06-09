@@ -18,7 +18,7 @@ interface Source {
 function buildSources(tmdbId: string, season: number, episode: number): Source[] {
   const rawId = tmdbId.replace(/^tv_/, '')
   return [
-    { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true&overlay=true`,   quality: 'HD' },
+    { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 4', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&autonext=true&audio=true&title=true&download=true&setting=true&appearance=on&episodelist=true&watchparty=false&chromecast=true&pip=true&nextbutton=true&hidecontrols=false&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&iconsize=1&font=Poppins&fontcolor=FFFFFF&fontsize=20&opacity=0.50&glasscolor=000000&glassopacity=65&glassblur=20&subtitle=Off&subdelay=0&subtextsize=140&subtextcolor=FFFFFF&subcapitalize=false&subbold=false&subfont=Roboto&subbgenabled=false&subbgcolor=000000&subbgopacity=0&subbgblur=0`, quality: 'HD' },
@@ -42,6 +42,13 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  function requestIframeFullscreen() {
+    const el = iframeRef.current as any
+    if (!el) return
+    const fn = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen ?? el.msRequestFullscreen
+    fn?.call(el)
+  }
 
   // Pre-warm EmbedMaster sources whenever season/episode changes
   useEffect(() => {
@@ -275,7 +282,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
 
       {/* ── Player ── */}
       <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:bg-transparent">
-        <div className="lg:rounded-2xl overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
+        <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
           <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             <iframe
@@ -290,6 +297,16 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               style={{ border: 'none', display: 'block' }}
               onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
             />
+            {/* Mobile fullscreen button — triggers OS-level fullscreen for the iframe */}
+            <button
+              onClick={requestIframeFullscreen}
+              className="lg:hidden absolute bottom-2 right-2 z-20 flex items-center justify-center w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white hover:bg-black/80 transition-all"
+              aria-label="Fullscreen"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
