@@ -19,6 +19,11 @@ export default function PlatformPageClient({ platform }: Props) {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const filtered = query.trim()
+    ? items.filter(m => m.title.toLowerCase().includes(query.toLowerCase()))
+    : items
 
   const fetchPage = useCallback(async (p: number, replace = false) => {
     if (replace) setLoading(true)
@@ -39,6 +44,7 @@ export default function PlatformPageClient({ platform }: Props) {
     setItems([])
     setPage(1)
     setTotalPages(1)
+    setQuery('')
     fetchPage(1, true)
   }, [fetchPage])
 
@@ -60,21 +66,35 @@ export default function PlatformPageClient({ platform }: Props) {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2">
-          {(['movies', 'shows'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
-                tab === t
-                  ? 'bg-primary text-background shadow-[0_0_16px_rgba(6,214,224,0.25)]'
-                  : 'bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground border border-white/10'
-              }`}
-            >
-              {t === 'movies' ? 'Movies' : 'TV Shows'}
-            </button>
-          ))}
+        {/* Tabs + Search */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex gap-2">
+            {(['movies', 'shows'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  tab === t
+                    ? 'bg-primary text-background shadow-[0_0_16px_rgba(6,214,224,0.25)]'
+                    : 'bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground border border-white/10'
+                }`}
+              >
+                {t === 'movies' ? 'Movies' : 'TV Shows'}
+              </button>
+            ))}
+          </div>
+          <div className="relative sm:ml-auto sm:w-64">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={`Search ${platform.name}...`}
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40 focus:bg-white/8 transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -86,19 +106,21 @@ export default function PlatformPageClient({ platform }: Props) {
               <div key={i} className="aspect-[2/3] rounded-xl bg-white/5 animate-pulse" />
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <p className="text-muted-foreground text-sm">No titles found for {platform.name}</p>
+            <p className="text-muted-foreground text-sm">
+              {query.trim() ? `No results for "${query}"` : `No titles found for ${platform.name}`}
+            </p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
-              {items.map(item => (
+              {filtered.map(item => (
                 <MovieCard key={item._id} movie={item} onAddToWatchlist={addToWatchlist} />
               ))}
             </div>
 
-            {page < totalPages && (
+            {!query.trim() && page < totalPages && (
               <div className="flex justify-center mt-10">
                 <button
                   onClick={() => fetchPage(page + 1)}
@@ -114,9 +136,15 @@ export default function PlatformPageClient({ platform }: Props) {
               </div>
             )}
 
-            {page >= totalPages && (
+            {!query.trim() && page >= totalPages && (
               <p className="text-center text-xs text-muted-foreground/50 mt-10">
                 All {items.length} titles loaded
+              </p>
+            )}
+
+            {query.trim() && (
+              <p className="text-center text-xs text-muted-foreground/50 mt-10">
+                {filtered.length} result{filtered.length !== 1 ? 's' : ''} from {items.length} loaded titles
               </p>
             )}
           </>
