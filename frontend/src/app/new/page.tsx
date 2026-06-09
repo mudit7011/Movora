@@ -1,4 +1,4 @@
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 import { api } from '@/lib/api'
 import Sidebar from '@/components/Sidebar'
