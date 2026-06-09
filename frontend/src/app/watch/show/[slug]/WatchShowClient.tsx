@@ -79,6 +79,10 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
     }
+    // Server 2 (VidLink): resume via ?startAt=<seconds>
+    if (active.url.includes('vidlink.pro') && savedTimestamp > 60) {
+      return active.url + `&startAt=${Math.floor(savedTimestamp)}`
+    }
     // NHD API: resume via ?progress=<seconds>
     if (active.url.includes('nhdapi.com') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
