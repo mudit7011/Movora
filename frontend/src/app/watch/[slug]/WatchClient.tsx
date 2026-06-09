@@ -24,13 +24,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
   const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
   const iframeRef = useRef<HTMLIFrameElement>(null)
-
-  function requestIframeFullscreen() {
-    const el = iframeRef.current as any
-    if (!el) return
-    const fn = el.requestFullscreen ?? el.webkitRequestFullscreen ?? el.mozRequestFullScreen ?? el.msRequestFullscreen
-    fn?.call(el)
-  }
   const { updateProgress } = useUserData()
 
   // Resume position — captured ONCE at mount so the iframe src stays stable.
@@ -269,16 +262,6 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
                 />
-                {/* Mobile fullscreen button — triggers OS-level fullscreen for the iframe */}
-                <button
-                  onClick={requestIframeFullscreen}
-                  className="lg:hidden absolute bottom-2 right-2 z-20 flex items-center justify-center w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white hover:bg-black/80 transition-all"
-                  aria-label="Fullscreen"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                  </svg>
-                </button>
               </>
             )}
           </div>
