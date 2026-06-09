@@ -188,11 +188,11 @@ export default function WatchClient({ movie, sources, related }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden lg:pl-24">
+    <div className="min-h-screen bg-background flex flex-col relative lg:pl-24">
 
       {/* Ambient backdrop */}
       {movie.backdropUrl && (
-        <div className="absolute inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
           <img
             src={movie.backdropUrl}
             alt=""
