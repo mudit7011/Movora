@@ -19,6 +19,8 @@ export default function PlatformPageClient({ platform }: Props) {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadingAll, setLoadingAll] = useState(false)
+  const [allLoaded, setAllLoaded] = useState(false)
   const [query, setQuery] = useState('')
 
   const filtered = query.trim()
@@ -33,11 +35,32 @@ export default function PlatformPageClient({ platform }: Props) {
       setItems(prev => replace ? data.results : [...prev, ...data.results])
       setPage(data.page)
       setTotalPages(data.totalPages)
-    } catch {}
+      return data
+    } catch { return null }
     finally {
       setLoading(false)
       setLoadingMore(false)
     }
+  }, [platform.slug, tab])
+
+  // When search is typed, auto-load all remaining pages
+  const fetchAllPages = useCallback(async (currentPage: number, total: number) => {
+    if (currentPage >= total) { setAllLoaded(true); return }
+    setLoadingAll(true)
+    try {
+      for (let p = currentPage + 1; p <= total; p++) {
+        const data = await api.getPlatformContent(platform.slug, tab, p)
+        if (!data?.results?.length) break
+        setItems(prev => {
+          const existingIds = new Set(prev.map((m: Movie) => m._id))
+          const newItems = data.results.filter((m: Movie) => !existingIds.has(m._id))
+          return [...prev, ...newItems]
+        })
+        setPage(p)
+      }
+      setAllLoaded(true)
+    } catch {}
+    finally { setLoadingAll(false) }
   }, [platform.slug, tab])
 
   useEffect(() => {
@@ -45,8 +68,17 @@ export default function PlatformPageClient({ platform }: Props) {
     setPage(1)
     setTotalPages(1)
     setQuery('')
+    setAllLoaded(false)
     fetchPage(1, true)
   }, [fetchPage])
+
+  // Auto-load all pages when search starts
+  useEffect(() => {
+    if (query.trim() && !allLoaded && !loadingAll && !loading && totalPages > 1) {
+      fetchAllPages(page, totalPages)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
 
   return (
     <div className="min-h-screen pb-24 lg:pb-8 lg:pl-24">
@@ -84,9 +116,12 @@ export default function PlatformPageClient({ platform }: Props) {
             ))}
           </div>
           <div className="relative sm:ml-auto sm:w-64">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
+            {loadingAll
+              ? <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              : <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+            }
             <input
               type="text"
               value={query}
@@ -144,7 +179,10 @@ export default function PlatformPageClient({ platform }: Props) {
 
             {query.trim() && (
               <p className="text-center text-xs text-muted-foreground/50 mt-10">
-                {filtered.length} result{filtered.length !== 1 ? 's' : ''} from {items.length} loaded titles
+                {loadingAll
+                  ? `Loading all titles for search…`
+                  : `${filtered.length} result${filtered.length !== 1 ? 's' : ''} from ${items.length} titles`
+                }
               </p>
             )}
           </>
