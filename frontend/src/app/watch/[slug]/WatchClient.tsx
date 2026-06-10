@@ -45,8 +45,8 @@ export default function WatchClient({ movie, sources, related }: Props) {
     if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
     }
-    // Server 2 (VidLink): resume via ?startAt=<seconds>
-    if (active.url.includes('vidlink.pro') && savedTimestamp > 60) {
+    // Server 2 (VidLink) + Server 4 (VidFast): resume via ?startAt=<seconds>
+    if ((active.url.includes('vidlink.pro') || active.url.includes('vidfast.')) && savedTimestamp > 60) {
       return active.url + `&startAt=${Math.floor(savedTimestamp)}`
     }
     // NHD API: resume via ?progress=<seconds>

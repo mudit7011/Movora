@@ -21,7 +21,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://ezvidapi.com/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+    { serverName: 'Server 4', url: `https://vidfast.pro/tv/${rawId}/${season}/${episode}?autoPlay=true&theme=06D6E0&nextButton=true&autoNext=true&chromecast=true`, quality: 'HD' },
     { serverName: 'Server 5', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&autonext=true&audio=true&title=true&download=true&setting=true&appearance=on&episodelist=true&watchparty=false&chromecast=true&pip=true&nextbutton=true&hidecontrols=false&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&iconsize=1&font=Poppins&fontcolor=FFFFFF&fontsize=20&opacity=0.50&glasscolor=000000&glassopacity=65&glassblur=20&subtitle=Off&subdelay=0&subtextsize=140&subtextcolor=FFFFFF&subcapitalize=false&subbold=false&subfont=Roboto&subbgenabled=false&subbgcolor=000000&subbgopacity=0&subbgblur=0`, quality: 'HD' },
   ]
 }
@@ -74,8 +74,8 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
     if (active.url.includes('player.videasy.to') && savedTimestamp > 60) {
       return active.url + `&progress=${Math.floor(savedTimestamp)}`
     }
-    // Server 2 (VidLink): resume via ?startAt=<seconds>
-    if (active.url.includes('vidlink.pro') && savedTimestamp > 60) {
+    // Server 2 (VidLink) + Server 4 (VidFast): resume via ?startAt=<seconds>
+    if ((active.url.includes('vidlink.pro') || active.url.includes('vidfast.')) && savedTimestamp > 60) {
       return active.url + `&startAt=${Math.floor(savedTimestamp)}`
     }
     // NHD API: resume via ?progress=<seconds>
