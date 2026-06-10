@@ -25,6 +25,7 @@ export default async function WatchPage({ params }: Props) {
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/movie/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 4', url: `https://nhdapi.com/embed/movie/${id}?autoplay=true&autonext=false&audio=true&title=true&download=true&setting=true&appearance=on&watchparty=false&chromecast=true&pip=true&nextbutton=false&hidecontrols=false&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&iconsize=1&font=Poppins&fontcolor=FFFFFF&fontsize=20&opacity=0.50&glasscolor=000000&glassopacity=65&glassblur=20&subtitle=Off&subdelay=0&subtextsize=140&subtextcolor=FFFFFF&subcapitalize=false&subbold=false&subfont=Roboto&subbgenabled=false&subbgcolor=000000&subbgopacity=0&subbgblur=0`, type: 'iframe', quality: 'HD', isWorking: true },
     { serverName: 'Server 5', url: `https://ezvidapi.com/embed/movie/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
+    { serverName: 'Server 6', url: `https://www.2embed.cc/embed/${id}`, type: 'iframe', quality: 'HD', isWorking: true },
   ]
 
   // Pre-warm EmbedMaster sources in background (fire and forget)
