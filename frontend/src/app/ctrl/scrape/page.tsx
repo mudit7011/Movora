@@ -31,6 +31,7 @@ export default function AdminScrapePage() {
   const [results, setResults]   = useState<Record<string, { added: number; skipped: number; errors: number; addedTitles: string[] }>>({})
   const [expandedJob, setExpandedJob] = useState<string | null>(null)
   const [error, setError]       = useState('')
+  const [pages, setPages]       = useState(5)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   async function loadJobs() {
@@ -81,7 +82,7 @@ export default function AdminScrapePage() {
     setRunning(r => ({ ...r, [key]: true }))
     setError('')
     try {
-      const res = await adminApi.runFetchAction(key)
+      const res = await adminApi.runFetchAction(key, pages)
       setResults(r => ({ ...r, [key]: { added: res.added, skipped: res.skipped, errors: res.errors, addedTitles: res.addedTitles ?? [] } }))
       await loadJobs()
     } catch (e: any) {
@@ -177,9 +178,21 @@ export default function AdminScrapePage() {
     <AdminShell>
       <div className="p-8 max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">Fetch from TMDB</h1>
-          <p className="text-sm text-muted-foreground mt-1">Import movies and shows directly from TMDB into your database.</p>
+        <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Fetch from TMDB</h1>
+            <p className="text-sm text-muted-foreground mt-1">Import movies and shows directly from TMDB into your database.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Pages per job</label>
+            <select
+              value={pages}
+              onChange={e => setPages(Number(e.target.value))}
+              className="bg-white/5 border border-white/10 text-sm text-foreground rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary/40"
+            >
+              {[3,5,10,15,20].map(n => <option key={n} value={n}>{n} ({n*20} movies)</option>)}
+            </select>
+          </div>
         </div>
 
         {error && (

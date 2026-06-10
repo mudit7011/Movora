@@ -85,7 +85,7 @@ export const adminApi = {
     return res.json() as Promise<{ key: string; label: string; mediaType: 'movie' | 'tv' }[]>
   },
 
-  async runFetchAction(action: string, pages = 3) {
+  async runFetchAction(action: string, pages = 5) {
     const res = await fetch(`${BASE}/scrape/fetch/${action}?pages=${pages}`, {
       method: 'POST',
       headers: headers(),
