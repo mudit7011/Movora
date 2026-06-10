@@ -291,6 +291,7 @@ export default function WatchShowClient({ show, initialSeason, initialEpisode, r
               title={`${show.title} S${season}E${episode} — ${active.serverName}`}
               allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
               allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
               referrerPolicy="no-referrer-when-downgrade"
               className="w-full h-full bg-black"
               style={{ border: 'none', display: 'block' }}
