@@ -26,17 +26,66 @@ interface Props {
 const PROVIDERS = ['vidrock', 'vidzee', 'vidnest', 'popr', 'vidlink', 'icefy', 'vixsrc']
 
 async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<EzvidStream | null> {
-  for (const provider of PROVIDERS) {
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+
+  // 1. StreamVault scraper — widest coverage, 15s timeout, cached after first hit
+  if (backendUrl) {
     try {
-      const url = type === 'movie'
-        ? `https://api.ezvidapi.com/movie/${provider}/${tmdbId}`
-        : `https://api.ezvidapi.com/tv/${provider}/${tmdbId}?season=${season}&episode=${episode}`
-      const res = await fetch(url)
-      if (!res.ok) continue
-      const data = await res.json()
-      if (data?.stream_url) return { stream_url: data.stream_url, subtitles: data.subtitles ?? [] }
-    } catch { continue }
+      const params = type === 'movie'
+        ? `tmdbId=${tmdbId}&type=movie`
+        : `tmdbId=${tmdbId}&type=tv&season=${season}&episode=${episode}`
+      const res = await fetch(`${backendUrl}/api/stream?${params}`, { signal: AbortSignal.timeout(25000) })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.url) return { stream_url: data.url, subtitles: data.subtitles ?? [] }
+      }
+    } catch { /* fallthrough to ezvidapi */ }
   }
+
+  // 2. Fallback: ezvidapi providers in parallel, 5s total timeout
+  const ezvidResult = await Promise.race([
+    Promise.any(
+      PROVIDERS.map(async provider => {
+        const url = type === 'movie'
+          ? `https://api.ezvidapi.com/movie/${provider}/${tmdbId}`
+          : `https://api.ezvidapi.com/tv/${provider}/${tmdbId}?season=${season}&episode=${episode}`
+        const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
+        if (!res.ok) throw new Error('not ok')
+        const data = await res.json()
+        if (!data?.stream_url) throw new Error('no stream')
+        return { stream_url: data.stream_url as string, subtitles: (data.subtitles ?? []) as EzvidSubtitle[] }
+      })
+    ).catch(() => null),
+    new Promise<null>(r => setTimeout(() => r(null), 5000)),
+  ])
+  if (ezvidResult) return ezvidResult
+
+  // 3. Fallback: autoembed API
+  try {
+    const url = type === 'movie'
+      ? `https://tom.autoembed.cc/api/getVideoSource?type=movie&id=${tmdbId}`
+      : `https://tom.autoembed.cc/api/getVideoSource?type=tv&id=${tmdbId}&season=${season}&episode=${episode}`
+    const res = await fetch(url)
+    if (res.ok) {
+      const data = await res.json()
+      const src = data?.videoSource || data?.stream_url || data?.url || data?.sources?.[0]?.file
+      if (src) return { stream_url: src, subtitles: data?.tracks?.filter((t: any) => t.kind === 'captions').map((t: any) => ({ label: t.label, language: t.label, url: t.file, default: t.default ?? false })) ?? [] }
+    }
+  } catch { /* ignore */ }
+
+  // 3. Fallback: moviesapi.club
+  try {
+    const url = type === 'movie'
+      ? `https://moviesapi.club/movie/${tmdbId}`
+      : `https://moviesapi.club/tv/${tmdbId}-${season}-${episode}`
+    const res = await fetch(url)
+    if (res.ok) {
+      const text = await res.text()
+      const match = text.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/)
+      if (match?.[1]) return { stream_url: match[1], subtitles: [] }
+    }
+  } catch { /* ignore */ }
+
   return null
 }
 

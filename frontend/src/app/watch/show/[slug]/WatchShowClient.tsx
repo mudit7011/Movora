@@ -9,12 +9,14 @@ import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
 import dynamic from 'next/dynamic'
 const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: false })
+const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
 
 interface Source {
   serverName: string
   url: string
   quality: string
+  type?: 'iframe' | 'direct'
 }
 
 const LOAD_MESSAGES = [
@@ -317,7 +319,22 @@ export default function WatchShowClient({ show, children }: Props) {
         <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
           <div className="relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
-            {active.url.includes('ezvidapi.com') ? (
+            {active.type === 'direct' ? (
+              <VideoPlayer
+                src={active.url}
+                title={`${show.title} S${season}E${episode}`}
+                poster={show.backdropUrl || show.posterUrl}
+                tmdbId={show.tmdbId.replace(/^tv_/, '')}
+                mediaType="tv"
+                season={season}
+                episode={episode}
+                year={show.releaseYear}
+                runtime={show.runtime}
+                rating={show.rating}
+                synopsis={show.synopsis}
+                startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
+              />
+            ) : active.url.includes('ezvidapi.com') ? (
               <EzvidPlayer
                 key={`${active.url}-${season}-${episode}`}
                 tmdbId={show.tmdbId.replace(/^tv_/, '')}

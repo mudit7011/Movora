@@ -18,7 +18,10 @@ export function createApp() {
   ].filter(Boolean)
   app.use(cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+      if (!origin) return cb(null, true)
+      // Allow all localhost origins in development
+      if (origin.startsWith('http://localhost:')) return cb(null, true)
+      if (allowedOrigins.includes(origin)) return cb(null, true)
       cb(new Error('Not allowed by CORS'))
     },
     credentials: true,
