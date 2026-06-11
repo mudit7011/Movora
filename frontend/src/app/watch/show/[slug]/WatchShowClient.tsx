@@ -328,6 +328,9 @@ export default function WatchShowClient({ show, children }: Props) {
                 poster={show.posterUrl}
                 backdrop={show.backdropUrl}
                 synopsis={show.synopsis}
+                year={show.releaseYear}
+                runtime={show.runtime}
+                rating={show.rating}
                 startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
               />
             ) : (

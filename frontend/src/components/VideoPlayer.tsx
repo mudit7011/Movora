@@ -67,6 +67,10 @@ interface Props {
   mediaType?: 'movie' | 'tv'
   season?: number
   episode?: number
+  year?: number
+  runtime?: number
+  rating?: number
+  synopsis?: string
 }
 
 function fmt(s: number) {
@@ -92,7 +96,7 @@ interface OSResult {
 
 type Menu = 'quality' | 'audio' | 'sub' | 'speed' | 'subprefs' | 'ossearch' | null
 
-export default function VideoPlayer({ src, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode }: Props) {
+export default function VideoPlayer({ src, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis }: Props) {
   const videoRef   = useRef<HTMLVideoElement>(null)
   const wrapRef    = useRef<HTMLDivElement>(null)
   const seekRef    = useRef<HTMLDivElement>(null)
@@ -493,6 +497,40 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
     >
       {/* Video */}
       <video ref={videoRef} className="w-full h-full object-contain" poster={poster} playsInline onClick={togglePlay} />
+
+      {/* Info overlay shown when paused — centered, text only, video frame stays visible */}
+      {!playing && (title || year || runtime || rating) && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-start">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 text-left px-6 sm:px-10 max-w-md">
+            {title && (
+              <h3 className="text-white font-black drop-shadow-2xl mb-2 leading-tight"
+                style={{ fontSize: 'clamp(1.25rem, 3.5vw, 2rem)' }}>
+                {title}
+              </h3>
+            )}
+            {(year || runtime || rating) && (
+              <div className="flex items-center justify-start gap-2 mb-2 flex-wrap">
+                {year && <span className="text-white/70 text-xs font-medium">{year}</span>}
+                {runtime && runtime > 0 && (
+                  <><span className="text-white/30 text-xs">·</span>
+                  <span className="text-white/70 text-xs font-medium">{Math.floor(runtime/60) > 0 ? `${Math.floor(runtime/60)}h ${runtime%60 > 0 ? `${runtime%60}m` : ''}`.trim() : `${runtime}m`}</span></>
+                )}
+                {rating && rating > 0 && (
+                  <><span className="text-white/30 text-xs">·</span>
+                  <span className="flex items-center gap-0.5 text-xs font-medium text-amber-400">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    {rating.toFixed(1)}
+                  </span></>
+                )}
+              </div>
+            )}
+            {synopsis && (
+              <p className="text-white/55 text-xs leading-relaxed line-clamp-2 drop-shadow">{synopsis}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Loading spinner */}
       {loading && (

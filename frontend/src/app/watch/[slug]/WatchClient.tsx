@@ -285,6 +285,9 @@ export default function WatchClient({ movie, sources, children }: Props) {
                 poster={movie.posterUrl}
                 backdrop={movie.backdropUrl}
                 synopsis={movie.synopsis}
+                year={movie.releaseYear}
+                runtime={movie.runtime}
+                rating={movie.rating}
                 startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
               />
             ) : (
