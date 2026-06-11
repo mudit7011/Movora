@@ -191,6 +191,16 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             setQualities(lvls)
             if (startAt && startAt > 0) video!.currentTime = startAt
             hls.subtitleTrack = -1  // disable any DEFAULT HLS subtitle track
+            video!.play().catch(() => {
+              // Autoplay blocked — user must tap play manually, which is fine
+            })
+          })
+
+          hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+            if (data.fatal) {
+              console.error('[HLS] fatal error', data.type, data.details)
+              setLoading(false)
+            }
           })
 
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_: any, d: any) => {
