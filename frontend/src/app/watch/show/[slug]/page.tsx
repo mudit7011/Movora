@@ -4,16 +4,16 @@ import { cache, Suspense } from 'react'
 import { api } from '@/lib/api'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import type { Movie } from '@/types/movie'
+import MovieCard from '@/components/MovieCard'
 import WatchShowClient from './WatchShowClient'
 
 interface Props {
   params: Promise<{ slug: string }>
 }
 
-// React cache() deduplicates getShow between generateMetadata and the page —
-// only one network request per slug per render.
-const getShow        = cache((slug: string) => api.getShow(slug).catch(() => null))
-const getRelatedShows = cache((slug: string) => api.getRelatedShows(slug).catch(() => ({ similar: [], youMayLove: [] })))
+const getShow         = cache((slug: string) => api.getShow(slug).catch(() => null))
+const getRelatedShows = cache((slug: string) => api.getRelatedShows(slug).catch((e) => { console.error('[RelatedSection] shows fetch failed:', e); return { similar: [], youMayLove: [] } }))
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
@@ -28,20 +28,69 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function WatchShowPage({ params }: Props) {
   const { slug } = await params
 
-  const [show, related] = await Promise.all([
-    getShow(slug),
-    getRelatedShows(slug),
-  ])
+  // Only getShow() is in the critical path — page HTML streams as soon as this resolves.
+  const show = await getShow(slug)
   if (!show) notFound()
 
   // Season/episode come from the URL query string. Reading searchParams here
   // would opt the route out of Full Route Cache (one CDN miss per unique URL).
-  // Instead, WatchShowClient reads them via useSearchParams() on the client,
+  // WatchShowClient reads them via useSearchParams() on the client,
   // keeping this server component fully cacheable at the slug level.
   return (
     <Suspense fallback={<ShowWatchSkeleton />}>
-      <WatchShowClient show={show} related={related} />
+      <WatchShowClient show={show}>
+        <Suspense fallback={<RelatedSkeleton />}>
+          <RelatedSection slug={slug} />
+        </Suspense>
+      </WatchShowClient>
     </Suspense>
+  )
+}
+
+// Async server component — runs independently after page HTML has already streamed.
+async function RelatedSection({ slug }: { slug: string }) {
+  const related = await getRelatedShows(slug)
+  if (!related.similar.length && !related.youMayLove.length) return null
+  return (
+    <>
+      {related.similar.length > 0 && (
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">More Like This</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {related.similar.slice(0, 12).map((m: Movie) => (
+              <MovieCard key={m._id} movie={m} />
+            ))}
+          </div>
+        </div>
+      )}
+      {related.youMayLove.length > 0 && (
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">You May Also Love</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {related.youMayLove.slice(0, 12).map((m: Movie) => (
+              <MovieCard key={m._id} movie={m} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function RelatedSkeleton() {
+  return (
+    <div className="glass rounded-2xl p-5">
+      <div className="h-3 w-24 rounded bg-white/10 animate-pulse mb-4" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="space-y-2">
+            <div className="w-full rounded-xl bg-white/[0.06] animate-pulse" style={{ aspectRatio: '2/3' }} />
+            <div className="h-2.5 w-3/4 rounded bg-white/[0.06] animate-pulse" />
+            <div className="h-2 w-1/2 rounded bg-white/[0.04] animate-pulse" />
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

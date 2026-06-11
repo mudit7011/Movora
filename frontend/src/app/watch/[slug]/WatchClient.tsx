@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import type { Movie, Source } from '@/types/movie'
-import MovieCard from '@/components/MovieCard'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
@@ -15,15 +14,25 @@ const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: fal
 interface Props {
   movie: Movie
   sources: Source[]
-  related: { similar: Movie[]; youMayLove: Movie[] }
+  children?: ReactNode
 }
 
-export default function WatchClient({ movie, sources, related }: Props) {
+const LOAD_MESSAGES = [
+  { text: 'Preparing stream…',              sub: null },
+  { text: 'Connecting to streaming server…', sub: null },
+  { text: 'Still loading…',                 sub: 'This is taking a while.' },
+  { text: 'Taking longer than expected.',    sub: 'Try another server if this keeps up.' },
+] as const
+
+export default function WatchClient({ movie, sources, children }: Props) {
   const isTV = useTV()
   const [activeIdx, setActiveIdx]   = useState(0)
   const [showFallback, setShowFallback] = useState(false)
-  const bannerTimer = useRef<ReturnType<typeof setTimeout>>()
+  const [playerLoaded, setPlayerLoaded] = useState(false)
+  const [loadPhase, setLoadPhase]   = useState(0)
+  const bannerTimer  = useRef<ReturnType<typeof setTimeout>>()
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
+  const loadTimers   = useRef<ReturnType<typeof setTimeout>[]>([])
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { updateProgress } = useUserData()
 
@@ -174,6 +183,22 @@ export default function WatchClient({ movie, sources, related }: Props) {
     }
   }, [activeIdx, isDirect])
 
+  // Loading phase progression for iframe servers
+  const isIframe = !isDirect && !active.url.includes('ezvidapi.com')
+  useEffect(() => {
+    if (!isIframe) return
+    setPlayerLoaded(false)
+    setLoadPhase(0)
+    loadTimers.current.forEach(clearTimeout)
+    loadTimers.current = [
+      setTimeout(() => setLoadPhase(1), 1000),
+      setTimeout(() => setLoadPhase(2), 3000),
+      setTimeout(() => setLoadPhase(3), 5000),
+    ]
+    return () => loadTimers.current.forEach(clearTimeout)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdx])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'n' || e.key === 'N') {
@@ -274,8 +299,61 @@ export default function WatchClient({ movie, sources, related }: Props) {
                   referrerPolicy="no-referrer-when-downgrade"
                   className="w-full h-full bg-black"
                   style={{ border: 'none', display: 'block' }}
-                  onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
+                  onLoad={() => {
+                    setPlayerLoaded(true)
+                    loadTimers.current.forEach(clearTimeout)
+                    setShowFallback(false)
+                    clearTimeout(fallbackTimer.current)
+                  }}
                 />
+                {/* Streaming loader overlay — hidden instantly on iframe onLoad */}
+                {!playerLoaded && (
+                  <div className="absolute inset-0 z-10 bg-black overflow-hidden flex flex-col">
+                    {/* Backdrop */}
+                    {(movie.backdropUrl || movie.posterUrl) && (
+                      <>
+                        <img
+                          src={movie.backdropUrl || movie.posterUrl}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105"
+                          style={{ filter: 'blur(2px)' }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+                      </>
+                    )}
+
+                    {/* Spinner */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full border-[2.5px] border-white/10 border-t-[#06D6E0] animate-spin" />
+                    </div>
+
+                    {/* Title + progressive message */}
+                    <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 sm:px-7 sm:pb-7">
+                      <p className="text-white font-semibold text-base sm:text-lg leading-tight mb-1 drop-shadow-lg">
+                        {movie.title}
+                      </p>
+                      <p className={`text-sm font-medium drop-shadow transition-opacity duration-300 ${
+                        loadPhase >= 3 ? 'text-amber-400' : 'text-[#06D6E0]'
+                      }`}>
+                        {LOAD_MESSAGES[loadPhase].text}
+                      </p>
+                      {LOAD_MESSAGES[loadPhase].sub && (
+                        <p className="text-xs text-white/50 mt-1">
+                          {LOAD_MESSAGES[loadPhase].sub}
+                          {loadPhase >= 3 && hasNext && (
+                            <button
+                              onClick={tryNext}
+                              className="ml-2 underline text-white/70 hover:text-white transition-colors"
+                            >
+                              Try next server
+                            </button>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -440,33 +518,7 @@ export default function WatchClient({ movie, sources, related }: Props) {
           </div>
         )}
 
-        {/* More Like This */}
-        {related.similar.length > 0 && (
-          <div className="glass rounded-2xl p-5">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">
-              More Like This
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {related.similar.slice(0, 12).map(m => (
-                <MovieCard key={m._id} movie={m} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* You May Also Love */}
-        {related.youMayLove.length > 0 && (
-          <div className="glass rounded-2xl p-5">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">
-              You May Also Love
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {related.youMayLove.slice(0, 12).map(m => (
-                <MovieCard key={m._id} movie={m} />
-              ))}
-            </div>
-          </div>
-        )}
+        {children}
 
       </div>
     </div>

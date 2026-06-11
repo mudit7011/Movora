@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { Movie } from '@/types/movie'
-import MovieCard from '@/components/MovieCard'
 import EpisodeGrid from '@/components/EpisodeGrid'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
@@ -17,6 +16,13 @@ interface Source {
   url: string
   quality: string
 }
+
+const LOAD_MESSAGES = [
+  { text: 'Preparing stream…',               sub: null },
+  { text: 'Connecting to streaming server…', sub: null },
+  { text: 'Still loading…',                  sub: 'This is taking a while.' },
+  { text: 'Taking longer than expected.',     sub: 'Try another server if this keeps up.' },
+] as const
 
 function buildSources(tmdbId: string, season: number, episode: number): Source[] {
   const rawId = tmdbId.replace(/^tv_/, '')
@@ -31,10 +37,10 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
 
 interface Props {
   show: Movie
-  related: { similar: Movie[]; youMayLove: Movie[] }
+  children?: ReactNode
 }
 
-export default function WatchShowClient({ show, related }: Props) {
+export default function WatchShowClient({ show, children }: Props) {
   const isTV = useTV()
   const searchParams = useSearchParams()
   const [season, setSeason] = useState(() => {
@@ -47,8 +53,11 @@ export default function WatchShowClient({ show, related }: Props) {
   })
   const [activeServerIdx, setActiveServerIdx] = useState(0)
 
-  const [showFallback, setShowFallback] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [showFallback,  setShowFallback]  = useState(false)
+  const [playerLoaded,  setPlayerLoaded]  = useState(false)
+  const [loadPhase,     setLoadPhase]     = useState(0)
+  const iframeRef   = useRef<HTMLIFrameElement>(null)
+  const loadTimers  = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -108,6 +117,22 @@ export default function WatchShowClient({ show, related }: Props) {
       clearTimeout(bannerTimer.current)
       clearTimeout(fallbackTimer.current)
     }
+  }, [activeServerIdx, season, episode])
+
+  // Loading phase progression for iframe servers
+  const isIframe = !active.url.includes('ezvidapi.com')
+  useEffect(() => {
+    if (!isIframe) return
+    setPlayerLoaded(false)
+    setLoadPhase(0)
+    loadTimers.current.forEach(clearTimeout)
+    loadTimers.current = [
+      setTimeout(() => setLoadPhase(1), 1000),
+      setTimeout(() => setLoadPhase(2), 3000),
+      setTimeout(() => setLoadPhase(3), 5000),
+    ]
+    return () => loadTimers.current.forEach(clearTimeout)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeServerIdx, season, episode])
 
 
@@ -306,18 +331,68 @@ export default function WatchShowClient({ show, related }: Props) {
                 startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
               />
             ) : (
-              <iframe
-                ref={iframeRef}
-                key={activeUrl}
-                src={activeUrl}
-                title={`${show.title} S${season}E${episode} — ${active.serverName}`}
-                allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
-                allowFullScreen
-                referrerPolicy="no-referrer-when-downgrade"
-                className="w-full h-full bg-black"
-                style={{ border: 'none', display: 'block' }}
-                onLoad={() => { setShowFallback(false); clearTimeout(fallbackTimer.current) }}
-              />
+              <>
+                <iframe
+                  ref={iframeRef}
+                  key={activeUrl}
+                  src={activeUrl}
+                  title={`${show.title} S${season}E${episode} — ${active.serverName}`}
+                  allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="w-full h-full bg-black"
+                  style={{ border: 'none', display: 'block' }}
+                  onLoad={() => {
+                    setPlayerLoaded(true)
+                    loadTimers.current.forEach(clearTimeout)
+                    setShowFallback(false)
+                    clearTimeout(fallbackTimer.current)
+                  }}
+                />
+                {!playerLoaded && (
+                  <div className="absolute inset-0 z-10 bg-black overflow-hidden flex flex-col">
+                    {(show.backdropUrl || show.posterUrl) && (
+                      <>
+                        <img
+                          src={show.backdropUrl || show.posterUrl}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105"
+                          style={{ filter: 'blur(2px)' }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+                      </>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full border-[2.5px] border-white/10 border-t-[#06D6E0] animate-spin" />
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 sm:px-7 sm:pb-7">
+                      <p className="text-white font-semibold text-base sm:text-lg leading-tight mb-1 drop-shadow-lg">
+                        {show.title}
+                        <span className="text-white/50 font-normal text-sm ml-2">S{season}E{episode}</span>
+                      </p>
+                      <p className={`text-sm font-medium drop-shadow transition-opacity duration-300 ${
+                        loadPhase >= 3 ? 'text-amber-400' : 'text-[#06D6E0]'
+                      }`}>
+                        {LOAD_MESSAGES[loadPhase].text}
+                      </p>
+                      {LOAD_MESSAGES[loadPhase].sub && (
+                        <p className="text-xs text-white/50 mt-1">
+                          {LOAD_MESSAGES[loadPhase].sub}
+                          {loadPhase >= 3 && hasNextServer && (
+                            <button
+                              onClick={tryNextServer}
+                              className="ml-2 underline text-white/70 hover:text-white transition-colors"
+                            >
+                              Try next server
+                            </button>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -478,29 +553,7 @@ export default function WatchShowClient({ show, related }: Props) {
           </div>
         )}
 
-        {/* More Like This */}
-        {related.similar.length > 0 && (
-          <div className="glass rounded-2xl p-5">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">More Like This</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {related.similar.slice(0, 12).map(m => (
-                <MovieCard key={m._id} movie={m} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* You May Also Love */}
-        {related.youMayLove.length > 0 && (
-          <div className="glass rounded-2xl p-5">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">You May Also Love</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {related.youMayLove.slice(0, 12).map(m => (
-                <MovieCard key={m._id} movie={m} />
-              ))}
-            </div>
-          </div>
-        )}
+        {children}
 
       </div>
     </div>
