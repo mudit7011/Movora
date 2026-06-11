@@ -260,9 +260,20 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
 
   // ── Fullscreen change ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const fn = () => setFs(!!document.fullscreenElement)
+    const fn = () => {
+      const v = videoRef.current as HTMLVideoElement & { webkitDisplayingFullscreen?: boolean }
+      setFs(!!(document.fullscreenElement || v?.webkitDisplayingFullscreen))
+    }
     document.addEventListener('fullscreenchange', fn)
-    return () => document.removeEventListener('fullscreenchange', fn)
+    document.addEventListener('webkitfullscreenchange', fn)
+    videoRef.current?.addEventListener('webkitbeginfullscreen', fn)
+    videoRef.current?.addEventListener('webkitendfullscreen', fn)
+    return () => {
+      document.removeEventListener('fullscreenchange', fn)
+      document.removeEventListener('webkitfullscreenchange', fn)
+      videoRef.current?.removeEventListener('webkitbeginfullscreen', fn)
+      videoRef.current?.removeEventListener('webkitendfullscreen', fn)
+    }
   }, [])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
@@ -304,8 +315,17 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   }
 
   function toggleFs() {
-    if (document.fullscreenElement) document.exitFullscreen()
-    else wrapRef.current?.requestFullscreen()
+    const wrap = wrapRef.current
+    const v = videoRef.current as HTMLVideoElement & { webkitEnterFullscreen?: () => void; webkitExitFullscreen?: () => void; webkitDisplayingFullscreen?: boolean }
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else if ((document as Document & { webkitExitFullscreen?: () => void }).webkitExitFullscreen && v?.webkitDisplayingFullscreen) {
+      v.webkitExitFullscreen?.()
+    } else if (wrap?.requestFullscreen) {
+      wrap.requestFullscreen()
+    } else if (v?.webkitEnterFullscreen) {
+      v.webkitEnterFullscreen()
+    }
   }
 
   function getPct(e: React.MouseEvent) {
