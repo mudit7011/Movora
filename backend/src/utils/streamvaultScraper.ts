@@ -51,19 +51,22 @@ export async function scrapeStreamVault(
     })
     const page = await context.newPage()
 
-    let streamUrl: string | null = null
-    let fallbackUrl: string | null = null
-
-    // Quality-specific playlists to accept as fallback (680p+)
-    const HIGH_QUALITY_RE = /\/(680|720|1080|1440|2160|4k)p?\.m3u8/i
+    let streamUrl: string | null = null   // master.m3u8 — top priority
+    let url1080: string | null = null
+    let url720: string | null = null
+    let url680: string | null = null
 
     page.on('request', req => {
       const url = req.url()
       if (!url.includes('streamvaultsrc.click/stream-proxy/pl') || !url.includes('.m3u8')) return
       if (url.includes('master.m3u8')) {
-        streamUrl = url // master = adaptive quality, prefer this
-      } else if (!fallbackUrl && HIGH_QUALITY_RE.test(url)) {
-        fallbackUrl = url // 680p+ quality playlist as fallback
+        streamUrl = url
+      } else if (/\/(?:2160|1440|1080)p?\.m3u8/i.test(url)) {
+        url1080 = url1080 ?? url   // keep highest seen (1080p+)
+      } else if (/\/720p?\.m3u8/i.test(url)) {
+        url720 = url720 ?? url
+      } else if (/\/680p?\.m3u8/i.test(url)) {
+        url680 = url680 ?? url
       }
     })
 
@@ -94,12 +97,12 @@ export async function scrapeStreamVault(
       } catch { /* no player element found */ }
     }
 
-    // Wait up to 20s — exit as soon as master.m3u8 OR a high-quality fallback appears
+    // Wait up to 20s — exit as soon as master.m3u8 OR 1080p appears; settle for 720p/680p after deadline
     const deadline = Date.now() + 20000
-    while (!streamUrl && !fallbackUrl && Date.now() < deadline) {
+    while (!streamUrl && !url1080 && Date.now() < deadline) {
       await page.waitForTimeout(500)
     }
-    const finalUrl = streamUrl ?? fallbackUrl
+    const finalUrl = streamUrl ?? url1080 ?? url720 ?? url680
     if (!finalUrl) return null
 
     // Subtitles via streamvaultsrc public API (no scraping needed)

@@ -25,10 +25,28 @@ interface Props {
 
 const PROVIDERS = ['vidrock', 'vidzee', 'vidnest', 'popr', 'vidlink', 'icefy', 'vixsrc']
 
+async function fetchSVSubtitles(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<EzvidSubtitle[]> {
+  try {
+    const url = type === 'movie'
+      ? `https://streamvaultsrc.click/api/subtitles/movie/${tmdbId}`
+      : `https://streamvaultsrc.click/api/subtitles/tv/${tmdbId}/${season}/${episode}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return []
+    const data = await res.json()
+    if (!Array.isArray(data)) return []
+    return data.map((s: any) => ({
+      label: s.label || s.language || 'Unknown',
+      language: s.language || s.label || 'en',
+      url: s.url || s.file || '',
+      default: s.default ?? false,
+    })).filter(s => s.url)
+  } catch { return [] }
+}
+
 async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<EzvidStream | null> {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
-  // 1. StreamVault scraper — widest coverage, 15s timeout, cached after first hit
+  // 1. StreamVault scraper — widest coverage, 25s timeout, cached after first hit
   if (backendUrl) {
     try {
       const params = type === 'movie'
@@ -58,7 +76,12 @@ async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number
     ).catch(() => null),
     new Promise<null>(r => setTimeout(() => r(null), 5000)),
   ])
-  if (ezvidResult) return ezvidResult
+  if (ezvidResult) {
+    if (ezvidResult.subtitles.length === 0) {
+      ezvidResult.subtitles = await fetchSVSubtitles(tmdbId, type, season, episode)
+    }
+    return ezvidResult
+  }
 
   // 3. Fallback: autoembed API
   try {
@@ -69,11 +92,15 @@ async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number
     if (res.ok) {
       const data = await res.json()
       const src = data?.videoSource || data?.stream_url || data?.url || data?.sources?.[0]?.file
-      if (src) return { stream_url: src, subtitles: data?.tracks?.filter((t: any) => t.kind === 'captions').map((t: any) => ({ label: t.label, language: t.label, url: t.file, default: t.default ?? false })) ?? [] }
+      if (src) {
+        const providerSubs = data?.tracks?.filter((t: any) => t.kind === 'captions').map((t: any) => ({ label: t.label, language: t.label, url: t.file, default: t.default ?? false })) ?? []
+        const subs = providerSubs.length > 0 ? providerSubs : await fetchSVSubtitles(tmdbId, type, season, episode)
+        return { stream_url: src, subtitles: subs }
+      }
     }
   } catch { /* ignore */ }
 
-  // 3. Fallback: moviesapi.club
+  // 4. Fallback: moviesapi.club
   try {
     const url = type === 'movie'
       ? `https://moviesapi.club/movie/${tmdbId}`
@@ -82,7 +109,10 @@ async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number
     if (res.ok) {
       const text = await res.text()
       const match = text.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/)
-      if (match?.[1]) return { stream_url: match[1], subtitles: [] }
+      if (match?.[1]) {
+        const subs = await fetchSVSubtitles(tmdbId, type, season, episode)
+        return { stream_url: match[1], subtitles: subs }
+      }
     }
   } catch { /* ignore */ }
 
