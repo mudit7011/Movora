@@ -1,10 +1,16 @@
 import { notFound } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
-import { getPlatformBySlug } from '@/lib/platforms'
+import { PLATFORMS, getPlatformBySlug } from '@/lib/platforms'
 import PlatformPageClient from './PlatformPageClient'
 
 interface Props {
   params: { platform: string }
+}
+
+// All 6 platform slugs are static — pre-build them all at deploy time.
+// Unknown slugs hit notFound() at request time (default dynamicParams behaviour).
+export function generateStaticParams() {
+  return PLATFORMS.map(p => ({ platform: p.slug }))
 }
 
 export default function PlatformPage({ params }: Props) {

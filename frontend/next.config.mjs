@@ -32,6 +32,13 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'no-referrer-when-downgrade' },
         ],
       },
+      // Prevent Vercel preview deployments from being indexed.
+      // Conditional on the Host header at the CDN layer — zero function invocations.
+      {
+        source: '/(.*)',
+        has: [{ type: 'host', value: '(?:.*)\\.vercel\\.app' }],
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
     ]
   },
 }

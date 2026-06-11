@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import type { Movie } from '@/types/movie'
 import MovieCard from '@/components/MovieCard'
 import EpisodeGrid from '@/components/EpisodeGrid'
@@ -30,15 +31,20 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
 
 interface Props {
   show: Movie
-  initialSeason: number
-  initialEpisode: number
   related: { similar: Movie[]; youMayLove: Movie[] }
 }
 
-export default function WatchShowClient({ show, initialSeason, initialEpisode, related }: Props) {
+export default function WatchShowClient({ show, related }: Props) {
   const isTV = useTV()
-  const [season, setSeason] = useState(initialSeason)
-  const [episode, setEpisode] = useState(initialEpisode)
+  const searchParams = useSearchParams()
+  const [season, setSeason] = useState(() => {
+    const s = Number(searchParams.get('season'))
+    return Number.isFinite(s) && s > 0 ? s : 1
+  })
+  const [episode, setEpisode] = useState(() => {
+    const e = Number(searchParams.get('episode'))
+    return Number.isFinite(e) && e > 0 ? e : 1
+  })
   const [activeServerIdx, setActiveServerIdx] = useState(0)
 
   const [showFallback, setShowFallback] = useState(false)

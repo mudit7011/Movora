@@ -14,11 +14,17 @@ const outfit = Outfit({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://watchmovora.com'),
   title: 'Movora — Premium Movie Streaming',
   description: 'Stream the latest movies in stunning HD. Your premium destination for English, Hindi, and Hindi Dubbed films.',
   keywords: ['movies', 'streaming', 'HD', 'watch online', 'Hindi movies', 'English movies'],
   manifest: '/manifest.webmanifest',
   applicationName: 'Movora',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+  },
   appleWebApp: {
     capable: true,
     title: 'Movora',

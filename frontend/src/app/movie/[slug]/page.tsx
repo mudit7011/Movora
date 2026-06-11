@@ -1,5 +1,6 @@
 export const revalidate = 3600
 
+import { cache } from 'react'
 import { api } from '@/lib/api'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -10,13 +11,16 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
+const getMovie = cache((slug: string) => api.getMovie(slug).catch(() => null))
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const movie = await api.getMovie(slug).catch(() => null)
+  const movie = await getMovie(slug)
   if (!movie) return { title: 'Movie — Movora' }
   return {
     title: `${movie.title} — Movora`,
     description: movie.synopsis,
+    alternates: { canonical: `https://watchmovora.com/movie/${slug}` },
     openGraph: {
       title: `${movie.title} — Movora`,
       description: movie.synopsis,
@@ -27,7 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function MovieDetailPage({ params }: Props) {
   const { slug } = await params
-  const movie = await api.getMovie(slug).catch(() => null)
+  const movie = await getMovie(slug)
   if (!movie) notFound()
 
   return (
