@@ -181,11 +181,16 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
         if (Hls.isSupported()) {
           const hls = new Hls({
             enableWorker: true,
-            startLevel: -1,                    // auto ABR from start
-            abrEwmaDefaultEstimate: 1000000,   // assume 1Mbps initially → picks 720p not 1080p
-            maxBufferLength: 30,               // 30s buffer max
-            maxBufferSize: 30 * 1000 * 1000,   // 30MB cap
+            startLevel: -1,
+            abrEwmaDefaultEstimate: 3000000,
+            maxBufferLength: 30,
+            maxBufferSize: 30 * 1000 * 1000,
             lowLatencyMode: false,
+            fetchSetup: (context: any, initParams: any) => {
+              // Send no Referer so CDN doesn't block requests from our domain
+              initParams.referrerPolicy = 'no-referrer'
+              return new Request(context.url, initParams)
+            },
           })
           hlsRef.current = hls
           hls.loadSource(src)
