@@ -97,6 +97,10 @@ export default function EzvidPlayer({ tmdbId, type, season, episode, title, post
       poster={poster}
       externalSubtitles={stream.subtitles}
       startAt={startAt}
+      tmdbId={tmdbId}
+      mediaType={type}
+      season={season}
+      episode={episode}
     />
   )
 }

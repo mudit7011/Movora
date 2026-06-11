@@ -16,13 +16,18 @@ interface SubPrefs {
   bold: boolean
   shadow: boolean
 }
-const DEFAULT_SUB_PREFS: SubPrefs = { size: 'lg', color: 'white', bg: 'glass', bold: false, shadow: true }
+const DEFAULT_SUB_PREFS: SubPrefs = { size: 'lg', color: 'white', bg: 'none', bold: true, shadow: true }
 const SUB_PREFS_KEY = 'movora_sub_prefs'
 
+const SUB_PREFS_VERSION = 2
 function loadSubPrefs(): SubPrefs {
   try {
     const raw = localStorage.getItem(SUB_PREFS_KEY)
-    return raw ? { ...DEFAULT_SUB_PREFS, ...JSON.parse(raw) } : DEFAULT_SUB_PREFS
+    if (!raw) return DEFAULT_SUB_PREFS
+    const parsed = JSON.parse(raw)
+    // Reset to default if saved from an older version
+    if (parsed._v !== SUB_PREFS_VERSION) return DEFAULT_SUB_PREFS
+    return { ...DEFAULT_SUB_PREFS, ...parsed }
   } catch { return DEFAULT_SUB_PREFS }
 }
 
@@ -45,12 +50,23 @@ function parseVTT(vtt: string): ParsedCue[] {
   return cues
 }
 
+function srtToVtt(srt: string): string {
+  return 'WEBVTT\n\n' + srt
+    .replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+    .replace(/^\d+\s*\n/gm, '')                                // strip index numbers
+    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')         // comma → dot in timestamps
+}
+
 interface Props {
   src: string       // .m3u8 or .mp4 direct URL
   title?: string
   poster?: string
   externalSubtitles?: ExtSubtitle[]
   startAt?: number
+  tmdbId?: string
+  mediaType?: 'movie' | 'tv'
+  season?: number
+  episode?: number
 }
 
 function fmt(s: number) {
@@ -63,9 +79,20 @@ function fmt(s: number) {
     : `${m}:${String(sec).padStart(2, '0')}`
 }
 
-type Menu = 'quality' | 'audio' | 'sub' | 'speed' | 'subprefs' | null
+interface OSResult {
+  fileId: number
+  fileName: string
+  language: string
+  langName: string
+  downloads: number
+  rating: number
+  release: string
+  hearing: boolean
+}
 
-export default function VideoPlayer({ src, title, poster, externalSubtitles, startAt }: Props) {
+type Menu = 'quality' | 'audio' | 'sub' | 'speed' | 'subprefs' | 'ossearch' | null
+
+export default function VideoPlayer({ src, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode }: Props) {
   const videoRef   = useRef<HTMLVideoElement>(null)
   const wrapRef    = useRef<HTMLDivElement>(null)
   const seekRef    = useRef<HTMLDivElement>(null)
@@ -91,29 +118,49 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   const [speed,        setSpeed]        = useState(1)
   const [openMenu,     setOpenMenu]     = useState<Menu>(null)
   const [loading,      setLoading]      = useState(true)
-  const _initExtSub    = externalSubtitles?.findIndex(s => s.default) ?? -1
-  const [curExtSub,    setCurExtSub]    = useState<number>(_initExtSub)
+  const [curExtSub,    setCurExtSub]    = useState<number>(-1)  // always off by default
   const [currentCue,   setCurrentCue]   = useState<string>('')
-  const parsedCuesRef  = useRef<ParsedCue[]>([])
+  const parsedCuesRef      = useRef<ParsedCue[]>([])
+  const hlsSubVidTrackRef  = useRef<number>(-1)
+  const [localSubs,        setLocalSubs]    = useState<ExtSubtitle[]>([])
+  const fileInputRef       = useRef<HTMLInputElement>(null)
+  const blobUrlsRef        = useRef<string[]>([])  // track blob URLs for cleanup
+
+  // Combine API subs + locally uploaded subs
+  const allExtSubs = [...(externalSubtitles ?? []), ...localSubs]
+
+  // OpenSubtitles search state
+  const [osResults,   setOsResults]   = useState<OSResult[]>([])
+  const [osLoading,   setOsLoading]   = useState(false)
+  const [osError,     setOsError]     = useState<string | null>(null)
+  const [osSearched,  setOsSearched]  = useState(false)
+  const [osLang,      setOsLang]      = useState('en')
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => { blobUrlsRef.current.forEach(u => URL.revokeObjectURL(u)) }
+  }, [])
   const [subPrefs,     setSubPrefs]     = useState<SubPrefs>(DEFAULT_SUB_PREFS)
 
   // Load subtitle prefs from localStorage on mount
   useEffect(() => { setSubPrefs(loadSubPrefs()) }, [])
   // Persist whenever they change
   useEffect(() => {
-    try { localStorage.setItem(SUB_PREFS_KEY, JSON.stringify(subPrefs)) } catch {}
+    try { localStorage.setItem(SUB_PREFS_KEY, JSON.stringify({ ...subPrefs, _v: SUB_PREFS_VERSION })) } catch {}
   }, [subPrefs])
 
   // Load + parse VTT whenever selected subtitle changes
   useEffect(() => {
     parsedCuesRef.current = []
     setCurrentCue('')
-    if (curExtSub < 0 || !externalSubtitles?.[curExtSub]) return
-    fetch(externalSubtitles[curExtSub].url)
+    const sub = allExtSubs[curExtSub]
+    if (curExtSub < 0 || !sub) return
+    fetch(sub.url)
       .then(r => r.text())
       .then(txt => { parsedCuesRef.current = parseVTT(txt) })
       .catch(() => {})
-  }, [curExtSub, externalSubtitles])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [curExtSub, externalSubtitles, localSubs])
 
 
   // ── HLS init ────────────────────────────────────────────────────────────────
@@ -176,8 +223,18 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
       setCurrent(v.currentTime)
       if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1))
       const t = v.currentTime
-      const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end)
-      setCurrentCue(cue?.text ?? '')
+      // External VTT cues (ezvidapi)
+      if (parsedCuesRef.current.length > 0) {
+        const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end)
+        setCurrentCue(cue?.text ?? '')
+      } else if (hlsSubVidTrackRef.current >= 0) {
+        // HLS manifest subtitle cues
+        const track = v.textTracks[hlsSubVidTrackRef.current]
+        const cues = track?.activeCues
+        setCurrentCue(cues?.length ? (cues[0] as VTTCue).text.replace(/<[^>]*>/g, '') : '')
+      } else {
+        setCurrentCue('')
+      }
     }
     const onDuration   = () => { if (v) setDuration(v.duration) }
     const onVolume     = () => { if (v) { setVolume(v.volume); setMuted(v.muted) } }
@@ -277,7 +334,27 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   }
 
   function setSub(id: number) {
-    if (hlsRef.current) hlsRef.current.subtitleTrack = id
+    const hls = hlsRef.current
+    const video = videoRef.current
+    hlsSubVidTrackRef.current = -1
+    if (id >= 0 && hls && video) {
+      hls.subtitleTrack = id
+      // Find matching TextTrack in video by label — set hidden so we render cues manually
+      const targetName = hls.subtitleTracks?.[id]?.name ?? ''
+      setTimeout(() => {
+        const tracks = video.textTracks
+        for (let i = 0; i < tracks.length; i++) {
+          if (tracks[i].label === targetName || tracks[i].language === (hls.subtitleTracks?.[id]?.lang ?? '')) {
+            tracks[i].mode = 'hidden'
+            hlsSubVidTrackRef.current = i
+            break
+          }
+        }
+      }, 200)  // small delay so hls.js can attach the track
+    } else if (hls) {
+      hls.subtitleTrack = -1
+      setCurrentCue('')
+    }
     setCurSub(id)
     setOpenMenu(null)
   }
@@ -294,12 +371,82 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
     setOpenMenu(null)
   }
 
+  function handleSubFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = ev => {
+      let text = ev.target?.result as string
+      if (file.name.endsWith('.srt')) text = srtToVtt(text)
+      const blob = new Blob([text], { type: 'text/vtt' })
+      const url  = URL.createObjectURL(blob)
+      blobUrlsRef.current.push(url)
+      const newSub: ExtSubtitle = { label: `📁 ${file.name}`, language: 'custom', url, default: false }
+      setLocalSubs(prev => {
+        const next = [...prev, newSub]
+        // Auto-select the newly uploaded subtitle
+        setCurExtSub((externalSubtitles?.length ?? 0) + next.length - 1)
+        return next
+      })
+      setOpenMenu(null)
+    }
+    reader.readAsText(file)
+  }
+
+  async function searchOpenSubtitles(lang: string) {
+    if (!tmdbId) return
+    setOsLoading(true)
+    setOsError(null)
+    setOsSearched(false)
+    try {
+      const params = new URLSearchParams({ tmdbId, type: mediaType, languages: lang })
+      if (season)  params.set('season',  String(season))
+      if (episode) params.set('episode', String(episode))
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subtitles/search?${params}`)
+      if (!res.ok) throw new Error('Search failed')
+      const data: OSResult[] = await res.json()
+      setOsResults(data)
+      setOsSearched(true)
+    } catch {
+      setOsError('Search failed. Check your connection.')
+    } finally {
+      setOsLoading(false)
+    }
+  }
+
+  async function pickOsSubtitle(result: OSResult) {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subtitles/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: result.fileId }),
+      })
+      if (!res.ok) throw new Error()
+      let text = await res.text()
+      if (!text.startsWith('WEBVTT')) text = srtToVtt(text)
+      const blob = new Blob([text], { type: 'text/vtt' })
+      const url = URL.createObjectURL(blob)
+      blobUrlsRef.current.push(url)
+      const langLabel = result.hearing ? `${result.langName} [SDH]` : result.langName
+      const newSub: ExtSubtitle = { label: `🌐 ${langLabel}`, language: result.language, url, default: false }
+      setLocalSubs(prev => {
+        const next = [...prev, newSub]
+        setCurExtSub((externalSubtitles?.length ?? 0) + next.length - 1)
+        return next
+      })
+      setOpenMenu(null)
+    } catch {
+      setOsError('Failed to load subtitle. Try another.')
+    }
+  }
+
   const progress    = duration > 0 ? (current / duration) * 100 : 0
   const bufPct      = duration > 0 ? (buffered / duration) * 100 : 0
   const qualLabel   = curQuality === -1 ? 'Auto' : (qualities[curQuality]?.height > 0 ? `${qualities[curQuality].height}p` : 'Auto')
   const ctrlVisible = showCtrl || !playing
 
-  const hasCC = (externalSubtitles && externalSubtitles.length > 0) || subTracks.length > 0
+  const hasCC = allExtSubs.length > 0 || subTracks.length > 0 || !!tmdbId
 
   const subBgClass = subPrefs.bg === 'glass'
     ? 'bg-white/10 backdrop-blur-xl backdrop-saturate-150 border border-white/20 shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
@@ -314,7 +461,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
     subPrefs.color === 'yellow' ? 'text-yellow-300' :
     subPrefs.color === 'cyan'   ? 'text-[#06D6E0]'  : 'text-white',
     subPrefs.bold   ? 'font-bold' : 'font-medium',
-    subPrefs.shadow ? 'drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]' : '',
+    subPrefs.shadow ? '[text-shadow:0_1px_4px_rgba(0,0,0,1),0_0_8px_rgba(0,0,0,0.9),1px_1px_0_rgba(0,0,0,0.7),-1px_-1px_0_rgba(0,0,0,0.7)]' : '',
   ].join(' ')
 
   return (
@@ -477,10 +624,10 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
                 </button>
                 {openMenu === 'sub' && (
                   <Menu label="Subtitles" onClose={() => setOpenMenu(null)}>
-                    {externalSubtitles && externalSubtitles.length > 0 ? (
+                    {allExtSubs.length > 0 ? (
                       <>
                         <MenuItem active={curExtSub === -1} onClick={() => setExtSub(-1)}>Off</MenuItem>
-                        {externalSubtitles.map((s, i) => (
+                        {allExtSubs.map((s, i) => (
                           <MenuItem key={i} active={curExtSub === i} onClick={() => setExtSub(i)}>{s.label}</MenuItem>
                         ))}
                       </>
@@ -491,6 +638,21 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
                           <MenuItem key={t.id} active={curSub === t.id} onClick={() => setSub(t.id)}>{t.name}</MenuItem>
                         ))}
                       </>
+                    )}
+                    <div className="mx-3 my-1.5 border-t border-white/10 flex-shrink-0" />
+                    <button
+                      onClick={() => { fileInputRef.current?.click(); setOpenMenu(null) }}
+                      className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+                    >
+                      <span>📁</span> Upload (.srt / .vtt)
+                    </button>
+                    {tmdbId && (
+                      <button
+                        onClick={() => { setOsResults([]); setOsSearched(false); setOsError(null); setOpenMenu('ossearch') }}
+                        className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+                      >
+                        <span>🔍</span> Search OpenSubtitles
+                      </button>
                     )}
                   </Menu>
                 )}
@@ -508,6 +670,8 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
                   Aa
                 </button>
                 {openMenu === 'subprefs' && (
+                  <>
+                  <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
                   <div className="absolute bottom-10 right-0 z-50 w-64 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4">
                     <p className="text-[10px] text-white/30 uppercase tracking-widest">Subtitle Style</p>
 
@@ -567,6 +731,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
                       </button>
                     </div>
                   </div>
+                  </>
                 )}
               </div>
             )}
@@ -631,6 +796,89 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
           </div>
         </div>
       </div>
+      {/* OpenSubtitles in-player search panel */}
+      {openMenu === 'ossearch' && (
+        <>
+          <div className="fixed inset-0 z-40" onPointerDown={() => setOpenMenu(null)} />
+          <div className="absolute inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-xl">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 flex-shrink-0">
+              <button onClick={() => setOpenMenu(null)} className="text-white/60 hover:text-white transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span className="text-sm font-semibold text-white">Search OpenSubtitles</span>
+            </div>
+
+            {/* Language + Search */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 flex-shrink-0">
+              <select
+                value={osLang}
+                onChange={e => setOsLang(e.target.value)}
+                className="bg-white/10 border border-white/20 text-white/80 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#06D6E0]/60"
+              >
+                <option value="en">English</option>
+                <option value="hi">Hindi</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="de">German</option>
+                <option value="ar">Arabic</option>
+                <option value="pt">Portuguese</option>
+                <option value="ru">Russian</option>
+                <option value="zh-CN">Chinese (Simplified)</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="it">Italian</option>
+              </select>
+              <button
+                onClick={() => searchOpenSubtitles(osLang)}
+                disabled={osLoading}
+                className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-[#06D6E0] text-black hover:bg-[#06D6E0]/80 disabled:opacity-50 transition-colors"
+              >
+                {osLoading ? 'Searching…' : 'Search'}
+              </button>
+            </div>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {osError && (
+                <p className="text-red-400 text-xs text-center py-6 px-4">{osError}</p>
+              )}
+              {!osLoading && osSearched && osResults.length === 0 && !osError && (
+                <p className="text-white/30 text-xs text-center py-6">No subtitles found</p>
+              )}
+              {!osSearched && !osLoading && !osError && (
+                <p className="text-white/20 text-xs text-center py-8">Select language and press Search</p>
+              )}
+              {osResults.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => pickOsSubtitle(r)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/90 text-xs truncate flex-1">{r.release || r.fileName}</span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {r.hearing && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1 rounded">SDH</span>}
+                      <span className="text-[9px] bg-white/10 text-white/50 border border-white/10 px-1.5 py-0.5 rounded uppercase">{r.language}</span>
+                    </div>
+                  </div>
+                  {r.downloads > 0 && (
+                    <p className="text-white/30 text-[10px] mt-0.5">↓ {r.downloads.toLocaleString()} downloads</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".srt,.vtt"
+        className="hidden"
+        onChange={handleSubFile}
+      />
     </div>
   )
 }
@@ -639,11 +887,17 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
 
 function Menu({ label, children, onClose }: { label: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="absolute bottom-10 right-0 bg-[#111] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 min-w-[130px]">
-      <p className="text-[10px] text-white/30 uppercase tracking-widest px-4 pt-3 pb-1">{label}</p>
-      {children}
-      <div className="h-2" />
-    </div>
+    <>
+      {/* Click-outside backdrop */}
+      <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); onClose() }} />
+      <div className="absolute bottom-10 right-0 z-50 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl min-w-[150px] flex flex-col overflow-hidden">
+        <p className="text-[10px] text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex-shrink-0">{label}</p>
+        <div className="overflow-y-auto max-h-[220px] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+          {children}
+        </div>
+        <div className="h-2 flex-shrink-0" />
+      </div>
+    </>
   )
 }
 

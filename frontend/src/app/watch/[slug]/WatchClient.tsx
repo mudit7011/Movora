@@ -248,6 +248,8 @@ export default function WatchClient({ movie, sources, related }: Props) {
                 src={active.url}
                 title={movie.title}
                 poster={movie.backdropUrl || movie.posterUrl}
+                tmdbId={movie.tmdbId.replace(/^movie_/, '')}
+                mediaType="movie"
               />
             ) : active.url.includes('ezvidapi.com') ? (
               <EzvidPlayer
