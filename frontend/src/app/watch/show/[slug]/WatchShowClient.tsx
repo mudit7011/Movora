@@ -21,8 +21,7 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
-    { serverName: 'Server 4', url: `https://vidfast.pro/tv/${rawId}/${season}/${episode}?autoPlay=true&theme=06D6E0&title=true&poster=true&nextButton=true&autoNext=true&chromecast=true`, quality: 'HD' },
-    { serverName: 'Server 6', url: `https://ezvidapi.com/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
+    { serverName: 'Server 4', url: `https://ezvidapi.com/embed/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 5', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&autonext=true&audio=true&lang=English&title=true&download=true&setting=true&appearance=true&episodelist=true&watchparty=false&chromecast=true&pip=true&nextbutton=true&hidecontrols=false&hideserver=true&hideservericon=true&icons=sharp&logo=https://watchmovora.com/icon.svg&logowidth=36px&logoheight=36px&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&iconsize=1&font=Poppins&fontcolor=FFFFFF&fontsize=20&opacity=0.50&glasscolor=000000&glassopacity=65&glassblur=20&subtitle=Off&subdelay=0&subtextsize=140&subtextcolor=FFFFFF&subcapitalize=false&subbold=false&subfont=Roboto&subbgenabled=false&subbgcolor=000000&subbgopacity=0&subbgblur=0`, quality: 'HD' },
   ]
 }
