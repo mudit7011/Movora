@@ -552,7 +552,7 @@ export default function WatchShowClient({ show, children }: Props) {
         </div>
 
         {/* Cast */}
-        {show.cast.length > 0 && (
+        {show.cast?.length > 0 && (
           <div className="glass rounded-2xl p-5">
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-4">Cast</p>
             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
