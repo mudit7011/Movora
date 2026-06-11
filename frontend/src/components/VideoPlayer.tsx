@@ -403,7 +403,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
       const params = new URLSearchParams({ tmdbId, type: mediaType, languages: lang })
       if (season)  params.set('season',  String(season))
       if (episode) params.set('episode', String(episode))
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subtitles/search?${params}`)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/subtitles/search?${params}`)
       if (!res.ok) throw new Error('Search failed')
       const data: OSResult[] = await res.json()
       setOsResults(data)
@@ -417,7 +417,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
 
   async function pickOsSubtitle(result: OSResult) {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subtitles/download`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/subtitles/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileId: result.fileId }),
