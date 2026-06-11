@@ -11,8 +11,16 @@ export function createApp() {
 
   app.set('trust proxy', 1)
   app.use(helmet())
+  const allowedOrigins = [
+    env.FRONTEND_URL,
+    'https://watchmovora.com',
+    'https://www.watchmovora.com',
+  ].filter(Boolean)
   app.use(cors({
-    origin: env.FRONTEND_URL,
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+      cb(new Error('Not allowed by CORS'))
+    },
     credentials: true,
   }))
   app.use(express.json())
