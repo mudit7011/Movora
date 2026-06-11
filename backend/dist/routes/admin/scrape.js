@@ -28,14 +28,14 @@ const FETCH_ACTIONS = {
     'korean-movies': { label: 'Korean Movies', endpoint: '/discover/movie?with_original_language=ko&sort_by=popularity.desc&page=1', mediaType: 'movie' },
     'japanese-movies': { label: 'Japanese Movies', endpoint: '/discover/movie?with_original_language=ja&sort_by=popularity.desc&page=1', mediaType: 'movie' },
 };
-// Run a fetch action — fetches multiple TMDB pages (default 3, max 5)
+// Run a fetch action — fetches multiple TMDB pages (default 5, max 20)
 router.post('/fetch/:action', async (req, res) => {
     const action = FETCH_ACTIONS[req.params.action];
     if (!action) {
         res.status(400).json({ error: 'Unknown action' });
         return;
     }
-    const pageCount = Math.min(Math.max(Number(req.query.pages ?? 3), 1), 5);
+    const pageCount = Math.min(Math.max(Number(req.query.pages ?? 5), 1), 20);
     const job = await ScrapeJob_1.ScrapeJob.create({ site: req.params.action, label: action.label, status: 'running', startedAt: new Date() });
     try {
         let added = 0, skipped = 0, errors = 0;

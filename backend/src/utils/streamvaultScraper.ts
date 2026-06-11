@@ -17,7 +17,9 @@ export interface SVStream {
 
 // In-memory cache: key → { stream, cachedAt }
 const cache = new Map<string, { stream: SVStream; cachedAt: number }>()
-const CACHE_TTL = 6 * 60 * 60 * 1000 // 6 hours
+const CACHE_TTL = 90 * 60 * 1000 // 90 minutes — stream URLs expire faster than 6h
+
+export function clearStreamCache() { cache.clear() }
 
 function cacheKey(tmdbId: string, type: string, season?: number, episode?: number) {
   return type === 'movie' ? `movie_${tmdbId}` : `tv_${tmdbId}_s${season}_e${episode}`
@@ -28,15 +30,17 @@ export async function scrapeStreamVault(
   tmdbId: string,
   type: 'movie' | 'tv',
   season?: number,
-  episode?: number
+  episode?: number,
+  forceRefresh = false
 ): Promise<SVStream | null> {
   const key = cacheKey(tmdbId, type, season, episode)
 
-  // Return cached result if still fresh
+  // Return cached result if still fresh (skip if force refresh)
   const cached = cache.get(key)
-  if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+  if (!forceRefresh && cached && Date.now() - cached.cachedAt < CACHE_TTL) {
     return cached.stream
   }
+  cache.delete(key) // always evict stale/forced entry before re-scrape
 
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null
   try {

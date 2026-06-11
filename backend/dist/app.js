@@ -15,8 +15,22 @@ function createApp() {
     const app = (0, express_1.default)();
     app.set('trust proxy', 1);
     app.use((0, helmet_1.default)());
+    const allowedOrigins = [
+        env_1.env.FRONTEND_URL,
+        'https://watchmovora.com',
+        'https://www.watchmovora.com',
+    ].filter(Boolean);
     app.use((0, cors_1.default)({
-        origin: env_1.env.FRONTEND_URL,
+        origin: (origin, cb) => {
+            if (!origin)
+                return cb(null, true);
+            // Allow all localhost origins in development
+            if (origin.startsWith('http://localhost:'))
+                return cb(null, true);
+            if (allowedOrigins.includes(origin))
+                return cb(null, true);
+            cb(new Error('Not allowed by CORS'));
+        },
         credentials: true,
     }));
     app.use(express_1.default.json());

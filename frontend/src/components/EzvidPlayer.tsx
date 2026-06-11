@@ -43,15 +43,15 @@ async function fetchSVSubtitles(tmdbId: string, type: 'movie' | 'tv', season?: n
   } catch { return [] }
 }
 
-async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<EzvidStream | null> {
+async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number, refresh = false): Promise<EzvidStream | null> {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
 
   // 1. StreamVault scraper — widest coverage, 25s timeout, cached after first hit
   if (backendUrl) {
     try {
       const params = type === 'movie'
-        ? `tmdbId=${tmdbId}&type=movie`
-        : `tmdbId=${tmdbId}&type=tv&season=${season}&episode=${episode}`
+        ? `tmdbId=${tmdbId}&type=movie${refresh ? '&refresh=1' : ''}`
+        : `tmdbId=${tmdbId}&type=tv&season=${season}&episode=${episode}${refresh ? '&refresh=1' : ''}`
       const res = await fetch(`${backendUrl}/api/stream?${params}`, { signal: AbortSignal.timeout(25000) })
       if (res.ok) {
         const data = await res.json()
@@ -130,16 +130,18 @@ export default function EzvidPlayer({ tmdbId, type, season, episode, title, post
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
 
-  useEffect(() => {
+  function load(refresh = false) {
     setLoading(true)
     setFailed(false)
     setStream(null)
-    fetchStream(tmdbId, type, season, episode).then(s => {
+    fetchStream(tmdbId, type, season, episode, refresh).then(s => {
       if (s) setStream(s)
       else setFailed(true)
       setLoading(false)
     })
-  }, [tmdbId, type, season, episode])
+  }
+
+  useEffect(() => { load() }, [tmdbId, type, season, episode])
 
   if (loading) return (
     <div className="relative w-full h-full bg-black overflow-hidden">
@@ -204,8 +206,14 @@ export default function EzvidPlayer({ tmdbId, type, season, episode, title, post
   )
 
   if (failed || !stream) return (
-    <div className="w-full h-full bg-black flex items-center justify-center">
+    <div className="w-full h-full bg-black flex flex-col items-center justify-center gap-3">
       <p className="text-white/40 text-sm">Stream not available</p>
+      <button
+        onClick={() => load(true)}
+        className="text-xs px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white transition-colors"
+      >
+        Try fresh URL
+      </button>
     </div>
   )
 

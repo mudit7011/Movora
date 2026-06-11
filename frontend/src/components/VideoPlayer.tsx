@@ -186,8 +186,8 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             maxBufferLength: 30,
             maxBufferSize: 30 * 1000 * 1000,
             lowLatencyMode: false,
+            enableFetchForXhr: true, // use Fetch API so fetchSetup applies to all requests
             fetchSetup: (context: any, initParams: any) => {
-              // Send no Referer so CDN doesn't block requests from our domain
               initParams.referrerPolicy = 'no-referrer'
               return new Request(context.url, initParams)
             },
@@ -343,11 +343,11 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   function toggleFs() {
     const wrap = wrapRef.current
     const v = videoRef.current as HTMLVideoElement & { webkitEnterFullscreen?: () => void; webkitExitFullscreen?: () => void; webkitDisplayingFullscreen?: boolean }
-    if (document.fullscreenElement) {
-      document.exitFullscreen()
-    } else if ((document as Document & { webkitExitFullscreen?: () => void }).webkitExitFullscreen && v?.webkitDisplayingFullscreen) {
-      v.webkitExitFullscreen?.()
-    } else if (wrap?.requestFullscreen) {
+    // Exit
+    if (document.fullscreenElement) { document.exitFullscreen(); return }
+    if (v?.webkitDisplayingFullscreen) { v.webkitExitFullscreen?.(); return }
+    // Enter — iOS (PWA + Safari) doesn't support requestFullscreen on divs
+    if (document.fullscreenEnabled && wrap?.requestFullscreen) {
       wrap.requestFullscreen()
     } else if (v?.webkitEnterFullscreen) {
       v.webkitEnterFullscreen()
