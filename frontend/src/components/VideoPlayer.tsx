@@ -179,7 +179,14 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
       if (isHls) {
         const Hls = (await import('hls.js')).default
         if (Hls.isSupported()) {
-          const hls = new Hls({ enableWorker: true })
+          const hls = new Hls({
+            enableWorker: true,
+            startLevel: -1,                    // auto ABR from start
+            abrEwmaDefaultEstimate: 1000000,   // assume 1Mbps initially → picks 720p not 1080p
+            maxBufferLength: 30,               // 30s buffer max
+            maxBufferSize: 30 * 1000 * 1000,   // 30MB cap
+            lowLatencyMode: false,
+          })
           hlsRef.current = hls
           hls.loadSource(src)
           hls.attachMedia(video!)
