@@ -4,7 +4,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "npx nodemon --ignore '**/.env' --ignore '**/*.json' --ext ts --exec 'ts-node --transpile-only src/server.ts'",
-    "build": "tsc",
+    "build": "npx playwright install chromium --with-deps && tsc",
     "start": "node dist/server.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand"
