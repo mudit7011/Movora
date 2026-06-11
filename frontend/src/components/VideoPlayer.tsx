@@ -186,7 +186,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             maxBufferLength: 30,
             maxBufferSize: 30 * 1000 * 1000,
             lowLatencyMode: false,
-            enableFetchForXhr: true, // use Fetch API so fetchSetup applies to all requests
+            ...({ enableFetchForXhr: true } as any),
             fetchSetup: (context: any, initParams: any) => {
               initParams.referrerPolicy = 'no-referrer'
               return new Request(context.url, initParams)
