@@ -27,7 +27,7 @@ const LOAD_MESSAGES = [
 function buildSources(tmdbId: string, season: number, episode: number): Source[] {
   const rawId = tmdbId.replace(/^tv_/, '')
   return [
-    { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true`,   quality: 'HD' },
+    { serverName: 'Server 1', url: `https://player.videasy.to/tv/${rawId}/${season}/${episode}?color=06D6E0&autoplay=1&overlay=true&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true`,   quality: 'HD' },
     { serverName: 'Server 2', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 4', url: `https://ezvidapi.com/embed/tv/${rawId}/${season}/${episode}?provider=vidrock`, quality: 'HD' },
@@ -343,8 +343,10 @@ export default function WatchShowClient({ show, children }: Props) {
                   className="w-full h-full bg-black"
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => {
-                    setPlayerLoaded(true)
-                    loadTimers.current.forEach(clearTimeout)
+                    setTimeout(() => {
+                      setPlayerLoaded(true)
+                      loadTimers.current.forEach(clearTimeout)
+                    }, 800)
                     setShowFallback(false)
                     clearTimeout(fallbackTimer.current)
                   }}

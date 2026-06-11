@@ -300,8 +300,12 @@ export default function WatchClient({ movie, sources, children }: Props) {
                   className="w-full h-full bg-black"
                   style={{ border: 'none', display: 'block' }}
                   onLoad={() => {
-                    setPlayerLoaded(true)
-                    loadTimers.current.forEach(clearTimeout)
+                    // Small delay: iframe HTML loads fast but the player JS still initialises.
+                    // Keeps our overlay visible long enough to hand off to the player's own UI.
+                    setTimeout(() => {
+                      setPlayerLoaded(true)
+                      loadTimers.current.forEach(clearTimeout)
+                    }, 800)
                     setShowFallback(false)
                     clearTimeout(fallbackTimer.current)
                   }}
