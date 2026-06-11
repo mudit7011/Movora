@@ -10,6 +10,7 @@ import { useTV } from '@/components/TvProvider'
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
 
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
+const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: false })
 
 interface Props {
   movie: Movie
@@ -247,6 +248,17 @@ export default function WatchClient({ movie, sources, related }: Props) {
                 src={active.url}
                 title={movie.title}
                 poster={movie.backdropUrl || movie.posterUrl}
+              />
+            ) : active.url.includes('ezvidapi.com') ? (
+              <EzvidPlayer
+                key={active.url}
+                tmdbId={movie.tmdbId.replace(/^movie_/, '')}
+                type="movie"
+                title={movie.title}
+                poster={movie.posterUrl}
+                backdrop={movie.backdropUrl}
+                synopsis={movie.synopsis}
+                startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
               />
             ) : (
               <>
