@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
         // Cap the candidate pool — sorting the entire collection in memory exceeds
         // MongoDB's 100MB sort limit on large catalogs and crashes the request.
-        const CANDIDATE_CAP = 1000;
+        const CANDIDATE_CAP = 500;
         let allDocs;
         if (!sort || sort === 'recent') {
             allDocs = await Movie_1.Movie.aggregate([
@@ -63,10 +63,12 @@ router.get('/', async (req, res) => {
         }
         else {
             const sortMap = {
-                rating: { rating: -1 },
-                year: { releaseYear: -1 },
+                latest: { createdAt: -1, _id: -1 },
+                recent: { releaseYear: -1, rating: -1, _id: -1 },
+                rating: { rating: -1, _id: -1 },
+                year: { releaseYear: -1, _id: -1 },
             };
-            const sortObj = sortMap[sort] ?? { releaseYear: -1 };
+            const sortObj = sortMap[sort] ?? sortMap.latest;
             allDocs = await Movie_1.Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select('-sources').lean();
         }
         // Dedup by normalized tmdbId (strip movie_ prefix)

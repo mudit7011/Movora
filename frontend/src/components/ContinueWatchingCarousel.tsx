@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTV } from '@/components/TvProvider'
 
 const PlayIcon = () => (
@@ -56,9 +57,19 @@ interface Props {
 
 export default function ContinueWatchingCarousel({ items, onRemove, onComplete }: Props) {
   const isTV = useTV()
+  const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showLeftArrow, setShowLeftArrow] = useState(false)
   const [showRightArrow, setShowRightArrow] = useState(false)
+
+  useEffect(() => {
+    items.forEach((item) => {
+      const href = item.type === 'tvshow'
+        ? `/watch/show/${item.slug}?season=${item.season ?? 1}&episode=${item.episode ?? 1}`
+        : `/watch/${item.slug}`
+      router.prefetch(href)
+    })
+  }, [items, router])
 
   const updateArrows = useCallback(() => {
     const el = scrollRef.current
