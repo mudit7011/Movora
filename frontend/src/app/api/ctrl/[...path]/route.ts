@@ -4,8 +4,8 @@ export const dynamic = 'force-dynamic'
 
 const BACKEND = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-async function proxy(req: NextRequest, context: { params: { path: string[] } }) {
-  const { path } = context.params
+async function proxy(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  const { path } = await context.params
   const url = `${BACKEND}/api/admin/${path.join('/')}${req.nextUrl.search}`
 
   const forwardHeaders: Record<string, string> = {

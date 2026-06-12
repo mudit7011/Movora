@@ -6,7 +6,7 @@ const BLOCKED_BOTS = [
   'ccbot', 'omgili', 'semrushbot', 'ahrefsbot', 'mj12bot', 'dotbot', 'petalbot',
 ]
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Block direct /admin access — panel lives at /ctrl

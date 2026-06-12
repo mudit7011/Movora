@@ -13,6 +13,15 @@ interface Props {
 
 const getMovie = cache((slug: string) => api.getMovie(slug).catch(() => null))
 
+export async function generateStaticParams() {
+  try {
+    const movies = await api.getLatest()
+    return movies.slice(0, 200).map(m => ({ slug: m.slug }))
+  } catch {
+    return []
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const movie = await getMovie(slug)

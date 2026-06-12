@@ -2,7 +2,6 @@ const BACKEND = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'h
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: { ignoreDuringBuilds: true },
   async rewrites() {
     return [
       // Forward public API calls to EB backend (server-side rewrite, no mixed-content issue)
