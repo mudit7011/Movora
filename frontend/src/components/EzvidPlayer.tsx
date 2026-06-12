@@ -43,24 +43,8 @@ async function fetchSVSubtitles(tmdbId: string, type: 'movie' | 'tv', season?: n
   } catch { return [] }
 }
 
-async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number, refresh = false): Promise<EzvidStream | null> {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
-
-  // 1. StreamVault scraper — widest coverage, 25s timeout, cached after first hit
-  if (backendUrl) {
-    try {
-      const params = type === 'movie'
-        ? `tmdbId=${tmdbId}&type=movie${refresh ? '&refresh=1' : ''}`
-        : `tmdbId=${tmdbId}&type=tv&season=${season}&episode=${episode}${refresh ? '&refresh=1' : ''}`
-      const res = await fetch(`${backendUrl}/api/stream?${params}`, { signal: AbortSignal.timeout(25000) })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.url) return { stream_url: data.url, subtitles: data.subtitles ?? [] }
-      }
-    } catch { /* fallthrough to ezvidapi */ }
-  }
-
-  // 2. Fallback: ezvidapi providers in parallel, 5s total timeout
+async function fetchStream(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number, _refresh = false): Promise<EzvidStream | null> {
+  // 1. ezvidapi providers in parallel, 5s total timeout
   const ezvidResult = await Promise.race([
     Promise.any(
       PROVIDERS.map(async provider => {
