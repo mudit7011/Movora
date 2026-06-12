@@ -74,7 +74,11 @@ export default function ShowsClient({ initialGenre, initialYear, initialLanguage
     const nextPage = page + 1
     startTransition(async () => {
       const data = await api.getShows({ genre, year, language, sort, page: String(nextPage), limit: '20' })
-      setShows(prev => [...prev, ...data.movies])
+      setShows(prev => {
+        const seen = new Set(prev.map(m => String(m._id)))
+        const fresh = data.movies.filter(m => !seen.has(String(m._id)))
+        return [...prev, ...fresh]
+      })
       setPage(nextPage)
     })
   }

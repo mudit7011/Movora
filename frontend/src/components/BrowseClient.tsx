@@ -66,7 +66,11 @@ export default function BrowseClient({ initialMovies, initialTotal, initialPages
       const res = await fetch(`${API_URL}/api/movies?${params}`)
       if (!res.ok) return
       const data = await res.json()
-      setMovies(prev => [...prev, ...data.movies])
+      setMovies(prev => {
+        const seen = new Set(prev.map((m: Movie) => String(m._id)))
+        const fresh = (data.movies as Movie[]).filter(m => !seen.has(String(m._id)))
+        return [...prev, ...fresh]
+      })
       setPage(nextPage)
     })
   }
