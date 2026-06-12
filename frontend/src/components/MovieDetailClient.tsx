@@ -64,9 +64,12 @@ interface Props {
 
 export default function MovieDetailClient({ movie }: Props) {
   const router = useRouter()
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted } = useUserData()
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted, continueWatching } = useUserData()
   const inWatchlist = isInWatchlist(movie._id)
   const watched = isCompleted(movie._id)
+  const watchProgress = continueWatching.find(p => p.movieId === movie._id)
+  const progressPct = watchProgress ? Math.min((watchProgress.timestamp / watchProgress.duration) * 100, 100) : 0
+  const hasProgress = !!watchProgress && progressPct > 3 && progressPct < 95
   const [collection, setCollection] = useState<CollectionPart[]>([])
 
   useEffect(() => {
@@ -217,13 +220,20 @@ export default function MovieDetailClient({ movie }: Props) {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-4 mb-8">
-              <Link
-                href={`/watch/${movie.slug}`}
-                className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
-              >
-                <PlayIcon />
-                <span>{watched ? 'Watch Again' : 'Watch Now'}</span>
-              </Link>
+              <div className="flex flex-col gap-1.5">
+                <Link
+                  href={hasProgress ? `/watch/${movie.slug}?t=${Math.floor(watchProgress!.timestamp)}` : `/watch/${movie.slug}`}
+                  className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
+                >
+                  <PlayIcon />
+                  <span>{hasProgress ? 'Resume' : watched ? 'Watch Again' : 'Watch Now'}</span>
+                </Link>
+                {hasProgress && (
+                  <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full bg-primary rounded-full" style={{ width: `${progressPct}%` }} />
+                  </div>
+                )}
+              </div>
               <button
                 onClick={handleWatchlistToggle}
                 className={`inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base transition-all ${

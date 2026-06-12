@@ -38,9 +38,11 @@ interface Props {
 
 export default function ShowDetailClient({ show }: Props) {
   const router = useRouter()
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted } = useUserData()
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist, isCompleted, continueWatching } = useUserData()
   const inWatchlist = isInWatchlist(show._id)
   const watched = isCompleted(show._id)
+  const watchProgress = continueWatching.find(p => p.movieId === show._id)
+  const hasProgress = !!watchProgress
   // Season chosen in the episode grid — drives the main Watch button below.
   const [selSeason, setSelSeason] = useState(1)
 
@@ -189,11 +191,19 @@ export default function ShowDetailClient({ show }: Props) {
             {/* Action buttons */}
             <div className="flex flex-wrap items-center gap-4 mb-8">
               <Link
-                href={`/watch/show/${show.slug}?season=${selSeason}&episode=1`}
+                href={
+                  hasProgress
+                    ? `/watch/show/${show.slug}?season=${watchProgress!.season ?? 1}&episode=${watchProgress!.episode ?? 1}`
+                    : `/watch/show/${show.slug}?season=${selSeason}&episode=1`
+                }
                 className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
               >
                 <PlayIcon />
-                <span>{watched ? 'Watch Again' : `Watch S${selSeason} E1`}</span>
+                <span>
+                  {hasProgress
+                    ? `Resume S${watchProgress!.season ?? 1} E${watchProgress!.episode ?? 1}`
+                    : watched ? 'Watch Again' : `Watch S${selSeason} E1`}
+                </span>
               </Link>
               <button
                 onClick={handleWatchlistToggle}
