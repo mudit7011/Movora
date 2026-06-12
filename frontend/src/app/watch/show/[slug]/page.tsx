@@ -1,4 +1,4 @@
-export const revalidate = 3600
+export const revalidate = 86400
 
 import { cache, Suspense } from 'react'
 import { api } from '@/lib/api'

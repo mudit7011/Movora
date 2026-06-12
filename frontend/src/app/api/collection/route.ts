@@ -49,7 +49,9 @@ export async function GET(req: NextRequest) {
 
     if (available.length === 0) return NextResponse.json([])
 
-    return NextResponse.json(available)
+    const response = NextResponse.json(available)
+    response.headers.set('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600')
+    return response
   } catch {
     return NextResponse.json([])
   }
