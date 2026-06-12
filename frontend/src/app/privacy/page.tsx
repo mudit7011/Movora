@@ -74,7 +74,7 @@ export default function PrivacyPage() {
               <h2 className="text-xl font-semibold text-foreground mb-3">7. Contact</h2>
               <p>
                 Privacy concerns:{' '}
-                <a href="mailto:privacy@movora.online" className="text-primary hover:underline">privacy@movora.online</a>
+                <a href="mailto:help@watchmovora.com" className="text-primary hover:underline">help@watchmovora.com</a>
               </p>
             </section>
 

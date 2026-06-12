@@ -29,7 +29,7 @@ export default function Footer() {
           <Link href="/dmca" className="hover:text-primary transition-colors">DMCA Takedown</Link>
           <Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
           <Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
-          <a href="mailto:dmca@movora.online" className="hover:text-primary transition-colors">Report Content</a>
+          <a href="mailto:help@watchmovora.com" className="hover:text-primary transition-colors">Report Content</a>
         </div>
 
         {/* Divider */}
