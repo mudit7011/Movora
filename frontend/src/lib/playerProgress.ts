@@ -117,23 +117,26 @@ export function seekEmbedMaster(win: Window | null | undefined, seconds: number)
 }
 
 // Detects when Videasy internally navigates to a different episode.
-// Returns { season, episode } if the player changed episodes, null otherwise.
-export function extractEpisodeNav(raw: unknown): { season: number; episode: number } | null {
+// Returns { season, episode, hard } — hard=true means user clicked from episode list (play event),
+// hard=false means auto-advance (timeupdate). Caller should reload iframe only on hard=true.
+export function extractEpisodeNav(raw: unknown): { season: number; episode: number; hard: boolean } | null {
   let d: any = raw
   if (typeof d === 'string') { try { d = JSON.parse(d) } catch { return null } }
   if (!d || typeof d !== 'object') return null
 
-  // Flat format from docs: { type:'tv', season:1, episode:2, timestamp, duration }
-  if (typeof d.season === 'number' && typeof d.episode === 'number') {
-    return { season: d.season, episode: d.episode }
-  }
-
-  // PLAYER_EVENT wrapper: { type:'PLAYER_EVENT', data:{ event:'episodeChange'|'play', season, episode } }
+  // PLAYER_EVENT wrapper: { type:'PLAYER_EVENT', data:{ event:'play'|'timeupdate', season, episode } }
   if (String(d.type ?? '').toLowerCase() === 'player_event' && d.data && typeof d.data === 'object') {
     const inner = d.data
     if (typeof inner.season === 'number' && typeof inner.episode === 'number') {
-      return { season: inner.season, episode: inner.episode }
+      const ev = String(inner.event ?? '').toLowerCase()
+      const hard = ev === 'play' // play = user clicked episode list; timeupdate = auto-advance
+      return { season: inner.season, episode: inner.episode, hard }
     }
+  }
+
+  // Flat format: { type:'tv', season:1, episode:2, timestamp }
+  if (typeof d.season === 'number' && typeof d.episode === 'number') {
+    return { season: d.season, episode: d.episode, hard: false }
   }
 
   return null

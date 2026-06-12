@@ -228,10 +228,16 @@ export default function WatchShowClient({ show, children }: Props) {
         seekEmbedMaster(e.source as Window, resumeTarget)
         embedSeekSent = true
       }
-      // Videasy next-episode navigation — sync UI highlighter without reloading iframe
+      // Videasy episode navigation
       const nav = extractEpisodeNav(e.data)
       if (nav && (nav.episode !== episode || nav.season !== season)) {
-        syncEpisodeDisplay(nav.season, nav.episode)
+        if (nav.hard) {
+          // User clicked episode list inside player — reload with our params to restore theme
+          selectEpisode(nav.season, nav.episode)
+        } else {
+          // Auto-advance — just sync UI, don't reload iframe
+          syncEpisodeDisplay(nav.season, nav.episode)
+        }
       }
       const pb = extractPlayback(e.data, rawId, season, episode)
       if (pb && pb.time > 1) {
