@@ -59,10 +59,10 @@ router.get('/', async (req, res) => {
       ]).option({ allowDiskUse: true })
     } else {
       const sortMap: Record<string, Record<string, 1 | -1>> = {
-        latest: { createdAt: -1 },
-        recent: { releaseYear: -1, rating: -1 },
-        rating: { rating: -1 },
-        year:   { releaseYear: -1 },
+        latest: { createdAt: -1, _id: -1 },
+        recent: { releaseYear: -1, rating: -1, _id: -1 },
+        rating: { rating: -1, _id: -1 },
+        year:   { releaseYear: -1, _id: -1 },
       }
       const sortObj = sortMap[sort as string] ?? sortMap.latest
       allDocs = await Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select('-sources').lean()

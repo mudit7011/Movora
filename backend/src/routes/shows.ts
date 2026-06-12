@@ -33,10 +33,10 @@ router.get('/', async (req, res) => {
     const { page = '1', limit = '20', genre, year, language, minRating, sort = 'recent' } = req.query
 
     const sortMap: Record<string, Record<string, 1 | -1>> = {
-      latest: { createdAt: -1 },
-      recent: { releaseYear: -1, rating: -1 },
-      rating: { rating: -1 },
-      year:   { releaseYear: -1 },
+      latest: { createdAt: -1, _id: -1 },
+      recent: { releaseYear: -1, rating: -1, _id: -1 },
+      rating: { rating: -1, _id: -1 },
+      year:   { releaseYear: -1, _id: -1 },
     }
     const sortObj = sortMap[sort as string] ?? sortMap.latest
 
