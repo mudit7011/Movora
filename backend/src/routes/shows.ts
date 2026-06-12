@@ -33,11 +33,12 @@ router.get('/', async (req, res) => {
     const { page = '1', limit = '20', genre, year, language, minRating, sort = 'recent' } = req.query
 
     const sortMap: Record<string, Record<string, 1 | -1>> = {
+      latest: { createdAt: -1 },
       recent: { releaseYear: -1, rating: -1 },
       rating: { rating: -1 },
       year:   { releaseYear: -1 },
     }
-    const sortObj = sortMap[sort as string] ?? sortMap.recent
+    const sortObj = sortMap[sort as string] ?? sortMap.latest
 
     const pageNum = Number(page)
     const limitNum = Number(limit)
@@ -69,7 +70,7 @@ router.get('/', async (req, res) => {
     // MongoDB's 100MB sort limit on large catalogs and crashes the request.
     const allDocs = await Movie.find(matchFilter as any)
       .sort(sortObj)
-      .limit(1000)
+      .limit(500)
       .select('-sources')
       .lean()
 

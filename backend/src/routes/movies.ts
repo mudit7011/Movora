@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
 
     // Cap the candidate pool — sorting the entire collection in memory exceeds
     // MongoDB's 100MB sort limit on large catalogs and crashes the request.
-    const CANDIDATE_CAP = 1000
+    const CANDIDATE_CAP = 500
     let allDocs: any[]
     if (!sort || sort === 'recent') {
       allDocs = await Movie.aggregate([
@@ -59,10 +59,12 @@ router.get('/', async (req, res) => {
       ]).option({ allowDiskUse: true })
     } else {
       const sortMap: Record<string, Record<string, 1 | -1>> = {
+        latest: { createdAt: -1 },
+        recent: { releaseYear: -1, rating: -1 },
         rating: { rating: -1 },
         year:   { releaseYear: -1 },
       }
-      const sortObj = sortMap[sort as string] ?? { releaseYear: -1 }
+      const sortObj = sortMap[sort as string] ?? sortMap.latest
       allDocs = await Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select('-sources').lean()
     }
 
