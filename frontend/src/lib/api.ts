@@ -27,7 +27,9 @@ export const CACHE = {
 
 async function apiFetch<T>(path: string, init?: RequestInit, revalidate?: number): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 8000)
+  // Server-side gets 45s (Render free tier cold start ~30-50s); browser gets 12s
+  const timeoutMs = typeof window === 'undefined' ? 45000 : 12000
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   const cacheConfig: RequestInit = revalidate !== undefined && revalidate > 0
     ? ({ next: { revalidate } } as RequestInit)
     : { cache: 'no-store' }
