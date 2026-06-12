@@ -4,7 +4,7 @@ import { PLATFORMS, getPlatformBySlug } from '@/lib/platforms'
 import PlatformPageClient from './PlatformPageClient'
 
 interface Props {
-  params: { platform: string }
+  params: Promise<{ platform: string }>
 }
 
 // All 6 platform slugs are static — pre-build them all at deploy time.
@@ -13,8 +13,9 @@ export function generateStaticParams() {
   return PLATFORMS.map(p => ({ platform: p.slug }))
 }
 
-export default function PlatformPage({ params }: Props) {
-  const platform = getPlatformBySlug(params.platform)
+export default async function PlatformPage({ params }: Props) {
+  const { platform: platformSlug } = await params
+  const platform = getPlatformBySlug(platformSlug)
   if (!platform) notFound()
   return (
     <>

@@ -9,18 +9,19 @@ import MovieCard from '@/components/MovieCard'
 import WatchClient from './WatchClient'
 
 interface Props {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 const getMovie   = cache((slug: string) => api.getMovie(slug).catch(() => null))
 const getRelated = cache((slug: string) => api.getRelated(slug).catch((e) => { console.error('[RelatedSection] fetch failed:', e); return { similar: [], youMayLove: [] } }))
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const movie = await getMovie(params.slug)
+  const { slug } = await params
+  const movie = await getMovie(slug)
   if (!movie) return { title: 'Watch — Movora' }
   return {
     title: `Watch ${movie.title} — Movora`,
-    alternates: { canonical: `https://watchmovora.com/watch/${params.slug}` },
+    alternates: { canonical: `https://watchmovora.com/watch/${slug}` },
   }
 }
 
@@ -34,8 +35,9 @@ export async function generateStaticParams() {
 }
 
 export default async function WatchPage({ params }: Props) {
+  const { slug } = await params
   // Only getMovie() is in the critical path — page HTML streams as soon as this resolves.
-  const movie = await getMovie(params.slug)
+  const movie = await getMovie(slug)
   if (!movie) notFound()
 
   const id = movie.tmdbId.replace(/^movie_/, '')
@@ -50,7 +52,7 @@ export default async function WatchPage({ params }: Props) {
   return (
     <WatchClient movie={movie} sources={sources}>
       <Suspense fallback={<RelatedSkeleton />}>
-        <RelatedSection slug={params.slug} />
+        <RelatedSection slug={slug} />
       </Suspense>
     </WatchClient>
   )
