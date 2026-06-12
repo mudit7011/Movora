@@ -115,3 +115,26 @@ export function isEmbedMasterReady(raw: unknown): boolean {
 export function seekEmbedMaster(win: Window | null | undefined, seconds: number) {
   win?.postMessage({ source: 'embedmaster_player_command', command: 'seek', value: Math.floor(seconds) }, '*')
 }
+
+// Detects when Videasy internally navigates to a different episode.
+// Returns { season, episode } if the player changed episodes, null otherwise.
+export function extractEpisodeNav(raw: unknown): { season: number; episode: number } | null {
+  let d: any = raw
+  if (typeof d === 'string') { try { d = JSON.parse(d) } catch { return null } }
+  if (!d || typeof d !== 'object') return null
+
+  // Flat format from docs: { type:'tv', season:1, episode:2, timestamp, duration }
+  if (typeof d.season === 'number' && typeof d.episode === 'number') {
+    return { season: d.season, episode: d.episode }
+  }
+
+  // PLAYER_EVENT wrapper: { type:'PLAYER_EVENT', data:{ event:'episodeChange'|'play', season, episode } }
+  if (String(d.type ?? '').toLowerCase() === 'player_event' && d.data && typeof d.data === 'object') {
+    const inner = d.data
+    if (typeof inner.season === 'number' && typeof inner.episode === 'number') {
+      return { season: inner.season, episode: inner.episode }
+    }
+  }
+
+  return null
+}

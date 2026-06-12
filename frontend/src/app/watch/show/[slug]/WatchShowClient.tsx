@@ -10,7 +10,7 @@ import { useTV } from '@/components/TvProvider'
 import dynamic from 'next/dynamic'
 const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: false })
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
-import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
+import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster, extractEpisodeNav } from '@/lib/playerProgress'
 
 interface Source {
   serverName: string
@@ -53,7 +53,14 @@ export default function WatchShowClient({ show, children }: Props) {
     const e = Number(searchParams.get('episode'))
     return Number.isFinite(e) && e > 0 ? e : 1
   })
+  // displaySeason/displayEpisode: only for UI highlighter — updated by Videasy nav messages
+  // without reloading the iframe. season/episode control the actual iframe src.
+  const [displaySeason, setDisplaySeason] = useState(season)
+  const [displayEpisode, setDisplayEpisode] = useState(episode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
+
+  const [iframeKey, setIframeKey] = useState(0)
+  const manualSelectAt = useRef(0)
 
   const [showFallback,  setShowFallback]  = useState(false)
   const [playerLoaded,  setPlayerLoaded]  = useState(false)
@@ -221,6 +228,11 @@ export default function WatchShowClient({ show, children }: Props) {
         seekEmbedMaster(e.source as Window, resumeTarget)
         embedSeekSent = true
       }
+      // Videasy next-episode navigation — sync UI highlighter without reloading iframe
+      const nav = extractEpisodeNav(e.data)
+      if (nav && (nav.episode !== episode || nav.season !== season)) {
+        syncEpisodeDisplay(nav.season, nav.episode)
+      }
       const pb = extractPlayback(e.data, rawId, season, episode)
       if (pb && pb.time > 1) {
         realTimeReported = true
@@ -253,11 +265,24 @@ export default function WatchShowClient({ show, children }: Props) {
   }, [show._id, season, episode, episodeCount])
 
   function selectEpisode(s: number, ep: number) {
+    manualSelectAt.current = Date.now()
     setSeason(s)
     setEpisode(ep)
+    setDisplaySeason(s)
+    setDisplayEpisode(ep)
+    setIframeKey(k => k + 1)  // force iframe reload even if season/episode unchanged
     setActiveServerIdx(0)
     window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${ep}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Only updates UI highlighter + URL — does NOT reload the iframe (Videasy handles internally)
+  function syncEpisodeDisplay(s: number, ep: number) {
+    // Ignore if user manually selected an episode within the last 10s
+    if (Date.now() - manualSelectAt.current < 10000) return
+    setDisplaySeason(s)
+    setDisplayEpisode(ep)
+    window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${ep}`)
   }
 
   function tryNextServer() {
@@ -354,7 +379,7 @@ export default function WatchShowClient({ show, children }: Props) {
               <>
                 <iframe
                   ref={iframeRef}
-                  key={activeUrl}
+                  key={`${activeUrl}-${iframeKey}`}
                   src={activeUrl}
                   title={`${show.title} S${season}E${episode} — ${active.serverName}`}
                   allow="autoplay; fullscreen *; encrypted-media; picture-in-picture; accelerometer; gyroscope"
@@ -476,8 +501,8 @@ export default function WatchShowClient({ show, children }: Props) {
           <div className="glass rounded-2xl p-5">
             <EpisodeGrid
               show={show}
-              currentSeason={season}
-              currentEpisode={episode}
+              currentSeason={displaySeason}
+              currentEpisode={displayEpisode}
               onSelect={(s, ep) => selectEpisode(s, ep)}
             />
           </div>
