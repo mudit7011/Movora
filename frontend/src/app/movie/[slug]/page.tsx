@@ -16,7 +16,7 @@ const getMovie = cache((slug: string) => api.getMovie(slug).catch(() => null))
 export async function generateStaticParams() {
   try {
     const movies = await api.getLatest()
-    return movies.slice(0, 200).map(m => ({ slug: m.slug }))
+    return movies.slice(0, 50).map(m => ({ slug: m.slug }))
   } catch {
     return []
   }

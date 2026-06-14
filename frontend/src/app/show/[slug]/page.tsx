@@ -16,7 +16,7 @@ const getShow = cache((slug: string) => api.getShow(slug).catch(() => null))
 export async function generateStaticParams() {
   try {
     const shows = await api.getLatestShows()
-    return shows.slice(0, 200).map(s => ({ slug: s.slug }))
+    return shows.slice(0, 50).map(s => ({ slug: s.slug }))
   } catch {
     return []
   }

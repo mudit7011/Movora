@@ -14,21 +14,22 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL('/not-found', request.url))
   }
 
-  // Bot check on /watch/* — return early with 403, no response object created for real users
-  if (pathname.startsWith('/watch/')) {
+  // Block bots on dynamic pages to prevent on-demand ISR write spam
+  if (pathname.startsWith('/watch/') || pathname.startsWith('/movie/') || pathname.startsWith('/show/')) {
     const ua = (request.headers.get('user-agent') ?? '').toLowerCase()
     if (BLOCKED_BOTS.some(bot => ua.includes(bot))) {
       return new NextResponse(null, { status: 403 })
     }
-    // Real user — pass through with cache hint so Vercel CDN can cache the SSR response
-    const res = NextResponse.next()
-    res.headers.set('x-middleware-cache', 'no-personalization')
-    return res
+    if (pathname.startsWith('/watch/')) {
+      const res = NextResponse.next()
+      res.headers.set('x-middleware-cache', 'no-personalization')
+      return res
+    }
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/watch/:path*'],
+  matcher: ['/admin/:path*', '/watch/:path*', '/movie/:path*', '/show/:path*'],
 }
