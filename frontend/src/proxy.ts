@@ -6,8 +6,16 @@ const BLOCKED_BOTS = [
   'ccbot', 'omgili', 'semrushbot', 'ahrefsbot', 'mj12bot', 'dotbot', 'petalbot',
 ]
 
+const PRODUCTION_HOST = 'watchmovora.com'
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const host = request.headers.get('host') ?? ''
+
+  // Redirect preview/staging deployment URLs to production
+  if (!host.includes(PRODUCTION_HOST)) {
+    return NextResponse.redirect(`https://${PRODUCTION_HOST}${pathname}`, 301)
+  }
 
   // Block direct /admin access — panel lives at /ctrl
   if (pathname.startsWith('/admin')) {
@@ -31,5 +39,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/watch/:path*', '/movie/:path*', '/show/:path*'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
