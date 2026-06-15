@@ -92,5 +92,11 @@ movieSchema.index({ language: 1 })
 movieSchema.index({ releaseYear: 1 })
 movieSchema.index({ rating: -1 })
 movieSchema.index({ streamVerified: 1 })
+// Compound indexes for the browse pages (/movies, /shows). Without these, the
+// type + rating/year-sorted queries scan the whole collection (10-15s on free-tier
+// Mongo). These let MongoDB serve type-filtered, pre-sorted results straight from
+// the index — query drops to <1s. Covers both type:'movie' and type:'tvshow'.
+movieSchema.index({ type: 1, rating: -1, releaseYear: -1 })
+movieSchema.index({ type: 1, createdAt: -1 })
 
 export const Movie = model<IMovie>('Movie', movieSchema)
