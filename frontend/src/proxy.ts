@@ -39,5 +39,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Only run on real page routes. Exclude _next assets, favicon, and any path
+  // with a file extension (icons, manifest, sw.js, robots.txt, sitemap.xml).
+  // These never need bot-blocking or host-redirect logic, so skipping them
+  // cuts middleware invocations roughly in half.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)'],
 }

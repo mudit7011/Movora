@@ -317,6 +317,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 onClick={() => setPendingHref(item.href)}
                 className={`group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300 ${
                   isActive
@@ -380,6 +381,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 onClick={() => setPendingHref(item.href)}
                 className={`mnav__item ${isActive ? 'mnav--active' : ''}`}
                 ref={(el: HTMLAnchorElement | null) => { mobileItemRefs.current[i] = el }}

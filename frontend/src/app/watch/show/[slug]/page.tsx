@@ -1,4 +1,8 @@
-export const revalidate = 86400
+// Watch pages are deep long-tail (almost always an ISR MISS), so ISR only added
+// write cost with no cache-hit benefit. Render dynamically instead — the underlying
+// show data fetch is still cached 1h at the data layer (CACHE.SHOW), so backend
+// load is unchanged and ISR writes drop to ~zero.
+export const dynamic = 'force-dynamic'
 
 import { cache, Suspense } from 'react'
 import { api } from '@/lib/api'

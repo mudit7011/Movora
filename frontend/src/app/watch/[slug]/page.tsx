@@ -1,4 +1,8 @@
-export const revalidate = 86400
+// Watch pages are deep long-tail (almost always an ISR MISS), so ISR only added
+// write cost with no cache-hit benefit. Render dynamically instead — the underlying
+// movie data fetch is still cached 1h at the data layer (CACHE.MOVIE), so backend
+// load is unchanged and ISR writes drop to ~zero.
+export const dynamic = 'force-dynamic'
 
 import { cache, Suspense } from 'react'
 import { api } from '@/lib/api'
@@ -22,15 +26,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `Watch ${movie.title} — Movora`,
     alternates: { canonical: `https://watchmovora.com/watch/${slug}` },
-  }
-}
-
-export async function generateStaticParams() {
-  try {
-    const movies = await api.getLatest()
-    return movies.slice(0, 200).map(m => ({ slug: m.slug }))
-  } catch {
-    return []
   }
 }
 
