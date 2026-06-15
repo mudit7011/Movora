@@ -47,7 +47,12 @@ router.get('/', async (req, res) => {
 
     // Cap the candidate pool — sorting the entire collection in memory exceeds
     // MongoDB's 100MB sort limit on large catalogs and crashes the request.
-    const CANDIDATE_CAP = 500
+    // 250 candidates = ~12 pages of 20, plenty for a browse page, and ~half the
+    // docs to fetch vs 500 (each fetch is costly on free-tier Mongo).
+    const CANDIDATE_CAP = 250
+    // Only the fields the movie cards actually render — skips heavy cast arrays,
+    // synopsis and backdrop, cutting per-doc transfer/deserialize cost massively.
+    const CARD_FIELDS = 'tmdbId slug title titleHindi posterUrl rating releaseYear type genres language seasons'
     let allDocs: any[]
     if (!sort || sort === 'recent') {
       allDocs = await Movie.aggregate([
@@ -55,7 +60,7 @@ router.get('/', async (req, res) => {
         { $addFields: { _score: { $add: [{ $multiply: ['$rating', 1.5] }, { $multiply: [{ $subtract: ['$releaseYear', 2000] }, 0.3] }] } } },
         { $sort: { _score: -1 } },
         { $limit: CANDIDATE_CAP },
-        { $project: { sources: 0, _score: 0 } },
+        { $project: { tmdbId: 1, slug: 1, title: 1, titleHindi: 1, posterUrl: 1, rating: 1, releaseYear: 1, type: 1, genres: 1, language: 1, seasons: 1 } },
       ]).option({ allowDiskUse: true })
     } else {
       const sortMap: Record<string, Record<string, 1 | -1>> = {
@@ -65,7 +70,7 @@ router.get('/', async (req, res) => {
         year:   { releaseYear: -1, _id: -1 },
       }
       const sortObj = sortMap[sort as string] ?? sortMap.latest
-      allDocs = await Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select('-sources').lean()
+      allDocs = await Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select(CARD_FIELDS).lean()
     }
 
     // Dedup by normalized tmdbId (strip movie_ prefix)

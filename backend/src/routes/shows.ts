@@ -68,10 +68,12 @@ router.get('/', async (req, res) => {
 
     // Cap the candidate pool — sorting the entire collection in memory exceeds
     // MongoDB's 100MB sort limit on large catalogs and crashes the request.
+    // 250 candidates = ~12 pages of 20; fetching only card fields (not cast/
+    // synopsis/backdrop) cuts per-doc cost massively on free-tier Mongo.
     const allDocs = await Movie.find(matchFilter as any)
       .sort(sortObj)
-      .limit(500)
-      .select('-sources')
+      .limit(250)
+      .select('tmdbId slug title titleHindi posterUrl rating releaseYear type genres language seasons')
       .lean()
 
     // Dedup by normalized tmdbId (strip tv_ prefix)
