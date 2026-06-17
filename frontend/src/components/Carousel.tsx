@@ -106,7 +106,7 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
           {movies.map((movie) => (
             <div
               key={movie._id}
-              className="flex-shrink-0 w-[160px] sm:w-[180px]"
+              className="flex-shrink-0 w-[185px] sm:w-[210px]"
               style={{ scrollSnapAlign: 'start' }}
             >
               <MovieCard movie={movie} onAddToWatchlist={onAddToWatchlist} />
@@ -116,12 +116,12 @@ export default function Carousel({ title, movies, seeAllHref, onAddToWatchlist }
           {/* See All card */}
           {seeAllHref && (
             <div
-              className="flex-shrink-0 w-[160px] sm:w-[180px]"
+              className="flex-shrink-0 w-[185px] sm:w-[210px]"
               style={{ scrollSnapAlign: 'start' }}
             >
               <Link
                 href={seeAllHref}
-                className={`flex flex-col items-center justify-center h-[240px] sm:h-[270px] rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] hover:border-primary/40 transition-all duration-300 gap-3 group ${
+                className={`flex flex-col items-center justify-center h-[277px] sm:h-[315px] rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] hover:border-primary/40 transition-all duration-300 gap-3 group ${
                   atEnd ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
                 style={{ transition: 'opacity 0.4s ease' }}

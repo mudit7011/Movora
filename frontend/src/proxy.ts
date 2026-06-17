@@ -12,8 +12,8 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const host = request.headers.get('host') ?? ''
 
-  // Redirect preview/staging deployment URLs to production
-  if (!host.includes(PRODUCTION_HOST)) {
+  // Redirect preview/staging deployment URLs to production (skip in local dev)
+  if (process.env.NODE_ENV !== 'development' && !host.includes(PRODUCTION_HOST)) {
     return NextResponse.redirect(`https://${PRODUCTION_HOST}${pathname}`, 301)
   }
 

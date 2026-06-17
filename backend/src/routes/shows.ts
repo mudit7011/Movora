@@ -240,62 +240,48 @@ router.get('/search', async (req, res) => {
     if (!q || typeof q !== 'string') return res.json([])
 
     const raw = q.trim()
-    const tokens = raw.split(/\s+/).filter(Boolean)
-    const escapedFull = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-    const anyTokenFilter = tokens.map(t => {
-      const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] }
-    })
-
-    const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    // Only use prefix2 for single-word queries — for multi-word, it floods candidates with
-    // irrelevant results (e.g. "The Society" → prefix "Th" brings 100+ "The ..." shows)
-    const orClauses: object[] = [
-      { $and: anyTokenFilter },
-      { title: { $regex: escapedFull, $options: 'i' } },
-      { titleHindi: { $regex: escapedFull, $options: 'i' } },
-      { synopsis: { $regex: escapedFull, $options: 'i' } },
-    ]
-    if (tokens.length === 1) {
-      orClauses.push({ title: { $regex: `^${prefix2}`, $options: 'i' } })
-    }
-
-    const candidates = await Movie.find({
-      type: 'tvshow',
-      $or: orClauses,
-    })
-      .limit(150)
-      .select('-sources')
-      .lean()
-
-    const fuse = new Fuse(candidates, {
-      keys: [
-        { name: 'title', weight: 2 },
-        { name: 'titleHindi', weight: 1.5 },
-        { name: 'synopsis', weight: 0.5 },
-      ],
-      threshold: 0.6,
-      includeScore: true,
-      ignoreLocation: true,
-      minMatchCharLength: 2,
-    })
-
-    const fuseResults = fuse.search(raw)
-
-    const ranked = fuseResults.length > 0
-      ? fuseResults.map(r => r.item)
-      : candidates.sort((a, b) => (b as any).rating - (a as any).rating)
+    const results = await Movie.aggregate([
+      {
+        $match: {
+          type: 'tvshow',
+          $or: [
+            { title:      { $regex: esc, $options: 'i' } },
+            { titleHindi: { $regex: esc, $options: 'i' } },
+            { synopsis:   { $regex: esc, $options: 'i' } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          _rel: {
+            $switch: {
+              branches: [
+                { case: { $regexMatch: { input: '$title', regex: `^${esc}$`, options: 'i' } }, then: 0 },
+                { case: { $regexMatch: { input: '$title', regex: `^${esc}`,  options: 'i' } }, then: 1 },
+                { case: { $regexMatch: { input: '$title', regex: esc,         options: 'i' } }, then: 2 },
+                { case: { $regexMatch: { input: { $ifNull: ['$titleHindi', ''] }, regex: esc, options: 'i' } }, then: 3 },
+              ],
+              default: 4,
+            },
+          },
+        },
+      },
+      { $sort: { _rel: 1, rating: -1 } },
+      { $limit: 20 },
+      { $project: { sources: 0, _rel: 0 } },
+    ])
 
     const seenKeys = new Set<string>()
-    const deduped = ranked.filter(item => {
-      const key = String((item as any).tmdbId ?? '').replace(/^tv_/, '') || String((item as any)._id)
+    const deduped = results.filter((item: any) => {
+      const key = String(item.tmdbId ?? '').replace(/^tv_/, '') || String(item._id)
       if (seenKeys.has(key)) return false
       seenKeys.add(key)
       return true
     })
 
-    res.json(deduped.slice(0, 20))
+    res.json(deduped)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }

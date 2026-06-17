@@ -253,15 +253,15 @@ export default function MovieDetailClient({ movie }: Props) {
                 <h2 className="text-lg font-semibold text-foreground mb-4">Cast</h2>
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                   {movie.cast.slice(0, 10).map((member, i) => (
-                    <div key={i} className="flex-shrink-0 text-center w-20">
-                      <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2">
+                    <Link key={i} href={`/actor/${encodeURIComponent(member.name)}`} className="flex-shrink-0 text-center w-20 group">
+                      <div className="w-16 h-16 mx-auto rounded-full overflow-hidden bg-card ring-1 ring-white/10 mb-2 group-hover:ring-primary/60 transition-all">
                         {member.photo ? (
-                          <img 
-                            src={member.photo} 
-                            alt={member.name} 
-                            width={64} 
-                            height={64} 
-                            className="object-cover w-full h-full" 
+                          <img
+                            src={member.photo}
+                            alt={member.name}
+                            width={64}
+                            height={64}
+                            className="object-cover w-full h-full group-hover:scale-105 transition-transform"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-xl text-muted">
@@ -269,11 +269,11 @@ export default function MovieDetailClient({ movie }: Props) {
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-foreground font-medium line-clamp-1">{member.name}</p>
+                      <p className="text-xs text-foreground font-medium line-clamp-1 group-hover:text-primary transition-colors">{member.name}</p>
                       {member.character && (
                         <p className="text-xs text-muted-foreground line-clamp-1">{member.character}</p>
                       )}
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

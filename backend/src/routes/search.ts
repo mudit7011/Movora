@@ -5,7 +5,6 @@ import { cacheSet } from '../utils/boundedCache'
 
 const router = Router()
 
-const IMG_FACE = 'https://image.tmdb.org/t/p/w185'
 
 // People search → their filmography that we actually have in the DB.
 // No importing; only surfaces content already stored.
@@ -26,8 +25,11 @@ router.get('/actor', async (req, res) => {
     const person = (search.results || [])[0]
     if (!person) { res.json({ person: null, results: [] }); return }
 
-    // 2. Their combined movie + TV credits
-    const credits = await tmdbFetch(`/person/${person.id}/combined_credits?language=en-US`)
+    // 2. Full person details + combined credits in parallel
+    const [detail, credits] = await Promise.all([
+      tmdbFetch(`/person/${person.id}?language=en-US`),
+      tmdbFetch(`/person/${person.id}/combined_credits?language=en-US`),
+    ])
     const cast: any[] = (credits.cast || [])
       .filter((c: any) => c.media_type === 'movie' || c.media_type === 'tv')
       .sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0))
@@ -47,14 +49,20 @@ router.get('/actor', async (req, res) => {
       if (seen.has(key)) continue
       seen.add(key)
       results.push(doc)
-      if (results.length >= 40) break
     }
 
+    const IMG_LARGE = 'https://image.tmdb.org/t/p/w342'
     const data = {
       person: {
         id: person.id,
-        name: person.name,
-        photo: person.profile_path ? `${IMG_FACE}${person.profile_path}` : null,
+        name: detail.name ?? person.name,
+        photo: (detail.profile_path ?? person.profile_path) ? `${IMG_LARGE}${detail.profile_path ?? person.profile_path}` : null,
+        biography: detail.biography || null,
+        birthday: detail.birthday || null,
+        deathday: detail.deathday || null,
+        placeOfBirth: detail.place_of_birth || null,
+        knownFor: detail.known_for_department || null,
+        popularity: detail.popularity || null,
       },
       results,
     }
