@@ -80,7 +80,7 @@ export const api = {
   search: (q: string) =>
     apiFetch<Movie[]>(`/api/movies/search?q=${encodeURIComponent(q)}`, undefined, CACHE.SEARCH),
   searchByActor: (q: string) =>
-    apiFetch<{ person: { id: number; name: string; photo: string | null } | null; results: Movie[] }>(
+    apiFetch<{ person: { id: number; name: string; photo: string | null; biography: string | null; birthday: string | null; deathday: string | null; placeOfBirth: string | null; knownFor: string | null; popularity: number | null } | null; results: Movie[] }>(
       `/api/search/actor?q=${encodeURIComponent(q)}`,
       undefined,
       CACHE.SEARCH,
