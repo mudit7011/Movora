@@ -208,43 +208,48 @@ textarea:focus-visible {
 }
 
 /* ─── TV MODE ─────────────────────────────────────────────── */
-[data-tv] {
-  cursor: none !important;
-}
 
+/* Hide pointer cursor — TV uses D-pad, not mouse */
+[data-tv],
 [data-tv] * {
   cursor: none !important;
 }
 
-/* TV — kill all animations/transitions for performance on weak TV CPUs */
+/*
+  Kill CSS keyframe animations and CSS transitions on TV.
+  Note: Framer Motion uses WAAPI (element.animate()) which bypasses this —
+  we intentionally allow short Framer Motion transitions (scale, opacity) as
+  they run on the GPU compositor and are fine on modern TV chipsets.
+  Only heavy/decorative CSS animations (shimmer, pulse, etc.) are killed here.
+*/
 [data-tv] *,
 [data-tv] *::before,
 [data-tv] *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
+  /* Keep transition-duration — used by focus-ring CSS fallback below */
 }
 
-/* Hide default focus outline — Framer Motion handles it */
-[data-tv] :focus {
+/* Strip default browser focus outlines everywhere — we use JS-driven rings */
+[data-tv] :focus,
+[data-tv] :focus-visible {
   outline: none !important;
 }
 
-/* TV focus ring on focusable cards */
+/*
+  CSS focus ring: fallback for elements that can't use Framer Motion
+  (nav links, hero buttons, etc.). The box-shadow approach works on all
+  TV browsers including WebOS 3+, Tizen 3+, AndroidTV 6+, AppleTV tvOS 14+.
+  Box-shadow on <a> tags is reliably triggered by CSS :focus on all platforms.
+*/
 [data-tv] [data-focusable]:focus {
   outline: none !important;
   box-shadow:
-    0 0 0 3px var(--primary),
-    0 0 40px rgba(6, 214, 224, 0.5),
-    0 0 80px rgba(6, 214, 224, 0.2);
-  transform: scale(1.08);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 0.2s ease;
-  z-index: 50;
-  position: relative;
+    0 0 0 3px rgb(6, 214, 224),
+    0 0 28px rgba(6, 214, 224, 0.45) !important;
 }
 
-/* TV — larger base font */
+/* TV — larger base font for 10-foot viewing distance */
 [data-tv] body {
   font-size: 18px;
 }
@@ -271,7 +276,7 @@ textarea:focus-visible {
   line-height: 1.1 !important;
 }
 
-/* TV — bigger buttons */
+/* TV — bigger buttons with more padding for remote-friendly tap targets */
 [data-tv] .btn-primary,
 [data-tv] .btn-glass {
   padding: 1rem 2rem !important;
@@ -279,7 +284,7 @@ textarea:focus-visible {
   border-radius: 1rem !important;
 }
 
-/* TV — no scrollbar */
+/* TV — hide scrollbar chrome */
 [data-tv] ::-webkit-scrollbar {
   display: none;
 }

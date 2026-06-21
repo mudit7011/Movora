@@ -258,14 +258,18 @@ export default function Hero({ movie, movies = [] }: Props) {
               >
                 <Link
                   href={watchHref}
-                  className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base"
+                  data-focusable={isTV ? '' : undefined}
+                  tabIndex={isTV ? 0 : undefined}
+                  className="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base outline-none"
                 >
                   <PlayIcon />
                   <span>Watch Now</span>
                 </Link>
                 <Link
                   href={detailHref}
-                  className="btn-glass inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base"
+                  data-focusable={isTV ? '' : undefined}
+                  tabIndex={isTV ? 0 : undefined}
+                  className="btn-glass inline-flex items-center gap-2 px-6 py-4 rounded-xl text-base outline-none"
                 >
                   <InfoIcon />
                   <span>More Info</span>

@@ -47,6 +47,13 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
 
   const active = isHovered || isTvFocused
 
+  // JS-driven focus ring — CSS :focus on divs is unreliable on WebOS/Tizen/older TV browsers
+  const tvFocusStyle: React.CSSProperties = isTvFocused ? {
+    borderRadius: '12px',
+    boxShadow: '0 0 0 3px rgb(6,214,224), 0 0 28px rgba(6,214,224,0.45)',
+    outline: 'none',
+  } : { outline: 'none' }
+
   return (
     <motion.div
       className="relative w-full group"
@@ -56,9 +63,9 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
       onMouseLeave={() => setIsHovered(false)}
       onFocus={() => isTV && setIsTvFocused(true)}
       onBlur={() => isTV && setIsTvFocused(false)}
-      animate={isTvFocused ? { scale: 1.1, zIndex: 50 } : { scale: 1, zIndex: 1 }}
-      style={{ transformOrigin: 'top center' }}
-      transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+      animate={isTvFocused ? { scale: 1.08, zIndex: 50 } : { scale: 1, zIndex: 1 }}
+      style={{ transformOrigin: 'top center', ...tvFocusStyle }}
+      transition={{ duration: 0.12 }}
       initial={false}
     >
       <Link href={detailHref} className="block outline-none" style={{ WebkitTapHighlightColor: 'transparent' }}>
