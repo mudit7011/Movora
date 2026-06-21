@@ -14,20 +14,27 @@ function getFocusables(): HTMLElement[] {
 
 function getNearest(current: HTMLElement, dir: 'up' | 'down' | 'left' | 'right'): HTMLElement | null {
   const all = getFocusables()
-  const cr = current.getBoundingClientRect()
-  const cx = cr.left + cr.width / 2
-  const cy = cr.top + cr.height / 2
+
+  // Read ALL rects in one batch — single layout reflow instead of N.
+  // On old TV CPUs each getBoundingClientRect() inside a loop forces a reflow;
+  // mapping first forces one reflow, then all reads come from cached layout.
+  const entries = all.map(el => ({ el, r: el.getBoundingClientRect() }))
+
+  const curr = entries.find(x => x.el === current)
+  if (!curr) return null
+  const { r: cr } = curr
+  const cx = cr.left + cr.width  / 2
+  const cy = cr.top  + cr.height / 2
 
   let best: HTMLElement | null = null
   let bestScore = Infinity
 
-  for (const el of all) {
+  for (const { el, r } of entries) {
     if (el === current) continue
-    const r = el.getBoundingClientRect()
     if (r.width === 0 || r.height === 0) continue
 
-    const ex = r.left + r.width / 2
-    const ey = r.top + r.height / 2
+    const ex = r.left + r.width  / 2
+    const ey = r.top  + r.height / 2
     const dx = ex - cx
     const dy = ey - cy
 

@@ -216,18 +216,20 @@ textarea:focus-visible {
 }
 
 /*
-  Kill CSS keyframe animations and CSS transitions on TV.
-  Note: Framer Motion uses WAAPI (element.animate()) which bypasses this —
-  we intentionally allow short Framer Motion transitions (scale, opacity) as
-  they run on the GPU compositor and are fine on modern TV chipsets.
-  Only heavy/decorative CSS animations (shimmer, pulse, etc.) are killed here.
+  Kill ALL CSS keyframe animations and transitions on TV.
+  Framer Motion uses WAAPI (element.animate()) which bypasses CSS rules —
+  but in TV mode MovieCard uses zero Framer Motion (plain HTML), so there
+  are no WAAPI animations to worry about. Killing CSS transitions here
+  prevents shimmer/pulse/hover effects from running on weak TV chipsets.
+  The JS-driven focus ring (inline box-shadow via React state) is unaffected.
 */
 [data-tv] *,
 [data-tv] *::before,
 [data-tv] *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
-  /* Keep transition-duration — used by focus-ring CSS fallback below */
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
 }
 
 /* Strip default browser focus outlines everywhere — we use JS-driven rings */
