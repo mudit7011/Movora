@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useRef, useMemo, type ReactNode, useCallback } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import type { Movie } from '@/types/movie'
@@ -11,6 +11,7 @@ import dynamic from 'next/dynamic'
 const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: false })
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster, extractEpisodeNav } from '@/lib/playerProgress'
+import { useFullscreenCapture } from '@/hooks/useFullscreenCapture'
 
 interface Source {
   serverName: string
@@ -65,10 +66,13 @@ export default function WatchShowClient({ show, children }: Props) {
   const [showFallback,  setShowFallback]  = useState(false)
   const [playerLoaded,  setPlayerLoaded]  = useState(false)
   const [loadPhase,     setLoadPhase]     = useState(0)
-  const iframeRef   = useRef<HTMLIFrameElement>(null)
-  const loadTimers  = useRef<ReturnType<typeof setTimeout>[]>([])
+  const iframeRef    = useRef<HTMLIFrameElement>(null)
+  const playerWrapRef = useRef<HTMLDivElement>(null)
+  const loadTimers   = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  useFullscreenCapture(iframeRef, playerWrapRef)
 
 
   // Pre-warm EmbedMaster sources whenever season/episode changes
@@ -345,7 +349,7 @@ export default function WatchShowClient({ show, children }: Props) {
       {/* ── Player ── */}
       <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:bg-transparent">
         <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
-          <div className="relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
+          <div ref={playerWrapRef} className="player-wrap relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             {active.type === 'direct' ? (
               <VideoPlayer

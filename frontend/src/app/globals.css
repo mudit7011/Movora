@@ -296,6 +296,30 @@ textarea:focus-visible {
   display: none !important;
 }
 
+/* ─── PLAYER FULLSCREEN CAPTURE ──────────────────────────────── */
+/* When our container div is the fullscreen element (after we re-request
+   fullscreen from the iframe's origin to show watchmovora.com in the
+   browser's native fullscreen banner), fill the whole screen with the video. */
+.player-wrap:fullscreen,
+.player-wrap:-webkit-full-screen,
+.player-wrap:-moz-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  aspect-ratio: unset !important;
+  max-width: none !important;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-wrap:fullscreen iframe,
+.player-wrap:-webkit-full-screen iframe,
+.player-wrap:-moz-full-screen iframe {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* ─── MOBILE INTERACTIVE NAV ─────────────────────────────────── */
 @keyframes nav-icon-bounce {
   0%, 100% { transform: translateY(0); }
