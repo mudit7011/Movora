@@ -228,16 +228,13 @@ export default function WatchShowClient({ show, children }: Props) {
         seekEmbedMaster(e.source as Window, resumeTarget)
         embedSeekSent = true
       }
-      // Videasy episode navigation
+      // Videasy episode navigation (Next Episode button, episode list, auto-advance).
+      // Always sync UI only — NEVER reload the iframe from a postMessage handler.
+      // Reloading unmounts the fullscreened <iframe> which forces the browser to
+      // exit fullscreen per spec. Videasy handles the actual episode switch internally.
       const nav = extractEpisodeNav(e.data)
       if (nav && (nav.episode !== episode || nav.season !== season)) {
-        if (nav.hard) {
-          // User clicked episode list inside player — reload with our params to restore theme
-          selectEpisode(nav.season, nav.episode)
-        } else {
-          // Auto-advance — just sync UI, don't reload iframe
-          syncEpisodeDisplay(nav.season, nav.episode)
-        }
+        syncEpisodeDisplay(nav.season, nav.episode)
       }
       const pb = extractPlayback(e.data, rawId, season, episode)
       if (pb && pb.time > 1) {

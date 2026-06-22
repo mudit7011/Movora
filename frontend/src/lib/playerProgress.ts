@@ -117,8 +117,11 @@ export function seekEmbedMaster(win: Window | null | undefined, seconds: number)
 }
 
 // Detects when Videasy internally navigates to a different episode.
-// Returns { season, episode, hard } — hard=true means user clicked from episode list (play event),
-// hard=false means auto-advance (timeupdate). Caller should reload iframe only on hard=true.
+// IMPORTANT: hard is always false — callers must NEVER reload the iframe
+// in response to a postMessage navigation event. Videasy handles episode
+// transitions internally; reloading the iframe unmounts the fullscreened
+// element which forces the browser to exit fullscreen (per spec). Callers
+// should always call syncEpisodeDisplay (UI-only) for postMessage nav.
 export function extractEpisodeNav(raw: unknown): { season: number; episode: number; hard: boolean } | null {
   let d: any = raw
   if (typeof d === 'string') { try { d = JSON.parse(d) } catch { return null } }
@@ -128,9 +131,7 @@ export function extractEpisodeNav(raw: unknown): { season: number; episode: numb
   if (String(d.type ?? '').toLowerCase() === 'player_event' && d.data && typeof d.data === 'object') {
     const inner = d.data
     if (typeof inner.season === 'number' && typeof inner.episode === 'number') {
-      const ev = String(inner.event ?? '').toLowerCase()
-      const hard = ev === 'play' // play = user clicked episode list; timeupdate = auto-advance
-      return { season: inner.season, episode: inner.episode, hard }
+      return { season: inner.season, episode: inner.episode, hard: false }
     }
   }
 
