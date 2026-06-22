@@ -7,7 +7,6 @@ import type { Movie, Source } from '@/types/movie'
 import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
-import { useFullscreenCapture } from '@/hooks/useFullscreenCapture'
 
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
 const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: false })
@@ -34,9 +33,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
   const bannerTimer  = useRef<ReturnType<typeof setTimeout>>()
   const fallbackTimer = useRef<ReturnType<typeof setTimeout>>()
   const loadTimers   = useRef<ReturnType<typeof setTimeout>[]>([])
-  const iframeRef     = useRef<HTMLIFrameElement>(null)
-  const playerWrapRef = useRef<HTMLDivElement>(null)
-  useFullscreenCapture(iframeRef, playerWrapRef)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const { updateProgress } = useUserData()
 
   // Resume position — captured ONCE at mount so the iframe src stays stable.
@@ -269,7 +266,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
       {/* ── Player ── */}
       <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:bg-transparent">
         <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
-          <div ref={playerWrapRef} className="player-wrap relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
+          <div className="relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             {isDirect ? (
               <VideoPlayer

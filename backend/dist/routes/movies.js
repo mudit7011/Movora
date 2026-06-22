@@ -1,7 +1,4 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.moviesRouter = void 0;
 const express_1 = require("express");
@@ -9,7 +6,6 @@ const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
 const importer_1 = require("../utils/importer");
 const boundedCache_1 = require("../utils/boundedCache");
-const fuse_js_1 = __importDefault(require("fuse.js"));
 const router = (0, express_1.Router)();
 exports.moviesRouter = router;
 function shuffle(arr) {
@@ -50,7 +46,12 @@ router.get('/', async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
         // Cap the candidate pool — sorting the entire collection in memory exceeds
         // MongoDB's 100MB sort limit on large catalogs and crashes the request.
-        const CANDIDATE_CAP = 500;
+        // 250 candidates = ~12 pages of 20, plenty for a browse page, and ~half the
+        // docs to fetch vs 500 (each fetch is costly on free-tier Mongo).
+        const CANDIDATE_CAP = 250;
+        // Only the fields the movie cards actually render — skips heavy cast arrays,
+        // synopsis and backdrop, cutting per-doc transfer/deserialize cost massively.
+        const CARD_FIELDS = 'tmdbId slug title titleHindi posterUrl rating releaseYear type genres language seasons';
         let allDocs;
         if (!sort || sort === 'recent') {
             allDocs = await Movie_1.Movie.aggregate([
@@ -58,7 +59,7 @@ router.get('/', async (req, res) => {
                 { $addFields: { _score: { $add: [{ $multiply: ['$rating', 1.5] }, { $multiply: [{ $subtract: ['$releaseYear', 2000] }, 0.3] }] } } },
                 { $sort: { _score: -1 } },
                 { $limit: CANDIDATE_CAP },
-                { $project: { sources: 0, _score: 0 } },
+                { $project: { tmdbId: 1, slug: 1, title: 1, titleHindi: 1, posterUrl: 1, rating: 1, releaseYear: 1, type: 1, genres: 1, language: 1, seasons: 1 } },
             ]).option({ allowDiskUse: true });
         }
         else {
@@ -69,7 +70,7 @@ router.get('/', async (req, res) => {
                 year: { releaseYear: -1, _id: -1 },
             };
             const sortObj = sortMap[sort] ?? sortMap.latest;
-            allDocs = await Movie_1.Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select('-sources').lean();
+            allDocs = await Movie_1.Movie.find(filter).sort(sortObj).limit(CANDIDATE_CAP).select(CARD_FIELDS).lean();
         }
         // Dedup by normalized tmdbId (strip movie_ prefix)
         const seen = new Set();
@@ -241,51 +242,42 @@ router.get('/search', async (req, res) => {
         if (!q || typeof q !== 'string')
             return res.json([]);
         const raw = q.trim();
-        const tokens = raw.split(/\s+/).filter(Boolean);
-        const escapedFull = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Pull a broad candidate set: match any token in title or titleHindi
-        const anyTokenFilter = tokens.map(t => {
-            const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            return { $or: [{ title: { $regex: esc, $options: 'i' } }, { titleHindi: { $regex: esc, $options: 'i' } }] };
-        });
-        // Prefix fallback using first 2 chars — brings abbreviation-style queries
-        // like "avgrs" into the candidate pool so fuse can find "Avengers"
-        const prefix2 = raw.slice(0, 2).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const orClauses = [
-            { $and: anyTokenFilter },
-            { title: { $regex: escapedFull, $options: 'i' } },
-            { titleHindi: { $regex: escapedFull, $options: 'i' } },
-            { synopsis: { $regex: escapedFull, $options: 'i' } },
-        ];
-        if (tokens.length === 1) {
-            orClauses.push({ title: { $regex: `^${prefix2}`, $options: 'i' } });
-        }
-        const candidates = await Movie_1.Movie.find({
-            type: 'movie',
-            $or: orClauses,
-        })
-            .limit(150)
-            .select('-sources')
-            .lean();
-        // Fuzzy-rank the candidates so typos and abbreviations still surface
-        const fuse = new fuse_js_1.default(candidates, {
-            keys: [
-                { name: 'title', weight: 2 },
-                { name: 'titleHindi', weight: 1.5 },
-                { name: 'synopsis', weight: 0.5 },
-            ],
-            threshold: 0.6,
-            includeScore: true,
-            ignoreLocation: true,
-            minMatchCharLength: 2,
-        });
-        const fuseResults = fuse.search(raw);
-        // If fuse found matches, return those; otherwise fall back to candidates sorted by rating
-        const ranked = fuseResults.length > 0
-            ? fuseResults.map(r => r.item)
-            : candidates.sort((a, b) => b.rating - a.rating);
+        const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Use MongoDB aggregation with DB-side relevance scoring — same approach as admin search.
+        // This guarantees title matches always surface before synopsis matches, regardless of
+        // collection size or insertion order, avoiding Fuse.js threshold/ranking issues.
+        const results = await Movie_1.Movie.aggregate([
+            {
+                $match: {
+                    type: 'movie',
+                    $or: [
+                        { title: { $regex: esc, $options: 'i' } },
+                        { titleHindi: { $regex: esc, $options: 'i' } },
+                        { synopsis: { $regex: esc, $options: 'i' } },
+                    ],
+                },
+            },
+            {
+                $addFields: {
+                    _rel: {
+                        $switch: {
+                            branches: [
+                                { case: { $regexMatch: { input: '$title', regex: `^${esc}$`, options: 'i' } }, then: 0 },
+                                { case: { $regexMatch: { input: '$title', regex: `^${esc}`, options: 'i' } }, then: 1 },
+                                { case: { $regexMatch: { input: '$title', regex: esc, options: 'i' } }, then: 2 },
+                                { case: { $regexMatch: { input: { $ifNull: ['$titleHindi', ''] }, regex: esc, options: 'i' } }, then: 3 },
+                            ],
+                            default: 4,
+                        },
+                    },
+                },
+            },
+            { $sort: { _rel: 1, rating: -1 } },
+            { $limit: 20 },
+            { $project: { sources: 0, _rel: 0 } },
+        ]);
         const seenKeys = new Set();
-        const deduped = ranked.filter(item => {
+        const deduped = results.filter((item) => {
             const key = String(item.tmdbId ?? '').replace(/^movie_/, '') || String(item._id);
             if (seenKeys.has(key))
                 return false;
