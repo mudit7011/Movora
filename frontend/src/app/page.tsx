@@ -1,4 +1,4 @@
-export const revalidate = 900
+export const revalidate = 3600
 
 import { api } from '@/lib/api'
 import HomePageClient from '@/components/HomePageClient'

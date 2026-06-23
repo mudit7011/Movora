@@ -1,4 +1,4 @@
-export const revalidate = 300
+export const revalidate = 3600
 
 import { api } from '@/lib/api'
 import Sidebar from '@/components/Sidebar'

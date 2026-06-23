@@ -51,7 +51,7 @@ async function getRealtime(
   // 1. Fetch TMDB list (1 call)
   const data    = await tmdbFetch(injectPage(tmdbEndpoint, page))
   const results: any[] = data.results || []
-  const totalPages: number = Math.min(data.total_pages ?? 1, 10) // cap at 10 pages
+  const totalPages: number = Math.min(data.total_pages ?? 1, 20) // cap at 20 pages
 
   // 2. Batch check which IDs already exist in DB
   const tmdbIds = results.map(r => mediaType === 'movie' ? String(r.id) : `tv_${r.id}`)

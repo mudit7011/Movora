@@ -1,4 +1,6 @@
-export const revalidate = 86400
+// Pages are built once at deploy time and served forever from CDN.
+// Revalidation is skipped to avoid ISR write charges; redeploy to pick up new content.
+export const revalidate = false
 
 import { cache } from 'react'
 import { api } from '@/lib/api'
@@ -15,8 +17,12 @@ const getShow = cache((slug: string) => api.getShow(slug).catch(() => null))
 
 export async function generateStaticParams() {
   try {
-    const shows = await api.getLatestShows()
-    return shows.slice(0, 50).map(s => ({ slug: s.slug }))
+    const [p1, p2] = await Promise.all([
+      api.getShows({ page: '1', limit: '100' }),
+      api.getShows({ page: '2', limit: '100' }),
+    ])
+    const all = [...(p1.movies ?? []), ...(p2.movies ?? [])]
+    return all.map(s => ({ slug: s.slug }))
   } catch {
     return []
   }
