@@ -9,7 +9,6 @@ import { useTV } from '@/components/TvProvider'
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
 
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
-const EzvidPlayer = dynamic(() => import('@/components/EzvidPlayer'), { ssr: false })
 
 interface Props {
   movie: Movie
@@ -184,7 +183,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
   }, [activeIdx, isDirect])
 
   // Loading phase progression for iframe servers
-  const isIframe = !isDirect && !active.url.includes('ezvidapi.com')
+  const isIframe = !isDirect
   useEffect(() => {
     if (!isIframe) return
     setPlayerLoaded(false)
@@ -275,20 +274,6 @@ export default function WatchClient({ movie, sources, children }: Props) {
                 poster={movie.backdropUrl || movie.posterUrl}
                 tmdbId={movie.tmdbId.replace(/^movie_/, '')}
                 mediaType="movie"
-              />
-            ) : active.url.includes('ezvidapi.com') ? (
-              <EzvidPlayer
-                key={active.url}
-                tmdbId={movie.tmdbId.replace(/^movie_/, '')}
-                type="movie"
-                title={movie.title}
-                poster={movie.posterUrl}
-                backdrop={movie.backdropUrl}
-                synopsis={movie.synopsis}
-                year={movie.releaseYear}
-                runtime={movie.runtime}
-                rating={movie.rating}
-                startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
               />
             ) : (
               <>
