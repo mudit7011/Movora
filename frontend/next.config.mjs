@@ -11,6 +11,7 @@ const nextConfig = {
       { source: '/api/new',             destination: `${BACKEND}/api/new` },
       { source: '/api/search/:path*',   destination: `${BACKEND}/api/search/:path*` },
       { source: '/api/health',          destination: `${BACKEND}/api/health` },
+      { source: '/api/sports/:path*',   destination: `${BACKEND}/api/sports/:path*` },
     ]
   },
   images: {
