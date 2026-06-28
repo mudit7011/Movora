@@ -89,7 +89,7 @@ export default function SportsWatchPage({ params }: { params: Promise<{ id: stri
       try {
         const results = await Promise.allSettled(
           sources.map(s =>
-            fetch(`${SPORTS_API}/stream/${encodeURIComponent(s.source)}/${encodeURIComponent(matchId)}`)
+            fetch(`${SPORTS_API}/stream/${encodeURIComponent(s.source)}/${encodeURIComponent(s.id)}`)
               .then(r => r.ok ? r.json() : { streams: [], referer: STREAMED_REFERER })
               .catch(() => ({ streams: [], referer: STREAMED_REFERER }))
           )
