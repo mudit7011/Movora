@@ -1,8 +1,8 @@
-// Watch pages are deep long-tail (almost always an ISR MISS), so ISR only added
-// write cost with no cache-hit benefit. Render dynamically instead — the underlying
-// movie data fetch is still cached 1h at the data layer (CACHE.MOVIE), so backend
-// load is unchanged and ISR writes drop to ~zero.
-export const dynamic = 'force-dynamic'
+// ISR at 1h: popular watch pages get high cache-hit rates and dramatically cut
+// function invocations, origin transfer, and Fluid CPU. Tail pages (visited once)
+// cost 1 ISR write instead of 1 function invocation — an acceptable trade given
+// that invocations and origin transfer are the real overage drivers.
+export const revalidate = 3600
 
 import { cache, Suspense } from 'react'
 import { api } from '@/lib/api'

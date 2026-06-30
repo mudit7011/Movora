@@ -144,7 +144,26 @@ sportsRouter.get('/stream/:source/:matchId', async (req, res) => {
 
   const stale = streamCache.get(key)
   if (stale) { res.json(stale.data); return }
-  res.status(502).json({ error: 'Failed to fetch streams' })
+
+  // Last resort: construct masaladosa embed URLs directly.
+  // masaladosa serves all sources (echo, admin, golf, etc.) at a predictable URL
+  // and doesn't check the referring domain — verified HTTP 200 from both India and SG.
+  const MASALADOSA_BASE = 'https://masaladosa.streammafia.to'
+  const fallbackStreams = [1, 2].map(n => ({
+    id: matchId,
+    streamNo: n,
+    language: 'English',
+    hd: n === 1,
+    embedUrl: `${MASALADOSA_BASE}/embed/${encodeURIComponent(source)}/${encodeURIComponent(matchId)}/${n}`,
+    source,
+  }))
+  const fallbackData = { streams: fallbackStreams, referer: `${MASALADOSA_BASE}/` }
+  streamCache.set(key, { data: fallbackData, ts: Date.now() })
+  if (streamCache.size > 500) {
+    const oldest = [...streamCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]
+    streamCache.delete(oldest[0])
+  }
+  res.json(fallbackData)
 })
 
 // ─── HLS proxy ───────────────────────────────────────────────────────────────

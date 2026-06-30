@@ -17,8 +17,8 @@ export const CACHE = {
   MOVIE: 3600,       // individual movie/show detail — stable metadata
   SHOW: 3600,
   RELATED: 3600,     // related/similar — changes rarely
-  HOMEPAGE: 900,     // trending/now-playing carousels — refresh every 15 min
-  BROWSE: 300,       // paginated browse/filter pages — refresh every 5 min
+  HOMEPAGE: 3600,    // trending/now-playing carousels — refresh every 1h
+  BROWSE: 3600,      // paginated browse/filter pages — refresh every 1h
   EPISODES: 3600,    // season episode lists — rarely change
   SEARCH: 0,         // search — always fresh, user-driven
   NEW: 300,          // new arrivals — refresh every 5 min
