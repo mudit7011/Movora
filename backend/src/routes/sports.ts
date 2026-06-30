@@ -118,7 +118,7 @@ sportsRouter.get('/stream/:source/:matchId', async (req, res) => {
   }
 
   const streamSources = [
-    { base: STREAMED_BASE, referer: STREAMED_REFERER, timeoutMs: 3_000 },
+    { base: STREAMED_BASE, referer: STREAMED_REFERER, timeoutMs: 7_000 },
     { base: NOWHDTIME_BASE, referer: `${NOWHDTIME_BASE}/`, timeoutMs: 8_000 },
   ]
 
