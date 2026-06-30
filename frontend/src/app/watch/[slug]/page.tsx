@@ -1,8 +1,8 @@
-// ISR at 1h: popular watch pages get high cache-hit rates and dramatically cut
-// function invocations, origin transfer, and Fluid CPU. Tail pages (visited once)
-// cost 1 ISR write instead of 1 function invocation — an acceptable trade given
-// that invocations and origin transfer are the real overage drivers.
-export const revalidate = 3600
+// Watch pages are deep long-tail (almost always an ISR MISS), so ISR only adds
+// write cost with no cache-hit benefit — and ISR Writes is our most over-budget
+// metric on Hobby. Render dynamically (zero ISR writes); Cloudflare caches /watch
+// 2h in front, so repeat traffic never reaches Vercel compute anyway.
+export const dynamic = 'force-dynamic'
 
 import { cache, Suspense } from 'react'
 import { api } from '@/lib/api'
