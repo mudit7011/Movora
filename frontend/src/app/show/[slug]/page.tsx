@@ -1,6 +1,9 @@
-// Pages are built once at deploy time and served forever from CDN.
-// Revalidation is skipped to avoid ISR write charges; redeploy to pick up new content.
-export const revalidate = false
+// Long-tail detail pages: only ~250 real slugs, but ~1.2K distinct URLs get hit
+// (stale Google-indexed links + bots). ISR was writing a cache entry for every
+// dead slug — 2.4K writes/12h vs ~110 reads. Render dynamically instead: zero ISR
+// writes, new shows work instantly (no redeploy), and Cloudflare's 2h edge cache
+// (same rule as /watch) absorbs repeat hits before they reach Vercel.
+export const dynamic = 'force-dynamic'
 
 import { cache } from 'react'
 import { api } from '@/lib/api'
@@ -14,19 +17,6 @@ interface Props {
 }
 
 const getShow = cache((slug: string) => api.getShow(slug).catch(() => null))
-
-export async function generateStaticParams() {
-  try {
-    const [p1, p2] = await Promise.all([
-      api.getShows({ page: '1', limit: '100' }),
-      api.getShows({ page: '2', limit: '100' }),
-    ])
-    const all = [...(p1.movies ?? []), ...(p2.movies ?? [])]
-    return all.map(s => ({ slug: s.slug }))
-  } catch {
-    return []
-  }
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
