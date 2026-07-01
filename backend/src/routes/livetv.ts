@@ -24,8 +24,10 @@ const CHECK_CONCURRENCY = 6          // low, to stay light on the 512MB free ins
 const CHECK_TIMEOUT = 6_000
 const MAX_READ_BYTES = 128 * 1024    // only need the top of the playlist; never buffer a live stream
 
-type Group = 'Sports' | 'News' | 'Hindi'
-const GROUP_ORDER: Group[] = ['Sports', 'News', 'Hindi']
+type Group = 'Football' | 'Sports' | 'News' | 'Hindi'
+
+// Football/soccer channels get their own headline group + top billing (FIFA is why this exists).
+const FOOTBALL = /\b(FIFA|Golazo|Football|Soccer|beIN|LaLiga|Premier League|UEFA|MUTV)\b/i
 
 interface Channel {
   id: string          // base64url(url) — self-contained, no server lookup needed
@@ -35,6 +37,7 @@ interface Channel {
   url: string
   direct: boolean     // CORS-enabled → player can stream client-side (0 Render bandwidth)
   hd: boolean         // stream carries a ≥720p rendition (or is named HD)
+  region: 'in' | 'en'
 }
 
 let channelsCache: Channel[] = []
@@ -57,7 +60,7 @@ function normalizeGroup(group: string): 'Sports' | 'News' | null {
   return null
 }
 
-interface ParsedChannel { name: string; logo: string | null; group: Group; url: string }
+interface ParsedChannel { name: string; logo: string | null; group: Group; url: string; region: 'in' | 'en' }
 
 // Parse an M3U. `mode='english'` keeps Sports/News by group-title; `mode='india'`
 // keeps only allowlisted channels (any group) and buckets them Sports vs Hindi.
@@ -80,12 +83,13 @@ function parseM3U(text: string, mode: 'english' | 'india'): ParsedChannel[] {
         }
       } else {
         group = normalizeGroup(rawGroup)
+        if (group === 'Sports' && FOOTBALL.test(name)) group = 'Football'
       }
       pending = group ? { name, logo, group } : null
     } else if (t.startsWith('#')) {
       // skip #EXTVLCOPT and other directives, keep pending
     } else if (t) {
-      if (pending && t.includes('.m3u8')) out.push({ ...pending, url: t })
+      if (pending && t.includes('.m3u8')) out.push({ ...pending, url: t, region: mode === 'india' ? 'in' : 'en' })
       pending = null
     }
   }
@@ -182,16 +186,21 @@ async function refresh(): Promise<void> {
       const hd = c.maxHeight >= 720 || /\b(HD|FHD|UHD|4K)\b/i.test(c.ch.name)
       const name = baseName(c.ch.name)
       const key = `${c.ch.group}:${name.toLowerCase()}`
-      const cand = { id: b64url(c.ch.url), name, logo: c.ch.logo, group: c.ch.group, url: c.ch.url, direct: c.direct, hd, _h: c.maxHeight }
+      const cand = { id: b64url(c.ch.url), name, logo: c.ch.logo, group: c.ch.group, url: c.ch.url, direct: c.direct, hd, region: c.ch.region, _h: c.maxHeight }
       const prev = best.get(key)
       if (!prev || (hd && !prev.hd) || (hd === prev.hd && c.maxHeight > prev._h)) best.set(key, cand)
     }
 
+    // "All" view order: Football (FIFA & co.) first, then Hindi news, then other
+    // Hindi, then English sports, then English news.
+    const rank = (c: Channel) =>
+      c.group === 'Football' ? 0
+        : c.region === 'in' ? (c.group === 'News' ? 1 : 2)
+          : (c.group === 'Sports' ? 3 : 4)
+
     channelsCache = [...best.values()]
       .map(({ _h, ...c }) => c)
-      .sort((a, b) => a.group === b.group
-        ? a.name.localeCompare(b.name)
-        : GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group))
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
 
     lastRefresh = Date.now()
     console.log(`[livetv] refreshed: ${channelsCache.length}/${parsed.length} Hindi/English Sports/News channels live`)

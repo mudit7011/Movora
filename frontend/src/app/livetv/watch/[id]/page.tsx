@@ -31,13 +31,12 @@ export default function LiveTvWatchPage({ params }: { params: Promise<{ id: stri
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
-  const triedProxyRef = useRef(false)
   const [levels, setLevels] = useState<{ index: number; height: number }[]>([])
   const [currentLevel, setCurrentLevel] = useState(-1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = useCallback((src: string, viaProxy: boolean) => {
+  const load = useCallback((src: string) => {
     const video = videoRef.current
     if (!video) return
 
@@ -57,12 +56,6 @@ export default function LiveTvWatchPage({ params }: { params: Promise<{ id: stri
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => setCurrentLevel(d.level))
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return
-        // First failure on the direct URL → retry once through the Render proxy.
-        if (!viaProxy && !triedProxyRef.current) {
-          triedProxyRef.current = true
-          load(proxied(streamUrl), true)
-          return
-        }
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad() } catch { /* */ } }
         else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError() } catch { /* */ } }
         else setError('This channel is offline right now. Try another.')
@@ -78,9 +71,9 @@ export default function LiveTvWatchPage({ params }: { params: Promise<{ id: stri
 
   useEffect(() => {
     if (!streamUrl) { setError('Invalid channel.'); setLoading(false); return }
-    triedProxyRef.current = false
-    // Try direct first (0 Render bandwidth); the ERROR handler falls back to proxy.
-    load(streamUrl, false)
+    // Proxy through Render (Singapore): many channels are geo-locked from the viewer's
+    // country but reachable from Render, so proxy-first is the only reliable path.
+    load(proxied(streamUrl))
     return () => { if (hlsRef.current) { try { hlsRef.current.destroy() } catch { /* */ } hlsRef.current = null } }
   }, [streamUrl, load])
 
