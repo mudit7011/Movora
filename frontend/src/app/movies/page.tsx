@@ -12,7 +12,8 @@ export const metadata = { title: 'Browse Movies — Movora' }
 
 export default async function MoviesPage({ searchParams }: Props) {
   const filters = await searchParams
-  const data = await api.getMovies({ ...filters, limit: '20', page: '1' }).catch(
+  const sort = filters.sort ?? 'latest'
+  const data = await api.getMovies({ ...filters, sort, limit: '20', page: '1' }).catch(
     () => ({ movies: [], total: 0, page: 1, pages: 1 })
   )
 
@@ -20,7 +21,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     filters.genre ?? '',
     filters.year ?? '',
     filters.language ?? '',
-    filters.sort ?? 'recent',
+    sort,
   ].join('|')
 
   return (

@@ -11,7 +11,7 @@ const API_URL = ''
 const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Drama', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller']
 const YEARS  = Array.from({ length: 9 }, (_, i) => String(new Date().getFullYear() - i))
 const SORTS  = [
-  { value: 'recent', label: 'Latest' },
+  { value: 'latest', label: 'Latest' },
   { value: 'rating', label: 'Top Rated' },
   { value: 'year',   label: 'By Year' },
 ]
@@ -35,7 +35,7 @@ export default function BrowseClient({ initialMovies, initialTotal, initialPages
 
   const activeGenre    = searchParams.get('genre')    ?? ''
   const activeYear     = searchParams.get('year')     ?? ''
-  const activeSort     = searchParams.get('sort')     ?? 'recent'
+  const activeSort     = searchParams.get('sort')     ?? 'latest'
   const activeLanguage = searchParams.get('language') ?? ''
   const hasMore = page < pages
   const hasFilters = !!(activeGenre || activeYear || (activeLanguage && activeLanguage !== ''))
@@ -61,6 +61,7 @@ export default function BrowseClient({ initialMovies, initialTotal, initialPages
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', String(nextPage))
     params.set('limit', '20')
+    params.set('sort', activeSort)  // keep paging consistent with the active sort (URL may omit it)
 
     start(async () => {
       const res = await fetch(`${API_URL}/api/movies?${params}`)
