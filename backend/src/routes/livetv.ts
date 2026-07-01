@@ -8,17 +8,24 @@ export const livetvRouter = Router()
 const COUNTRIES = ['us', 'uk', 'ca', 'au', 'nz', 'ie']
 const PLAYLIST = (c: string) => `https://iptv-org.github.io/iptv/countries/${c}.m3u`
 
-// India has 230+ news channels, mostly regional languages — so instead of the whole
-// playlist we allow only recognizable Hindi/national channels (DD + major networks).
-const INDIA_ALLOW = /\b(DD Sports|DD National|DD India|DD News|DD Bharati|Sansad TV|Aaj Tak|ABP News|Zee News|Zee Hindustan|NDTV|India TV|News18 India|Republic Bharat|WION|Times Now|CNBC Awaaz|TV9 Bharatvarsh|News Nation|Bharat24)\b/i
+// India has 800+ channels, mostly regional languages / pay-TV. We allow only
+// recognizable free Hindi channels (premium Sony/Zee/Colors/Star are DRM+geo-locked
+// and don't work anyway). Regional-language variants are excluded.
+// Hindi NEWS channels join the "News" group; all other Hindi (serials, movies,
+// sport, general) go into a single "Hindi" group.
+const INDIA_REGIONAL = /\b(Marathi|Bangla|Bengali|Tamil|Telugu|Kannada|Gujarati|Malayalam|Bhojpuri|Punjabi|Odia|Oriya|Assam(?:ese)?|Kalinga|Nepali|Urdu|Sindhi|Konkani|Tulu|Manipuri)\b/i
+const INDIA_NEWS = /\b(DD News|DD India|Aaj Tak|ABP News|Zee News|NDTV|India TV|News18 India|Republic Bharat|WION|Times Now|CNBC Awaaz|TV9 Bharatvarsh|News Nation|Sansad TV|Bharat24)\b/i
+const INDIA_HINDI = /\b(DD Sports|DD National|DD Bharati|Big Magic|Shemaroo|Goldmines|Manoranjan|B4U Movies|Dhamaka Movies)\b/i
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 const ORIGIN = 'https://watchmovora.com'
 
 const REFRESH_MS = 20 * 60 * 1000
-const CHECK_CONCURRENCY = 12
+const CHECK_CONCURRENCY = 6          // low, to stay light on the 512MB free instance
 const CHECK_TIMEOUT = 6_000
+const MAX_READ_BYTES = 128 * 1024    // only need the top of the playlist; never buffer a live stream
 
 type Group = 'Sports' | 'News' | 'Hindi'
+const GROUP_ORDER: Group[] = ['Sports', 'News', 'Hindi']
 
 interface Channel {
   id: string          // base64url(url) — self-contained, no server lookup needed
@@ -27,6 +34,7 @@ interface Channel {
   group: Group
   url: string
   direct: boolean     // CORS-enabled → player can stream client-side (0 Render bandwidth)
+  hd: boolean         // stream carries a ≥720p rendition (or is named HD)
 }
 
 let channelsCache: Channel[] = []
@@ -66,7 +74,10 @@ function parseM3U(text: string, mode: 'english' | 'india'): ParsedChannel[] {
       const name = cleanName(t.slice(t.lastIndexOf(',') + 1).trim())
       let group: Group | null = null
       if (mode === 'india') {
-        if (INDIA_ALLOW.test(name)) group = /sport/i.test(name) ? 'Sports' : 'Hindi'
+        if (!INDIA_REGIONAL.test(name)) {
+          if (INDIA_NEWS.test(name)) group = 'News'
+          else if (INDIA_HINDI.test(name)) group = 'Hindi'
+        }
       } else {
         group = normalizeGroup(rawGroup)
       }
@@ -81,21 +92,47 @@ function parseM3U(text: string, mode: 'english' | 'india'): ParsedChannel[] {
   return out
 }
 
-async function checkChannel(url: string): Promise<{ alive: boolean; direct: boolean }> {
+// Read at most MAX_READ_BYTES then stop — never buffer a full live stream into memory.
+async function readCapped(r: Response): Promise<string> {
+  const reader = r.body?.getReader()
+  if (!reader) return ''
+  const chunks: Buffer[] = []
+  let total = 0
+  try {
+    while (total < MAX_READ_BYTES) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(Buffer.from(value))
+      total += value.length
+    }
+  } finally {
+    try { await reader.cancel() } catch { /* ignore */ }
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+async function checkChannel(url: string): Promise<{ alive: boolean; direct: boolean; maxHeight: number }> {
   try {
     const r = await fetch(url, {
       headers: { 'User-Agent': UA, 'Origin': ORIGIN, 'Referer': ORIGIN },
       signal: AbortSignal.timeout(CHECK_TIMEOUT),
     })
-    if (!r.ok) return { alive: false, direct: false }
+    if (!r.ok) { try { await r.body?.cancel() } catch { /* */ } return { alive: false, direct: false, maxHeight: 0 } }
     const ct = r.headers.get('content-type') || ''
-    const text = await r.text()
+    const text = await readCapped(r)
     const alive = text.includes('#EXTM3U') || ct.includes('mpegurl')
     const acao = r.headers.get('access-control-allow-origin')
-    return { alive, direct: alive && (acao === '*' || acao === ORIGIN) }
+    let maxHeight = 0
+    for (const m of text.matchAll(/RESOLUTION=\d+x(\d+)/gi)) maxHeight = Math.max(maxHeight, Number(m[1]))
+    return { alive, direct: alive && (acao === '*' || acao === ORIGIN), maxHeight }
   } catch {
-    return { alive: false, direct: false }
+    return { alive: false, direct: false, maxHeight: 0 }
   }
+}
+
+// Strip quality tokens so "DD National HD" and "DD National SD" collapse to one card.
+function baseName(n: string): string {
+  return n.replace(/\s*\b(FHD|UHD|4K|HD|SD)\b/gi, '').replace(/\s{2,}/g, ' ').trim() || n
 }
 
 async function mapPool<T, R>(items: T[], fn: (t: T) => Promise<R>, n: number): Promise<R[]> {
@@ -134,17 +171,30 @@ async function refresh(): Promise<void> {
     const parsed = [...byName.values()]
 
     const checked = await mapPool(parsed, async ch => {
-      const { alive, direct } = await checkChannel(ch.url)
-      return { ch, alive, direct }
+      const { alive, direct, maxHeight } = await checkChannel(ch.url)
+      return { ch, alive, direct, maxHeight }
     }, CHECK_CONCURRENCY)
 
-    channelsCache = checked
-      .filter(c => c.alive)
-      .map(c => ({ id: b64url(c.ch.url), name: c.ch.name, logo: c.ch.logo, group: c.ch.group, url: c.ch.url, direct: c.direct }))
-      .sort((a, b) => a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group))
+    // Collapse HD/SD variants of the same channel, preferring the higher-quality feed.
+    const best = new Map<string, Channel & { _h: number }>()
+    for (const c of checked) {
+      if (!c.alive) continue
+      const hd = c.maxHeight >= 720 || /\b(HD|FHD|UHD|4K)\b/i.test(c.ch.name)
+      const name = baseName(c.ch.name)
+      const key = `${c.ch.group}:${name.toLowerCase()}`
+      const cand = { id: b64url(c.ch.url), name, logo: c.ch.logo, group: c.ch.group, url: c.ch.url, direct: c.direct, hd, _h: c.maxHeight }
+      const prev = best.get(key)
+      if (!prev || (hd && !prev.hd) || (hd === prev.hd && c.maxHeight > prev._h)) best.set(key, cand)
+    }
+
+    channelsCache = [...best.values()]
+      .map(({ _h, ...c }) => c)
+      .sort((a, b) => a.group === b.group
+        ? a.name.localeCompare(b.name)
+        : GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group))
 
     lastRefresh = Date.now()
-    console.log(`[livetv] refreshed: ${channelsCache.length}/${parsed.length} English Sports/News channels live`)
+    console.log(`[livetv] refreshed: ${channelsCache.length}/${parsed.length} Hindi/English Sports/News channels live`)
   } catch (e) {
     console.error('[livetv] refresh failed', e)
   } finally {
