@@ -7,6 +7,10 @@ export const livetvRouter = Router()
 // so users see recognizable English channels, not foreign-language clutter.
 const COUNTRIES = ['us', 'uk', 'ca', 'au', 'nz', 'ie']
 const PLAYLIST = (c: string) => `https://iptv-org.github.io/iptv/countries/${c}.m3u`
+
+// India has 230+ news channels, mostly regional languages — so instead of the whole
+// playlist we allow only recognizable Hindi/national channels (DD + major networks).
+const INDIA_ALLOW = /\b(DD Sports|DD National|DD India|DD News|DD Bharati|Sansad TV|Aaj Tak|ABP News|Zee News|Zee Hindustan|NDTV|India TV|News18 India|Republic Bharat|WION|Times Now|CNBC Awaaz|TV9 Bharatvarsh|News Nation|Bharat24)\b/i
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 const ORIGIN = 'https://watchmovora.com'
 
@@ -14,11 +18,13 @@ const REFRESH_MS = 20 * 60 * 1000
 const CHECK_CONCURRENCY = 12
 const CHECK_TIMEOUT = 6_000
 
+type Group = 'Sports' | 'News' | 'Hindi'
+
 interface Channel {
   id: string          // base64url(url) — self-contained, no server lookup needed
   name: string
   logo: string | null
-  group: 'Sports' | 'News'
+  group: Group
   url: string
   direct: boolean     // CORS-enabled → player can stream client-side (0 Render bandwidth)
 }
@@ -43,21 +49,28 @@ function normalizeGroup(group: string): 'Sports' | 'News' | null {
   return null
 }
 
-interface ParsedChannel { name: string; logo: string | null; group: 'Sports' | 'News'; url: string }
+interface ParsedChannel { name: string; logo: string | null; group: Group; url: string }
 
-function parseM3U(text: string): ParsedChannel[] {
+// Parse an M3U. `mode='english'` keeps Sports/News by group-title; `mode='india'`
+// keeps only allowlisted channels (any group) and buckets them Sports vs Hindi.
+function parseM3U(text: string, mode: 'english' | 'india'): ParsedChannel[] {
   const out: ParsedChannel[] = []
   const lines = text.split('\n')
-  let pending: { name: string; logo: string | null; group: 'Sports' | 'News' } | null = null
+  let pending: { name: string; logo: string | null; group: Group } | null = null
 
   for (const line of lines) {
     const t = line.trim()
     if (t.startsWith('#EXTINF')) {
-      const g = normalizeGroup(/group-title="([^"]*)"/.exec(t)?.[1] || '')
-      if (!g) { pending = null; continue }
+      const rawGroup = /group-title="([^"]*)"/.exec(t)?.[1] || ''
       const logo = /tvg-logo="([^"]*)"/.exec(t)?.[1] || null
       const name = cleanName(t.slice(t.lastIndexOf(',') + 1).trim())
-      pending = { name, logo, group: g }
+      let group: Group | null = null
+      if (mode === 'india') {
+        if (INDIA_ALLOW.test(name)) group = /sport/i.test(name) ? 'Sports' : 'Hindi'
+      } else {
+        group = normalizeGroup(rawGroup)
+      }
+      pending = group ? { name, logo, group } : null
     } else if (t.startsWith('#')) {
       // skip #EXTVLCOPT and other directives, keep pending
     } else if (t) {
@@ -99,21 +112,25 @@ async function refresh(): Promise<void> {
   if (refreshing) return
   refreshing = true
   try {
-    // Pull all English-country playlists, parse, keep Sports/News, de-dupe by name.
-    const texts = await Promise.all(COUNTRIES.map(async c => {
+    // English countries → Sports/News by group; India → allowlisted Hindi/DD only.
+    const fetchText = async (url: string) => {
       try {
-        const r = await fetch(PLAYLIST(c), { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15_000) })
+        const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15_000) })
         return r.ok ? await r.text() : ''
       } catch { return '' }
-    }))
+    }
+    const engTexts = await Promise.all(COUNTRIES.map(c => fetchText(PLAYLIST(c))))
+    const indiaText = await fetchText(PLAYLIST('in'))
 
     const byName = new Map<string, ParsedChannel>()
-    for (const text of texts) {
-      for (const ch of parseM3U(text)) {
+    const add = (chs: ParsedChannel[]) => {
+      for (const ch of chs) {
         const key = ch.name.toLowerCase()
         if (!byName.has(key)) byName.set(key, ch)
       }
     }
+    for (const text of engTexts) add(parseM3U(text, 'english'))
+    add(parseM3U(indiaText, 'india'))
     const parsed = [...byName.values()]
 
     const checked = await mapPool(parsed, async ch => {
