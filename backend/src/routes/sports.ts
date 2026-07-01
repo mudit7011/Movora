@@ -55,6 +55,10 @@ function rewriteM3u8(content: string, baseUrl: string, referer: string): string 
       if (trimmed.startsWith('#EXT-X-MAP')) {
         return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mkProxy(u)}"`)
       }
+      // Rewrite MEDIA URI (demuxed audio / subtitle sub-playlists — e.g. Samsung TV Plus / FIFA+)
+      if (trimmed.startsWith('#EXT-X-MEDIA')) {
+        return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mkProxy(u)}"`)
+      }
       // Non-comment line = segment or sub-playlist URI
       if (!trimmed.startsWith('#')) {
         return mkProxy(trimmed)
