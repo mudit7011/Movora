@@ -31,7 +31,7 @@ export default function LiveTvWatchPage({ params }: { params: Promise<{ id: stri
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
-  const [levels, setLevels] = useState<{ index: number; height: number }[]>([])
+  const [levels, setLevels] = useState<{ index: number; height: number; bitrate: number }[]>([])
   const [currentLevel, setCurrentLevel] = useState(-1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -44,12 +44,14 @@ export default function LiveTvWatchPage({ params }: { params: Promise<{ id: stri
     setLevels([]); setCurrentLevel(-1); setLoading(true); setError('')
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: true, liveSyncDurationCount: 3, backBufferLength: 30 })
+      // Robust live config: no low-latency mode (these FAST/SSAI streams aren't LL-HLS
+      // and it stalls them), treat as infinite live so playback starts at the live edge.
+      const hls = new Hls({ enableWorker: true, backBufferLength: 30, liveDurationInfinity: true })
       hlsRef.current = hls
       hls.loadSource(src)
       hls.attachMedia(video)
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLevels(hls.levels.map((l, i) => ({ index: i, height: l.height || 0 })))
+        setLevels(hls.levels.map((l, i) => ({ index: i, height: l.height || 0, bitrate: l.bitrate || 0 })))
         setLoading(false)
         video.play().catch(() => {})
       })
@@ -125,8 +127,10 @@ export default function LiveTvWatchPage({ params }: { params: Promise<{ id: stri
                 className="bg-black/70 text-white text-xs rounded-lg px-2 py-1 border border-white/10 backdrop-blur-sm cursor-pointer"
               >
                 <option value={-1}>Auto</option>
-                {[...levels].sort((a, b) => b.height - a.height).map(l => (
-                  <option key={l.index} value={l.index}>{l.height ? `${l.height}p` : `Level ${l.index}`}</option>
+                {[...levels].sort((a, b) => (b.height - a.height) || (b.bitrate - a.bitrate)).map(l => (
+                  <option key={l.index} value={l.index}>
+                    {l.height ? `${l.height}p` : l.bitrate ? `${Math.round(l.bitrate / 1000)}k` : `Level ${l.index}`}
+                  </option>
                 ))}
               </select>
             </div>
