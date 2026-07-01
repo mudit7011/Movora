@@ -81,6 +81,7 @@ const navItems: NavItem[] = [
   { href: '/movies', icon: FilmIcon, label: 'Movies' },
   { href: '/shows', icon: TvIcon, label: 'TV Shows' },
   { href: '/sports', icon: SportsIcon, label: 'Live Sports' },
+  { href: '/livetv', icon: TvIcon, label: 'Live TV' },
   { href: '/platforms', icon: GridIcon, label: 'Platforms' },
   { href: '/watchlist', icon: BookmarkIcon, label: 'Watch Later' },
   { href: '/history', icon: ClockIcon, label: 'Continue' },

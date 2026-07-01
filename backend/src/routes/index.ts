@@ -7,6 +7,7 @@ import { searchRouter } from './search'
 import { subtitlesRouter } from './subtitles'
 import { streamRouter } from './stream'
 import { sportsRouter } from './sports'
+import { livetvRouter } from './livetv'
 import { adminAuthRouter } from './admin/auth'
 import { adminMoviesRouter } from './admin/movies'
 import { adminScrapeRouter } from './admin/scrape'
@@ -25,6 +26,7 @@ router.use('/search', searchRouter)
 router.use('/subtitles', subtitlesRouter)
 router.use('/stream', streamRouter)
 router.use('/sports', sportsRouter)
+router.use('/livetv', livetvRouter)
 router.use('/admin/auth', adminAuthRouter)
 router.use('/admin/movies', adminMoviesRouter)
 router.use('/admin/scrape', adminScrapeRouter)
