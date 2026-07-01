@@ -2,6 +2,14 @@ const BACKEND = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'h
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      // Live Sports (match-embed) page is hidden — code kept, but the route is blocked.
+      // Note: this does NOT affect the /api/sports/* backend proxy that Live TV relies on.
+      { source: '/sports', destination: '/livetv', permanent: false },
+      { source: '/sports/:path*', destination: '/livetv', permanent: false },
+    ]
+  },
   async rewrites() {
     return [
       // Forward public API calls to EB backend (server-side rewrite, no mixed-content issue)

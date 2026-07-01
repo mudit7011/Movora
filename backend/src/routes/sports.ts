@@ -197,7 +197,9 @@ sportsRouter.get('/proxy', async (req, res) => {
     if (isPlaylist) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
       const text = await upstream.text()
-      res.send(rewriteM3u8(text, urlParam, referer))
+      // Resolve relative URIs against the FINAL url after redirects (Samsung TV Plus /
+      // Pluto FAST channels 302 to a session URL; the original url gives wrong paths → 404).
+      res.send(rewriteM3u8(text, upstream.url || urlParam, referer))
     } else {
       res.setHeader('Content-Type', ct || 'application/octet-stream')
       const buf = await upstream.arrayBuffer()

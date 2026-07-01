@@ -77,6 +77,7 @@ const LiveTvIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SportsIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 194 194" fill="none">
     <circle fill="currentColor" fillOpacity="0.15" cx="97" cy="97" r="97"/>
@@ -90,7 +91,8 @@ const navItems: NavItem[] = [
   { href: '/new', icon: FlameIcon, label: 'New & Popular' },
   { href: '/movies', icon: FilmIcon, label: 'Movies' },
   { href: '/shows', icon: TvIcon, label: 'TV Shows' },
-  { href: '/sports', icon: SportsIcon, label: 'Live Sports' },
+  // Live Sports (match embeds) hidden for now — page code kept, access blocked via redirect in next.config.
+  // { href: '/sports', icon: SportsIcon, label: 'Live Sports' },
   { href: '/livetv', icon: LiveTvIcon, label: 'Live TV' },
   { href: '/platforms', icon: GridIcon, label: 'Platforms' },
   { href: '/watchlist', icon: BookmarkIcon, label: 'Watch Later' },
