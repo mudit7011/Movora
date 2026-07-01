@@ -67,6 +67,16 @@ const FlameIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const LiveTvIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="1"/>
+    <path d="M18.4,5.6L17,7.1c1.3,1.3,2,3.1,2,4.9s-0.7,3.6-2.1,5l1.4,1.4c1.7-1.7,2.6-4,2.6-6.4S20.1,7.3,18.4,5.6z"/>
+    <path d="M7.1,7L5.6,5.6C3.9,7.3,3,9.6,3,12c0,2.4,0.9,4.7,2.6,6.4L7,16.9c-1.3-1.3-2-3.1-2-4.9S5.7,8.4,7.1,7z"/>
+    <path d="M15.5,8.5l-1.4,1.4c0.6,0.6,0.9,1.3,0.9,2.1c0,0.8-0.3,1.5-0.9,2.1l1.4,1.4c1-1,1.5-2.2,1.5-3.5S16.5,9.4,15.5,8.5z"/>
+    <path d="M8.5,8.5C7.5,9.4,7,10.6,7,12c0,1.4,0.5,2.6,1.5,3.5l1.4-1.4C9.3,13.5,9,12.8,9,12c0-0.8,0.3-1.5,0.9-2.1L8.5,8.5z"/>
+  </svg>
+)
+
 const SportsIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 194 194" fill="none">
     <circle fill="currentColor" fillOpacity="0.15" cx="97" cy="97" r="97"/>
@@ -81,7 +91,7 @@ const navItems: NavItem[] = [
   { href: '/movies', icon: FilmIcon, label: 'Movies' },
   { href: '/shows', icon: TvIcon, label: 'TV Shows' },
   { href: '/sports', icon: SportsIcon, label: 'Live Sports' },
-  { href: '/livetv', icon: TvIcon, label: 'Live TV' },
+  { href: '/livetv', icon: LiveTvIcon, label: 'Live TV' },
   { href: '/platforms', icon: GridIcon, label: 'Platforms' },
   { href: '/watchlist', icon: BookmarkIcon, label: 'Watch Later' },
   { href: '/history', icon: ClockIcon, label: 'Continue' },
