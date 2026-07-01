@@ -124,7 +124,11 @@ async function checkChannel(url: string): Promise<{ alive: boolean; direct: bool
     if (!r.ok) { try { await r.body?.cancel() } catch { /* */ } return { alive: false, direct: false, maxHeight: 0 } }
     const ct = r.headers.get('content-type') || ''
     const text = await readCapped(r)
-    const alive = text.includes('#EXTM3U') || ct.includes('mpegurl')
+    const isM3u = text.includes('#EXTM3U') || ct.includes('mpegurl')
+    // Exclude demuxed-audio streams (separate audio track) — our segment proxy can't keep
+    // their audio/video timelines in sync (esp. Samsung TV Plus SSAI), so they play black/silent.
+    const demuxed = /#EXT-X-MEDIA:TYPE=AUDIO/i.test(text)
+    const alive = isM3u && !demuxed
     const acao = r.headers.get('access-control-allow-origin')
     let maxHeight = 0
     for (const m of text.matchAll(/RESOLUTION=\d+x(\d+)/gi)) maxHeight = Math.max(maxHeight, Number(m[1]))
