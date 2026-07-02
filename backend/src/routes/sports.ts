@@ -201,21 +201,12 @@ sportsRouter.get('/proxy', async (req, res) => {
       // Pluto FAST channels 302 to a session URL; the original url gives wrong paths → 404).
       res.send(rewriteM3u8(text, upstream.url || urlParam, referer))
     } else {
-      // Stream media segments straight through — don't buffer the whole segment in
-      // memory first (lower latency + memory, important for live video on a small instance).
       res.setHeader('Content-Type', ct || 'application/octet-stream')
-      const len = upstream.headers.get('content-length')
-      if (len) res.setHeader('Content-Length', len)
-      if (upstream.body) {
-        const { Readable } = await import('stream')
-        Readable.fromWeb(upstream.body as import('stream/web').ReadableStream).pipe(res)
-      } else {
-        res.end()
-      }
+      const buf = await upstream.arrayBuffer()
+      res.send(Buffer.from(buf))
     }
   } catch (e) {
     console.error('[sports/proxy]', e)
-    if (!res.headersSent) res.status(502).json({ error: 'Proxy error' })
-    else res.end()
+    res.status(502).json({ error: 'Proxy error' })
   }
 })
