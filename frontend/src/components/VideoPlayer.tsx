@@ -1,6 +1,21 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+
+// True on phone-width screens — menus become body-portaled bottom sheets there so the player's
+// overflow-clip and stacking context can't hide/clip them. Desktop keeps anchored dropdowns.
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const update = () => setMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  return mobile
+}
 
 interface QualityLevel { index: number; height: number; bitrate: number }
 interface AudioTrack   { id: number; name: string; lang?: string }
@@ -119,9 +134,10 @@ function fmt(s: number) {
 }
 
 interface OSResult {
+  id?: string              // OpenSubtitles file_id — downloaded via /api/subtitles/vtt?id=
   display: string          // e.g. "English"
   language: string         // e.g. "en"
-  url: string              // raw subtitle url (served as VTT via /api/subtitles/vtt)
+  url?: string             // legacy (unused with the official API)
   flag: string | null
   release?: string         // release/file name so users can match their video's sync
   downloads?: number       // popularity — higher usually means better sync
@@ -656,8 +672,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   }
 
   async function pickOsSubtitle(result: OSResult) {
-    // Wyzie gives a direct url; our /vtt endpoint fetches it, converts SRT→VTT and strips ads.
-    const vtt = `/api/subtitles/vtt?url=${encodeURIComponent(result.url)}`
+    const vtt = `/api/subtitles/vtt?id=${encodeURIComponent(result.id || '')}`
     // Tag with a short release token (BluRay/WEB/RARBG…) so multiple picks of one language stay distinguishable.
     const relTag = (result.release || '').match(/\b(blu-?ray|web-?dl|webrip|hdrip|brrip|bdrip|dvdrip|hdtv|rarbg|yify|yts|amzn|nf)\b/i)?.[0]
     const label = `🌐 ${result.display}${result.hi ? ' (HI)' : ''}${relTag ? ` · ${relTag}` : ''}`
@@ -1035,9 +1050,9 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
                   Aa
                 </button>
                 {openMenu === 'subprefs' && (
-                  <>
-                  <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
-                  <div className="absolute bottom-10 right-0 z-50 w-64 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4">
+                  <Sheet onClose={() => setOpenMenu(null)}
+                    desktopClass="absolute bottom-10 right-0 z-50 w-64 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4"
+                    sheetClass="p-4 space-y-4">
                     <p className="text-[10px] text-white/30 uppercase tracking-widest">Subtitle Style</p>
 
                     {/* Size */}
@@ -1095,8 +1110,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
                         Reset
                       </button>
                     </div>
-                  </div>
-                  </>
+                  </Sheet>
                 )}
               </div>
             )}
@@ -1248,10 +1262,52 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
 // ── Small helper components ────────────────────────────────────────────────────
 
-function Menu({ label, children, onClose }: { label: string; children: React.ReactNode; onClose: () => void }) {
+// Renders children as a body-portaled bottom sheet on mobile, or an anchored desktop panel.
+function Sheet({ children, onClose, desktopClass, sheetClass }: { children: React.ReactNode; onClose: () => void; desktopClass: string; sheetClass?: string }) {
+  const isMobile = useIsMobile()
+  if (isMobile && typeof document !== 'undefined') {
+    return createPortal(
+      <>
+        <div className="fixed inset-0 z-[998] bg-black/60" onPointerDown={e => { e.stopPropagation(); onClose() }} />
+        <div className={`fixed inset-x-0 bottom-0 z-[999] max-h-[80vh] overflow-y-auto bg-[#111]/97 backdrop-blur-xl border-t border-white/10 rounded-t-2xl shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full ${sheetClass ?? ''}`}>
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/20" />
+          {children}
+        </div>
+      </>,
+      document.body,
+    )
+  }
   return (
     <>
-      {/* Click-outside backdrop */}
+      <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); onClose() }} />
+      <div className={desktopClass}>{children}</div>
+    </>
+  )
+}
+
+function Menu({ label, children, onClose }: { label: string; children: React.ReactNode; onClose: () => void }) {
+  const isMobile = useIsMobile()
+
+  // Mobile: bottom sheet portaled to <body> so nothing clips or stacks over it.
+  if (isMobile && typeof document !== 'undefined') {
+    return createPortal(
+      <>
+        <div className="fixed inset-0 z-[998] bg-black/60" onPointerDown={e => { e.stopPropagation(); onClose() }} />
+        <div className="fixed inset-x-0 bottom-0 z-[999] max-h-[80vh] bg-[#111]/97 backdrop-blur-xl border-t border-white/10 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-white/20 flex-shrink-0" />
+          <p className="text-[11px] text-white/40 uppercase tracking-widest px-4 pt-2 pb-1 flex-shrink-0">{label}</p>
+          <div className="overflow-y-auto pb-3 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+            {children}
+          </div>
+        </div>
+      </>,
+      document.body,
+    )
+  }
+
+  // Desktop: original anchored dropdown (unchanged).
+  return (
+    <>
       <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); onClose() }} />
       <div className="absolute bottom-10 right-0 z-50 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl min-w-[150px] flex flex-col overflow-hidden">
         <p className="text-[10px] text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex-shrink-0">{label}</p>

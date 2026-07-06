@@ -116,8 +116,9 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
       .then(r => r.ok ? r.json() : { subtitles: [] })
       .then(d => {
         if (cancelled) return
-        setSubs((d.subtitles || []).map((x: { display: string; lang: string; url: string }) => ({
-          label: x.display, language: x.lang, url: `/api/subtitles/vtt?url=${encodeURIComponent(x.url)}`, default: false,
+        setSubs((d.subtitles || []).map((x: { display: string; lang: string; id: string }) => ({
+          label: x.display, language: x.lang, default: false,
+          url: `/api/subtitles/vtt?id=${encodeURIComponent(x.id)}`,
         })))
       })
       .catch(() => {})
