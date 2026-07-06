@@ -1037,7 +1037,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
                 {openMenu === 'subprefs' && (
                   <>
                   <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
-                  <div className="absolute bottom-10 right-0 z-50 w-64 max-h-[calc(100%-3.5rem)] overflow-y-auto sm:max-h-none sm:overflow-visible bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+                  <div className="absolute bottom-10 right-0 z-50 w-64 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4">
                     <p className="text-[10px] text-white/30 uppercase tracking-widest">Subtitle Style</p>
 
                     {/* Size */}
@@ -1253,9 +1253,9 @@ function Menu({ label, children, onClose }: { label: string; children: React.Rea
     <>
       {/* Click-outside backdrop */}
       <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); onClose() }} />
-      <div className="absolute bottom-10 right-0 z-50 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl min-w-[150px] max-h-[calc(100%-3.5rem)] sm:max-h-none flex flex-col overflow-hidden">
+      <div className="absolute bottom-10 right-0 z-50 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl min-w-[150px] flex flex-col overflow-hidden">
         <p className="text-[10px] text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex-shrink-0">{label}</p>
-        <div className="overflow-y-auto flex-1 min-h-0 sm:flex-none sm:max-h-[220px] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="overflow-y-auto max-h-[220px] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
           {children}
         </div>
         <div className="h-2 flex-shrink-0" />
