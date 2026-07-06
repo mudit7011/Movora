@@ -1027,11 +1027,12 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
           </div>
         </div>
       </div>
-      {/* Settings modal — Quality / Audio / Subtitles / Aa / Speed, all in one place */}
-      {openMenu === 'settings' && (
+      {/* Settings modal — Quality / Audio / Subtitles / Aa / Speed, all in one place.
+          On mobile it's portaled to <body> so the player's overflow/stacking can't hide it. */}
+      {openMenu === 'settings' && ((m: React.ReactNode) => (isMobile && typeof document !== 'undefined' ? createPortal(m, document.body) : m))(
         <>
-          <div className={`fixed inset-0 ${isMobile ? 'z-[998] bg-black/60' : 'z-40'}`} onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
-          <div className={`${isMobile ? 'fixed inset-x-0 bottom-0 z-[999] max-h-[82vh] rounded-t-2xl border-t' : 'absolute bottom-10 right-3 sm:right-5 z-50 w-[19rem] max-h-[76%] rounded-xl border'} border-white/10 bg-[#111]/97 backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden`}>
+          <div className={`fixed inset-0 ${isMobile ? 'z-[998] bg-black/80' : 'z-40'}`} onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
+          <div style={{ backgroundColor: 'rgba(14,14,17,0.9)' }} className={`${isMobile ? 'fixed inset-x-0 bottom-0 z-[999] max-h-[82vh] rounded-t-2xl border-t' : 'absolute bottom-10 right-3 sm:right-5 z-50 w-[19rem] max-h-[76%] rounded-xl border'} border-white/10 shadow-2xl flex flex-col overflow-hidden backdrop-blur-2xl backdrop-saturate-150`}>
             {isMobile && <div className="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-white/20 flex-shrink-0" />}
 
             {/* Tab bar */}
@@ -1104,7 +1105,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
                   <div>
                     <p className="text-xs text-white/50 mb-1.5">Size</p>
                     <div className="flex gap-1.5">
-                      {([['sm','XS'],['base','S'],['lg','M'],['xl','L'],['2xl','XL'],['3xl','2XL'],['4xl','3XL']] as const).map(([s, label]) => (
+                      {([['base','XS'],['lg','S'],['xl','M'],['2xl','L'],['3xl','XL']] as const).map(([s, label]) => (
                         <button key={s} onClick={() => setSubPrefs(p => ({...p, size: s}))} className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${subPrefs.size === s ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>{label}</button>
                       ))}
                     </div>
