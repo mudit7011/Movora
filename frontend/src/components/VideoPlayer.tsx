@@ -45,7 +45,7 @@ interface ExtSubtitle { label: string; language: string; url: string; default: b
 interface ParsedCue  { start: number; end: number; text: string }
 
 interface SubPrefs {
-  size: 'sm' | 'base' | 'lg' | 'xl' | '2xl'
+  size: 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'
   color: 'white' | 'yellow' | 'cyan'
   bg: 'glass' | 'dark' | 'none'
   bold: boolean
@@ -145,7 +145,8 @@ interface OSResult {
   origin?: string          // release type: BluRay / WEB / HDRip
 }
 
-type Menu = 'quality' | 'audio' | 'sub' | 'speed' | 'subprefs' | 'ossearch' | null
+type Menu = 'settings' | 'ossearch' | 'sub' | null
+type SettingsTab = 'quality' | 'audio' | 'subs' | 'style' | 'speed'
 
 export default function VideoPlayer({ src, sources, activeSourceIdx: controlledSrcIdx, onSourceChange, onSourcesExhausted, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis, episodeTitle, episodeOverview, onProgress }: Props) {
   const [internalSrcIdx, setInternalSrcIdx] = useState(0)
@@ -180,6 +181,8 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const [curSub,       setCurSub]       = useState(-1)
   const [speed,        setSpeed]        = useState(1)
   const [openMenu,     setOpenMenu]     = useState<Menu>(null)
+  const [settingsTab,  setSettingsTab]  = useState<SettingsTab>('subs')
+  const isMobile = useIsMobile()
   const [loading,      setLoading]      = useState(true)
   const [loadPhase,    setLoadPhase]    = useState(0)   // progressive buffering message index
   const [curExtSub,    setCurExtSub]    = useState<number>(-1)  // always off by default
@@ -192,12 +195,14 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const lastProgressRef = useRef(0)   // throttle progress reports to ~every 5s
   const parsedCuesRef      = useRef<ParsedCue[]>([])
   const hlsSubVidTrackRef  = useRef<number>(-1)
+  const subTrackRef        = useRef<HTMLTrackElement>(null)  // native <track> for iOS fullscreen subtitles
   const [localSubs,        setLocalSubs]    = useState<ExtSubtitle[]>([])
   const fileInputRef       = useRef<HTMLInputElement>(null)
   const blobUrlsRef        = useRef<string[]>([])  // track blob URLs for cleanup
 
   // Combine API subs + locally uploaded subs
   const allExtSubs = [...(externalSubtitles ?? []), ...localSubs]
+  const activeSub = curExtSub >= 0 ? allExtSubs[curExtSub] : null   // for the native iOS-fullscreen track
 
   // OpenSubtitles search state
   const [osResults,   setOsResults]   = useState<OSResult[]>([])
@@ -230,6 +235,16 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       .catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curExtSub, externalSubtitles, localSubs])
+
+  // The native <track> should only render inside iOS's native fullscreen (where our custom HTML
+  // cue overlay isn't visible). Keep it 'hidden' everywhere else so we don't get double captions.
+  useEffect(() => {
+    const t = subTrackRef.current?.track
+    if (!t) return
+    const v = videoRef.current as (HTMLVideoElement & { webkitDisplayingFullscreen?: boolean }) | null
+    t.mode = v?.webkitDisplayingFullscreen ? 'showing' : 'hidden'
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [curExtSub, fs, activeSub?.url])
 
 
   // Reset failover state when the title/episode changes (first source url is the signal).
@@ -738,6 +753,15 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
   const hasCC = allExtSubs.length > 0 || subTracks.length > 0 || !!tmdbId
 
+  // Tabs for the consolidated Settings modal (only show what's available).
+  const settingsTabs: { id: SettingsTab; label: string }[] = [
+    ...((hasQualitySources || qualities.length > 1) ? [{ id: 'quality' as SettingsTab, label: 'Quality' }] : []),
+    ...(hasAudioMenu ? [{ id: 'audio' as SettingsTab, label: 'Audio' }] : []),
+    ...(hasCC ? [{ id: 'subs' as SettingsTab, label: 'Subtitles' }, { id: 'style' as SettingsTab, label: 'Aa' }] : []),
+    { id: 'speed' as SettingsTab, label: 'Speed' },
+  ]
+  const activeTab: SettingsTab = settingsTabs.some(t => t.id === settingsTab) ? settingsTab : settingsTabs[0].id
+
   const subBgClass = subPrefs.bg === 'glass'
     ? 'bg-white/10 backdrop-blur-xl backdrop-saturate-150 border border-white/20 shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
     : subPrefs.bg === 'dark'
@@ -747,7 +771,9 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     subPrefs.size === 'sm'  ? 'text-[10px] sm:text-sm'      :
     subPrefs.size === 'base'? 'text-xs sm:text-base'         :
     subPrefs.size === 'lg'  ? 'text-sm sm:text-lg'           :
-    subPrefs.size === 'xl'  ? 'text-sm sm:text-xl'           : 'text-base sm:text-2xl',
+    subPrefs.size === 'xl'  ? 'text-sm sm:text-xl'           :
+    subPrefs.size === '2xl' ? 'text-base sm:text-2xl'        :
+    subPrefs.size === '3xl' ? 'text-lg sm:text-3xl'          : 'text-xl sm:text-4xl',
     subPrefs.color === 'yellow' ? 'text-yellow-300' :
     subPrefs.color === 'cyan'   ? 'text-[#06D6E0]'  : 'text-white',
     subPrefs.bold   ? 'font-bold' : 'font-medium',
@@ -762,7 +788,13 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       onMouseLeave={() => { if (playing && !openMenu) setShowCtrl(false) }}
     >
       {/* Video */}
-      <video ref={videoRef} className="w-full h-full object-contain" poster={poster} playsInline onClick={togglePlay} />
+      <video ref={videoRef} className="w-full h-full object-contain" poster={poster} playsInline onClick={togglePlay}>
+        {/* Native track — only rendered so iOS's native fullscreen player can show subtitles
+            (our custom HTML cue overlay isn't visible there). Kept 'hidden' otherwise. */}
+        {activeSub && (
+          <track ref={subTrackRef} key={activeSub.url} kind="subtitles" src={activeSub.url} label={activeSub.label} srcLang={activeSub.language || 'en'} />
+        )}
+      </video>
 
       {/* Netflix-style info overlay while paused — bottom-left, video stays visible */}
       {!playing && !loading && (title || year || runtime || rating) && (
@@ -956,216 +988,21 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
             <div className="flex-1" />
 
-            {/* Speed */}
-            <div className="relative">
-              <button onClick={() => setOpenMenu(openMenu === 'speed' ? null : 'speed')}
-                className="p-2 text-white/60 hover:text-white text-xs font-bold transition-colors">
-                {speed}×
-              </button>
-              {openMenu === 'speed' && (
-                <Menu label="Speed" onClose={() => setOpenMenu(null)}>
-                  {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
-                    <MenuItem key={s} active={speed === s} onClick={() => setPlaySpeed(s)}>{s === 1 ? 'Normal' : `${s}×`}</MenuItem>
-                  ))}
-                </Menu>
-              )}
-            </div>
-
-            {/* CC */}
-            {hasCC && (
-              <div className="relative">
-                <button onClick={() => setOpenMenu(openMenu === 'sub' ? null : 'sub')}
-                  className={`p-2 text-xs font-bold px-2 py-0.5 rounded border transition-colors ${
-                    (curExtSub >= 0 || curSub >= 0)
-                      ? 'text-[#06D6E0] border-[#06D6E0]/50 bg-[#06D6E0]/10'
-                      : 'text-white/60 border-white/20 hover:text-white'
-                  }`}
-                >
-                  CC
-                </button>
-                {openMenu === 'sub' && (
-                  <Menu label="Subtitles" onClose={() => setOpenMenu(null)}>
-                    {allExtSubs.length > 0 ? (
-                      <>
-                        <MenuItem active={curExtSub === -1} onClick={() => setExtSub(-1)}>Off</MenuItem>
-                        {allExtSubs.map((s, i) => (
-                          <MenuItem key={i} active={curExtSub === i} onClick={() => setExtSub(i)}>{s.label}</MenuItem>
-                        ))}
-                      </>
-                    ) : (
-                      <>
-                        <MenuItem active={curSub === -1} onClick={() => setSub(-1)}>Off</MenuItem>
-                        {subTracks.map(t => (
-                          <MenuItem key={t.id} active={curSub === t.id} onClick={() => setSub(t.id)}>{t.name}</MenuItem>
-                        ))}
-                      </>
-                    )}
-                    <div className="mx-3 my-1.5 border-t border-white/10 flex-shrink-0" />
-                    <button
-                      onClick={() => { fileInputRef.current?.click(); setOpenMenu(null) }}
-                      className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
-                    >
-                      <span>📁</span> Upload (.srt / .vtt)
-                    </button>
-                    {tmdbId && (
-                      <button
-                        onClick={() => { setOpenMenu('ossearch'); searchAllSubtitles() }}
-                        className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
-                      >
-                        <span>🔍</span> Search more subtitles
-                      </button>
-                    )}
-                    {/* Subtitle sync — nudge timing when captions run ahead/behind the audio */}
-                    {(curExtSub >= 0 || curSub >= 0) && (
-                      <>
-                        <div className="mx-3 my-1.5 border-t border-white/10 flex-shrink-0" />
-                        <div className="px-4 py-2 flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-white/50">Sync</span>
-                          <div className="flex items-center gap-1.5">
-                            <button onClick={() => setSubOffset(o => Math.round((o - 0.5) * 10) / 10)}
-                              className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center justify-center transition-colors">−</button>
-                            <button onClick={() => setSubOffset(0)}
-                              className="min-w-[52px] text-center text-[11px] font-mono text-white/70 hover:text-white tabular-nums" title="Reset sync">
-                              {subOffset > 0 ? '+' : ''}{subOffset.toFixed(1)}s
-                            </button>
-                            <button onClick={() => setSubOffset(o => Math.round((o + 0.5) * 10) / 10)}
-                              className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center justify-center transition-colors">+</button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </Menu>
-                )}
-              </div>
-            )}
-
-            {/* Subtitle preferences */}
-            {hasCC && (
-              <div className="relative">
-                <button
-                  onClick={() => setOpenMenu(openMenu === 'subprefs' ? null : 'subprefs')}
-                  className={`p-2 text-xs font-bold transition-colors ${openMenu === 'subprefs' ? 'text-[#06D6E0]' : 'text-white/50 hover:text-white'}`}
-                  title="Subtitle style"
-                >
-                  Aa
-                </button>
-                {openMenu === 'subprefs' && (
-                  <Sheet onClose={() => setOpenMenu(null)}
-                    desktopClass="absolute bottom-10 right-0 z-50 w-64 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4"
-                    sheetClass="p-4 space-y-4">
-                    <p className="text-[10px] text-white/30 uppercase tracking-widest">Subtitle Style</p>
-
-                    {/* Size */}
-                    <div>
-                      <p className="text-xs text-white/50 mb-1.5">Size</p>
-                      <div className="flex gap-1.5">
-                        {(['sm','base','lg','xl','2xl'] as const).map(s => (
-                          <button key={s} onClick={() => setSubPrefs(p => ({...p, size: s}))}
-                            className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${subPrefs.size === s ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>
-                            {s === 'sm' ? 'XS' : s === 'base' ? 'S' : s === 'lg' ? 'M' : s === 'xl' ? 'L' : 'XL'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Color */}
-                    <div>
-                      <p className="text-xs text-white/50 mb-1.5">Color</p>
-                      <div className="flex gap-2">
-                        {([['white','#FFFFFF'],['yellow','#FDE047'],['cyan','#06D6E0']] as const).map(([c, hex]) => (
-                          <button key={c} onClick={() => setSubPrefs(p => ({...p, color: c}))}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs transition-colors ${subPrefs.color === c ? 'bg-white/20 ring-1 ring-white/40' : 'bg-white/5 hover:bg-white/15'}`}>
-                            <span className="w-3 h-3 rounded-full border border-white/20 flex-shrink-0" style={{background: hex}} />
-                            <span className="text-white/70 capitalize">{c}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Background */}
-                    <div>
-                      <p className="text-xs text-white/50 mb-1.5">Background</p>
-                      <div className="flex gap-1.5">
-                        {([['glass','Glass'],['dark','Dark'],['none','None']] as const).map(([b, label]) => (
-                          <button key={b} onClick={() => setSubPrefs(p => ({...p, bg: b}))}
-                            className={`flex-1 py-1 rounded-lg text-xs font-medium transition-colors ${subPrefs.bg === b ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Toggles */}
-                    <div className="flex gap-3">
-                      <button onClick={() => setSubPrefs(p => ({...p, bold: !p.bold}))}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${subPrefs.bold ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>
-                        Bold
-                      </button>
-                      <button onClick={() => setSubPrefs(p => ({...p, shadow: !p.shadow}))}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${subPrefs.shadow ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>
-                        Shadow
-                      </button>
-                      <button onClick={() => setSubPrefs(DEFAULT_SUB_PREFS)}
-                        className="flex-1 py-1.5 rounded-lg text-xs text-white/40 bg-white/5 hover:bg-white/10 transition-colors">
-                        Reset
-                      </button>
-                    </div>
-                  </Sheet>
-                )}
-              </div>
-            )}
-
-            {/* Audio — unified language menu (embedded tracks + alternate-language streams) */}
-            {hasAudioMenu && (
-              <div className="relative">
-                <button onClick={() => setOpenMenu(openMenu === 'audio' ? null : 'audio')}
-                  className="p-2 text-white/60 hover:text-white transition-colors" title="Audio language">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                  </svg>
-                </button>
-                {openMenu === 'audio' && (
-                  <Menu label="Audio" onClose={() => setOpenMenu(null)}>
-                    {audioItems.map((it, idx) => (
-                      <div key={it.key}>
-                        {idx === dubStart && dubStart > 0 && <div className="mx-3 my-1.5 border-t border-white/10" />}
-                        <MenuItem active={it.active} onClick={it.onClick}>{it.label}</MenuItem>
-                      </div>
-                    ))}
-                  </Menu>
-                )}
-              </div>
-            )}
-
-            {/* Quality */}
+            {/* Quality badge — shows what's playing; taps into the Quality tab */}
             {(hasQualitySources || qualities.length > 1) && (
-              <div className="relative">
-                <button onClick={() => setOpenMenu(openMenu === 'quality' ? null : 'quality')}
-                  className="p-2 text-white/60 hover:text-white text-xs font-semibold transition-colors min-w-[44px] text-center" title="Quality">
-                  {qualBtnLabel}
-                </button>
-                {openMenu === 'quality' && (
-                  <Menu label="Quality" onClose={() => setOpenMenu(null)}>
-                    {hasQualitySources
-                      ? qualitySources.map(s => (
-                          <MenuItem key={`q${s.i}`} active={activeSourceIdx === s.i} onClick={() => switchToSource(s.i)}>
-                            {s.quality}{s.quality === '4K' ? ' · HDR' : ''}
-                          </MenuItem>
-                        ))
-                      : (
-                        <>
-                          <MenuItem active={curQuality === -1} onClick={() => setQuality(-1)}>Auto</MenuItem>
-                          {[...qualities].reverse().map(q => (
-                            <MenuItem key={q.index} active={curQuality === q.index} onClick={() => setQuality(q.index)}>
-                              {q.height > 0 ? `${q.height}p` : `Level ${q.index}`}
-                            </MenuItem>
-                          ))}
-                        </>
-                      )}
-                  </Menu>
-                )}
-              </div>
+              <button onClick={() => { setSettingsTab('quality'); setOpenMenu('settings') }}
+                className="p-2 text-sm font-semibold text-white/70 hover:text-white transition-colors" title="Quality">
+                {qualBtnLabel}
+              </button>
             )}
+
+            {/* Settings — consolidated Quality / Audio / Subtitles / Style / Speed */}
+            <button onClick={() => setOpenMenu(openMenu === 'settings' ? null : 'settings')}
+              className={`p-2 transition-colors ${openMenu === 'settings' ? 'text-[#06D6E0]' : 'text-white/60 hover:text-white'}`} title="Settings">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
 
             {/* PiP — hidden on mobile to avoid crowding the control bar */}
             <button onClick={async () => { const v = videoRef.current; if (!v) return; try { document.pictureInPictureElement ? await document.exitPictureInPicture() : await v.requestPictureInPicture() } catch {} }}
@@ -1190,6 +1027,120 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
           </div>
         </div>
       </div>
+      {/* Settings modal — Quality / Audio / Subtitles / Aa / Speed, all in one place */}
+      {openMenu === 'settings' && (
+        <>
+          <div className={`fixed inset-0 ${isMobile ? 'z-[998] bg-black/60' : 'z-40'}`} onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
+          <div className={`${isMobile ? 'fixed inset-x-0 bottom-0 z-[999] max-h-[82vh] rounded-t-2xl border-t' : 'absolute bottom-10 right-3 sm:right-5 z-50 w-[19rem] max-h-[76%] rounded-xl border'} border-white/10 bg-[#111]/97 backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden`}>
+            {isMobile && <div className="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-white/20 flex-shrink-0" />}
+
+            {/* Tab bar */}
+            <div className="flex gap-1 px-3 pt-2 pb-2 border-b border-white/10 flex-shrink-0 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+              {settingsTabs.map(t => (
+                <button key={t.id} onClick={() => setSettingsTab(t.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${activeTab === t.id ? 'bg-[#06D6E0] text-black' : 'text-white/55 hover:text-white hover:bg-white/10'}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto py-1.5 min-h-0 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {activeTab === 'quality' && (hasQualitySources
+                ? qualitySources.map(s => (
+                    <MenuItem key={`q${s.i}`} active={activeSourceIdx === s.i} onClick={() => switchToSource(s.i)}>{s.quality}{s.quality === '4K' ? ' · HDR' : ''}</MenuItem>
+                  ))
+                : <>
+                    <MenuItem active={curQuality === -1} onClick={() => setQuality(-1)}>Auto</MenuItem>
+                    {[...qualities].reverse().map(q => (
+                      <MenuItem key={q.index} active={curQuality === q.index} onClick={() => setQuality(q.index)}>{q.height > 0 ? `${q.height}p` : `Level ${q.index}`}</MenuItem>
+                    ))}
+                  </>
+              )}
+
+              {activeTab === 'audio' && audioItems.map((it, idx) => (
+                <div key={it.key}>
+                  {idx === dubStart && dubStart > 0 && <div className="mx-4 my-1.5 border-t border-white/10" />}
+                  <MenuItem active={it.active} onClick={it.onClick}>{it.label}</MenuItem>
+                </div>
+              ))}
+
+              {activeTab === 'subs' && (
+                <>
+                  {allExtSubs.length > 0 ? (
+                    <>
+                      <MenuItem active={curExtSub === -1} onClick={() => setExtSub(-1)}>Off</MenuItem>
+                      {allExtSubs.map((s, i) => (<MenuItem key={i} active={curExtSub === i} onClick={() => setExtSub(i)}>{s.label}</MenuItem>))}
+                    </>
+                  ) : (
+                    <>
+                      <MenuItem active={curSub === -1} onClick={() => setSub(-1)}>Off</MenuItem>
+                      {subTracks.map(t => (<MenuItem key={t.id} active={curSub === t.id} onClick={() => setSub(t.id)}>{t.name}</MenuItem>))}
+                    </>
+                  )}
+                  <div className="mx-4 my-1.5 border-t border-white/10" />
+                  <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-4 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"><span>📁</span> Upload (.srt / .vtt)</button>
+                  {tmdbId && (
+                    <button onClick={() => { setOpenMenu('ossearch'); searchAllSubtitles() }} className="w-full text-left px-4 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"><span>🔍</span> Search more subtitles</button>
+                  )}
+                  {(curExtSub >= 0 || curSub >= 0) && (
+                    <>
+                      <div className="mx-4 my-1.5 border-t border-white/10" />
+                      <div className="px-4 py-2 flex items-center justify-between gap-2">
+                        <span className="text-xs text-white/50">Sync</span>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => setSubOffset(o => Math.round((o - 0.5) * 10) / 10)} className="w-7 h-7 rounded-md bg-white/10 hover:bg-white/20 text-white text-base font-bold flex items-center justify-center">−</button>
+                          <button onClick={() => setSubOffset(0)} className="min-w-[52px] text-center text-xs font-mono text-white/70 hover:text-white tabular-nums" title="Reset sync">{subOffset > 0 ? '+' : ''}{subOffset.toFixed(1)}s</button>
+                          <button onClick={() => setSubOffset(o => Math.round((o + 0.5) * 10) / 10)} className="w-7 h-7 rounded-md bg-white/10 hover:bg-white/20 text-white text-base font-bold flex items-center justify-center">+</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'style' && (
+                <div className="p-3 space-y-4">
+                  <div>
+                    <p className="text-xs text-white/50 mb-1.5">Size</p>
+                    <div className="flex gap-1.5">
+                      {([['sm','XS'],['base','S'],['lg','M'],['xl','L'],['2xl','XL'],['3xl','2XL'],['4xl','3XL']] as const).map(([s, label]) => (
+                        <button key={s} onClick={() => setSubPrefs(p => ({...p, size: s}))} className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${subPrefs.size === s ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/50 mb-1.5">Color</p>
+                    <div className="flex gap-2">
+                      {([['white','#FFFFFF'],['yellow','#FDE047'],['cyan','#06D6E0']] as const).map(([c, hex]) => (
+                        <button key={c} onClick={() => setSubPrefs(p => ({...p, color: c}))} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${subPrefs.color === c ? 'bg-white/20 ring-1 ring-white/40' : 'bg-white/5 hover:bg-white/15'}`}><span className="w-3 h-3 rounded-full border border-white/20 flex-shrink-0" style={{background: hex}} /><span className="text-white/70 capitalize">{c}</span></button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/50 mb-1.5">Background</p>
+                    <div className="flex gap-1.5">
+                      {([['glass','Glass'],['dark','Dark'],['none','None']] as const).map(([b, label]) => (
+                        <button key={b} onClick={() => setSubPrefs(p => ({...p, bg: b}))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${subPrefs.bg === b ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setSubPrefs(p => ({...p, bold: !p.bold}))} className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${subPrefs.bold ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>Bold</button>
+                    <button onClick={() => setSubPrefs(p => ({...p, shadow: !p.shadow}))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${subPrefs.shadow ? 'bg-[#06D6E0] text-black' : 'bg-white/10 text-white/60 hover:bg-white/20'}`}>Shadow</button>
+                    <button onClick={() => setSubPrefs(DEFAULT_SUB_PREFS)} className="flex-1 py-1.5 rounded-lg text-xs text-white/40 bg-white/5 hover:bg-white/10 transition-colors">Reset</button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'speed' && [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
+                <MenuItem key={s} active={speed === s} onClick={() => setPlaySpeed(s)}>{s === 1 ? 'Normal' : `${s}×`}</MenuItem>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Online-subtitles picker — compact, auto-loaded, sorted A→Z */}
       {openMenu === 'ossearch' && (
         <>
@@ -1203,7 +1154,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
                   className="text-white/40 hover:text-white disabled:opacity-40 transition-colors">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 </button>
-                <button onClick={() => setOpenMenu('sub')} className="text-white/40 hover:text-white text-[11px] font-medium transition-colors">Back</button>
+                <button onClick={() => { setOpenMenu('settings'); setSettingsTab('subs') }} className="text-white/40 hover:text-white text-[11px] font-medium transition-colors">Back</button>
               </div>
             </div>
 
@@ -1261,29 +1212,6 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 }
 
 // ── Small helper components ────────────────────────────────────────────────────
-
-// Renders children as a body-portaled bottom sheet on mobile, or an anchored desktop panel.
-function Sheet({ children, onClose, desktopClass, sheetClass }: { children: React.ReactNode; onClose: () => void; desktopClass: string; sheetClass?: string }) {
-  const isMobile = useIsMobile()
-  if (isMobile && typeof document !== 'undefined') {
-    return createPortal(
-      <>
-        <div className="fixed inset-0 z-[998] bg-black/60" onPointerDown={e => { e.stopPropagation(); onClose() }} />
-        <div className={`fixed inset-x-0 bottom-0 z-[999] max-h-[80vh] overflow-y-auto bg-[#111]/97 backdrop-blur-xl border-t border-white/10 rounded-t-2xl shadow-2xl [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full ${sheetClass ?? ''}`}>
-          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/20" />
-          {children}
-        </div>
-      </>,
-      document.body,
-    )
-  }
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); onClose() }} />
-      <div className={desktopClass}>{children}</div>
-    </>
-  )
-}
 
 function Menu({ label, children, onClose }: { label: string; children: React.ReactNode; onClose: () => void }) {
   const isMobile = useIsMobile()
