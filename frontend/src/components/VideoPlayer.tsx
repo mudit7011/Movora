@@ -483,12 +483,16 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   }, [])
 
   // ── Auto-hide controls ────────────────────────────────────────────────────────
+  const openMenuRef = useRef(openMenu)
+  useEffect(() => { openMenuRef.current = openMenu }, [openMenu])
   const resetHide = useCallback(() => {
     setShowCtrl(true)
     clearTimeout(hideTimer.current)
     hideTimer.current = setTimeout(() => {
       const v = videoRef.current
-      if (v && !v.paused) { setShowCtrl(false); setOpenMenu(null) }
+      // Don't auto-hide (or close) while a menu/panel is open — it was closing the
+      // OpenSubtitles search and other menus mid-use.
+      if (v && !v.paused && !openMenuRef.current) { setShowCtrl(false); setOpenMenu(null) }
     }, 3500)
   }, [])
 
@@ -740,7 +744,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       ref={wrapRef}
       className="relative bg-black w-full h-full select-none overflow-hidden group/player"
       onMouseMove={resetHide}
-      onMouseLeave={() => { if (playing) setShowCtrl(false) }}
+      onMouseLeave={() => { if (playing && !openMenu) setShowCtrl(false) }}
     >
       {/* Video */}
       <video ref={videoRef} className="w-full h-full object-contain" poster={poster} playsInline onClick={togglePlay} />
@@ -1033,7 +1037,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
                 {openMenu === 'subprefs' && (
                   <>
                   <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
-                  <div className="absolute bottom-10 right-0 z-50 w-64 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4">
+                  <div className="absolute bottom-10 right-0 z-50 w-64 max-h-[calc(100%-3.5rem)] overflow-y-auto sm:max-h-none sm:overflow-visible bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-4 space-y-4 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
                     <p className="text-[10px] text-white/30 uppercase tracking-widest">Subtitle Style</p>
 
                     {/* Size */}
@@ -1249,9 +1253,9 @@ function Menu({ label, children, onClose }: { label: string; children: React.Rea
     <>
       {/* Click-outside backdrop */}
       <div className="fixed inset-0 z-40" onPointerDown={e => { e.stopPropagation(); onClose() }} />
-      <div className="absolute bottom-10 right-0 z-50 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl min-w-[150px] flex flex-col overflow-hidden">
+      <div className="absolute bottom-10 right-0 z-50 bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl min-w-[150px] max-h-[calc(100%-3.5rem)] sm:max-h-none flex flex-col overflow-hidden">
         <p className="text-[10px] text-white/30 uppercase tracking-widest px-4 pt-3 pb-1 flex-shrink-0">{label}</p>
-        <div className="overflow-y-auto max-h-[220px] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="overflow-y-auto flex-1 min-h-0 sm:flex-none sm:max-h-[220px] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
           {children}
         </div>
         <div className="h-2 flex-shrink-0" />
