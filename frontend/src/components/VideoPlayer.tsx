@@ -3,8 +3,28 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 
 interface QualityLevel { index: number; height: number; bitrate: number }
-interface AudioTrack   { id: number; name: string }
+interface AudioTrack   { id: number; name: string; lang?: string }
 interface SubTrack     { id: number; name: string }
+interface SourceItem   { label: string; src: string; lang?: string; quality?: string }
+
+// Map a BCP-47 code or short manifest name ("ko", "KOR (5.1)") to a clean spoken-language
+// name, preserving any channel hint like "(5.1)".
+const LANG_NAMES: Record<string, string> = {
+  ko: 'Korean', kor: 'Korean', en: 'English', eng: 'English', hi: 'Hindi', hin: 'Hindi',
+  ta: 'Tamil', te: 'Telugu', vi: 'Vietnamese', vie: 'Vietnamese', es: 'Spanish', spa: 'Spanish',
+  fr: 'French', fra: 'French', fre: 'French', de: 'German', ger: 'German', deu: 'German',
+  ar: 'Arabic', ara: 'Arabic', pt: 'Portuguese', por: 'Portuguese', ru: 'Russian', rus: 'Russian',
+  ja: 'Japanese', jpn: 'Japanese', it: 'Italian', ita: 'Italian', zh: 'Chinese', chi: 'Chinese', zho: 'Chinese',
+}
+function prettyAudio(t: AudioTrack): string {
+  const code = (t.lang || '').toLowerCase().split('-')[0]
+  const chan = /\(([^)]*\d[^)]*)\)/.exec(t.name || '')?.[1]     // e.g. "5.1"
+  const base = LANG_NAMES[code]
+    || LANG_NAMES[(t.name || '').toLowerCase().split(/[\s(]/)[0]]
+    || (t.name || 'Audio').replace(/\s*\([^)]*\)\s*/g, '').trim()
+    || 'Audio'
+  return chan ? `${base} · ${chan}` : base
+}
 
 interface ExtSubtitle { label: string; language: string; url: string; default: boolean }
 interface ParsedCue  { start: number; end: number; text: string }
@@ -17,6 +37,14 @@ interface SubPrefs {
   shadow: boolean
 }
 const DEFAULT_SUB_PREFS: SubPrefs = { size: 'lg', color: 'white', bg: 'none', bold: true, shadow: true }
+
+// Progressive buffering messages (same UX as the Server 1–5 iframe loader).
+const BUFFER_MESSAGES = [
+  { text: 'Preparing stream…',              sub: null },
+  { text: 'Connecting to source…',          sub: null },
+  { text: 'Still buffering…',               sub: 'This is taking a while.' },
+  { text: 'Taking longer than expected.',   sub: 'Trying another source…' },
+] as const
 const SUB_PREFS_KEY = 'movora_sub_prefs'
 
 const SUB_PREFS_VERSION = 2
@@ -58,7 +86,11 @@ function srtToVtt(srt: string): string {
 }
 
 interface Props {
-  src: string       // .m3u8 or .mp4 direct URL
+  src: string       // .m3u8 or .mp4 direct URL (used when `sources` is not provided)
+  sources?: SourceItem[]   // optional multi-source list (quality/language) with internal switching + failover
+  activeSourceIdx?: number                       // optional controlled source index (kept in sync with an external picker)
+  onSourceChange?: (i: number) => void           // called when the source changes (menu click or auto-failover)
+  onSourcesExhausted?: () => void               // every source failed → let the parent fall back (e.g. iframe servers)
   title?: string
   poster?: string
   externalSubtitles?: ExtSubtitle[]
@@ -71,6 +103,9 @@ interface Props {
   runtime?: number
   rating?: number
   synopsis?: string
+  episodeTitle?: string      // TV: current episode name (Netflix-style overlay)
+  episodeOverview?: string   // TV: current episode synopsis
+  onProgress?: (time: number, duration: number) => void   // real playback position → Continue Watching
 }
 
 function fmt(s: number) {
@@ -84,19 +119,27 @@ function fmt(s: number) {
 }
 
 interface OSResult {
-  fileId: number
-  fileName: string
-  language: string
-  langName: string
-  downloads: number
-  rating: number
-  release: string
-  hearing: boolean
+  display: string          // e.g. "English"
+  language: string         // e.g. "en"
+  url: string              // raw subtitle url (served as VTT via /api/subtitles/vtt)
+  flag: string | null
+  release?: string         // release/file name so users can match their video's sync
+  downloads?: number       // popularity — higher usually means better sync
+  hi?: boolean             // hearing-impaired
+  origin?: string          // release type: BluRay / WEB / HDRip
 }
 
 type Menu = 'quality' | 'audio' | 'sub' | 'speed' | 'subprefs' | 'ossearch' | null
 
-export default function VideoPlayer({ src, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis }: Props) {
+export default function VideoPlayer({ src, sources, activeSourceIdx: controlledSrcIdx, onSourceChange, onSourcesExhausted, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis, episodeTitle, episodeOverview, onProgress }: Props) {
+  const [internalSrcIdx, setInternalSrcIdx] = useState(0)
+  const activeSourceIdx = controlledSrcIdx ?? internalSrcIdx
+  const selectSource = useCallback((i: number) => { if (onSourceChange) onSourceChange(i); else setInternalSrcIdx(i) }, [onSourceChange])
+  const effSrc = (sources && sources.length > 0) ? (sources[activeSourceIdx]?.src ?? src) : src
+  const failedSrcRef = useRef<Set<number>>(new Set())   // sources that errored out (auto-failover)
+  const srcErrCountRef = useRef(0)                        // fatal errors for the current source
+  const resumeAtRef = useRef(0)                           // playback position to restore across a source/audio switch
+  const wasPlayingRef = useRef(true)                     // resume play state after a source switch
   const videoRef   = useRef<HTMLVideoElement>(null)
   const wrapRef    = useRef<HTMLDivElement>(null)
   const seekRef    = useRef<HTMLDivElement>(null)
@@ -122,8 +165,15 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   const [speed,        setSpeed]        = useState(1)
   const [openMenu,     setOpenMenu]     = useState<Menu>(null)
   const [loading,      setLoading]      = useState(true)
+  const [loadPhase,    setLoadPhase]    = useState(0)   // progressive buffering message index
   const [curExtSub,    setCurExtSub]    = useState<number>(-1)  // always off by default
   const [currentCue,   setCurrentCue]   = useState<string>('')
+  const [subOffset,    setSubOffset]    = useState(0)          // subtitle sync offset in seconds (+ = later)
+  const subOffsetRef   = useRef(0)
+  useEffect(() => { subOffsetRef.current = subOffset }, [subOffset])
+  const onProgressRef  = useRef(onProgress)
+  useEffect(() => { onProgressRef.current = onProgress }, [onProgress])
+  const lastProgressRef = useRef(0)   // throttle progress reports to ~every 5s
   const parsedCuesRef      = useRef<ParsedCue[]>([])
   const hlsSubVidTrackRef  = useRef<number>(-1)
   const [localSubs,        setLocalSubs]    = useState<ExtSubtitle[]>([])
@@ -138,7 +188,6 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   const [osLoading,   setOsLoading]   = useState(false)
   const [osError,     setOsError]     = useState<string | null>(null)
   const [osSearched,  setOsSearched]  = useState(false)
-  const [osLang,      setOsLang]      = useState('en')
 
   // Cleanup blob URLs on unmount
   useEffect(() => {
@@ -167,14 +216,82 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   }, [curExtSub, externalSubtitles, localSubs])
 
 
+  // Reset failover state when the title/episode changes (first source url is the signal).
+  useEffect(() => {
+    failedSrcRef.current = new Set()
+    selectSource(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sources?.[0]?.src])
+
+  // Latest-value refs so failToNext can stay referentially stable (sources/onSourcesExhausted
+  // get a new identity every render, which would otherwise reset the stall-watchdog interval).
+  const sourcesRef = useRef(sources); useEffect(() => { sourcesRef.current = sources }, [sources])
+  const activeSourceIdxRef = useRef(activeSourceIdx); useEffect(() => { activeSourceIdxRef.current = activeSourceIdx }, [activeSourceIdx])
+  const onSourceChangeRef = useRef(onSourceChange); useEffect(() => { onSourceChangeRef.current = onSourceChange }, [onSourceChange])
+  const onSourcesExhaustedRef = useRef(onSourcesExhausted); useEffect(() => { onSourcesExhaustedRef.current = onSourcesExhausted }, [onSourcesExhausted])
+
+  // Mark the current source failed and move on. Used by both the HLS error handler and the
+  // stall watchdog. Returns true if it switched, false if every source is exhausted.
+  const failToNext = useCallback((): boolean => {
+    const srcs = sourcesRef.current
+    const cur = activeSourceIdxRef.current
+    if (srcs && srcs.length > 0) {
+      failedSrcRef.current.add(cur)
+      const next = srcs.findIndex((_, i) => !failedSrcRef.current.has(i))
+      if (next !== -1 && next !== cur) {
+        const v = videoRef.current
+        if (v && v.currentTime > 0) { resumeAtRef.current = v.currentTime; wasPlayingRef.current = !v.paused }
+        if (onSourceChangeRef.current) onSourceChangeRef.current(next); else setInternalSrcIdx(next)
+        return true
+      }
+    }
+    onSourcesExhaustedRef.current?.()
+    return false
+  }, [])
+
+  // Advance the buffering message the longer we wait (Preparing → Connecting → Still → Longer).
+  useEffect(() => {
+    if (!loading) { setLoadPhase(0); return }
+    const timers = [
+      setTimeout(() => setLoadPhase(1), 1500),
+      setTimeout(() => setLoadPhase(2), 4000),
+      setTimeout(() => setLoadPhase(3), 8000),
+    ]
+    return () => timers.forEach(clearTimeout)
+  }, [loading, effSrc])
+
+  // Stall watchdog — some dead streams return a valid manifest but never deliver segments, so
+  // HLS.js buffers forever without a *fatal* error and our error-based failover never fires.
+  // If the player is still buffering with no playback progress after ~14s, treat the source as
+  // dead and move to the next one (or fall back to the iframe servers when exhausted).
+  useEffect(() => {
+    if (!loading) return
+    let lastTime = videoRef.current?.currentTime ?? 0
+    let stalledMs = 0
+    const STEP = 2500, LIMIT = 14000
+    const id = setInterval(() => {
+      const v = videoRef.current
+      if (!v) return
+      if (v.currentTime > lastTime + 0.25) { lastTime = v.currentTime; stalledMs = 0; return }
+      stalledMs += STEP
+      // Only bail while still trying to START playback — mid-playback stalls are handled by
+      // HLS fragment-timeout errors and shouldn't yank a source over a brief network hiccup.
+      if (v.currentTime < 1 && stalledMs >= LIMIT) { stalledMs = 0; failToNext() }
+    }, STEP)
+    return () => clearInterval(id)
+  }, [loading, effSrc, failToNext])
+
   // ── HLS init ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !src) return
+    if (!video || !effSrc) return
 
     async function init() {
       setLoading(true)
-      const isHls = src.includes('.m3u8') || src.includes('/hls/') || src.includes('master')
+      srcErrCountRef.current = 0
+      // Our sealed proxy urls (/api/stream/hls?d=…) and the sports proxy serve HLS — treat them
+      // as HLS even though the token url has no .m3u8 in it.
+      const isHls = effSrc.includes('.m3u8') || effSrc.includes('/hls') || effSrc.includes('/api/stream/hls') || effSrc.includes('/api/sports/proxy') || effSrc.includes('master')
 
       if (isHls) {
         const Hls = (await import('hls.js')).default
@@ -182,10 +299,16 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
           const hls = new Hls({
             enableWorker: true,
             startLevel: -1,
+            startFragPrefetch: true,      // fetch the first fragment ASAP for a faster first frame
             abrEwmaDefaultEstimate: 3000000,
             maxBufferLength: 30,
             maxBufferSize: 30 * 1000 * 1000,
             lowLatencyMode: false,
+            // Fail fast so a dead source auto-switches within ~8s instead of hanging.
+            manifestLoadingTimeOut: 8000,
+            manifestLoadingMaxRetry: 1,
+            levelLoadingTimeOut: 8000,
+            fragLoadingTimeOut: 12000,
             ...({ enableFetchForXhr: true } as any),
             fetchSetup: (context: any, initParams: any) => {
               initParams.referrerPolicy = 'no-referrer'
@@ -193,7 +316,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             },
           })
           hlsRef.current = hls
-          hls.loadSource(src)
+          hls.loadSource(effSrc)
           hls.attachMedia(video!)
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -201,22 +324,33 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
               index: i, height: l.height || 0, bitrate: l.bitrate || 0,
             }))
             setQualities(lvls)
-            if (startAt && startAt > 0) video!.currentTime = startAt
+            // Restore position after an internal source/audio switch, else honour startAt.
+            const seekTo = resumeAtRef.current > 0 ? resumeAtRef.current : (startAt && startAt > 0 ? startAt : 0)
+            if (seekTo > 0) video!.currentTime = seekTo
+            resumeAtRef.current = 0
             hls.subtitleTrack = -1  // disable any DEFAULT HLS subtitle track
-            video!.play().catch(() => {
-              // Autoplay blocked — user must tap play manually, which is fine
-            })
-          })
-
-          hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-            if (data.fatal) {
-              console.error('[HLS] fatal error', data.type, data.details)
-              setLoading(false)
+            if (wasPlayingRef.current) {
+              const p = video!.play()
+              if (p && typeof p.catch === 'function') p.catch(() => {}) // autoplay may be blocked — that's fine
             }
           })
 
+          hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+            if (!data.fatal) return
+            srcErrCountRef.current++
+            // One recovery attempt for the current source…
+            if (srcErrCountRef.current <= 1) {
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return } catch { /* */ } }
+              if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { try { hls.recoverMediaError(); return } catch { /* */ } }
+            }
+            // …otherwise auto-switch to the next untried source (no manual action needed).
+            if (failToNext()) return
+            console.error('[HLS] all sources failed', data.type, data.details)
+            setLoading(false)
+          })
+
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_: any, d: any) => {
-            setAudioTracks(d.audioTracks.map((t: any) => ({ id: t.id, name: t.name })))
+            setAudioTracks(d.audioTracks.map((t: any) => ({ id: t.id, name: t.name, lang: t.lang || t.language })))
             setCurAudio(hls.audioTrack)
           })
 
@@ -225,30 +359,49 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             hls.subtitleTrack = -1  // ensure off by default
           })
         } else if (video!.canPlayType('application/vnd.apple.mpegurl')) {
-          video!.src = src
+          startNative()
         }
       } else {
-        video!.src = src
+        startNative()
+      }
+
+      function startNative() {
+        video!.src = effSrc
+        video!.onloadedmetadata = () => {
+          const seekTo = resumeAtRef.current > 0 ? resumeAtRef.current : (startAt && startAt > 0 ? startAt : 0)
+          if (seekTo > 0) video!.currentTime = seekTo
+          resumeAtRef.current = 0
+          if (wasPlayingRef.current) safePlay()
+        }
       }
     }
 
     init()
     return () => { hlsRef.current?.destroy(); hlsRef.current = null }
-  }, [src])
+  }, [effSrc])
 
   // ── Video events ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
+    const reportProgress = () => {
+      const vv = videoRef.current
+      if (vv && onProgressRef.current && vv.duration > 0 && vv.currentTime > 0) onProgressRef.current(vv.currentTime, vv.duration)
+    }
     const onPlay       = () => setPlaying(true)
-    const onPause      = () => setPlaying(false)
+    const onPause      = () => { setPlaying(false); reportProgress() }   // capture position on pause
     const onWaiting    = () => setLoading(true)
     const onCanPlay    = () => setLoading(false)
     const onTimeUpdate = () => {
       if (!v) return
       setCurrent(v.currentTime)
       if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1))
-      const t = v.currentTime
+      // Report real playback position to Continue Watching, throttled to ~5s.
+      if (onProgressRef.current && v.duration > 0) {
+        const now = Date.now()
+        if (now - lastProgressRef.current > 5000) { lastProgressRef.current = now; onProgressRef.current(v.currentTime, v.duration) }
+      }
+      const t = v.currentTime - subOffsetRef.current   // apply subtitle sync offset
       // External VTT cues (ezvidapi)
       if (parsedCuesRef.current.length > 0) {
         const cue = parsedCuesRef.current.find(c => t >= c.start && t <= c.end)
@@ -273,7 +426,11 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
     v.addEventListener('durationchange', onDuration)
     v.addEventListener('volumechange', onVolume)
 
+    window.addEventListener('pagehide', reportProgress)
+
     return () => {
+      reportProgress()   // persist position when leaving the page
+      window.removeEventListener('pagehide', reportProgress)
       v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', onPause)
       v.removeEventListener('waiting', onWaiting)
@@ -288,7 +445,9 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   useEffect(() => {
     const fn = () => {
       const v = videoRef.current as HTMLVideoElement & { webkitDisplayingFullscreen?: boolean }
-      setFs(!!(document.fullscreenElement || v?.webkitDisplayingFullscreen))
+      const isFull = !!(document.fullscreenElement || v?.webkitDisplayingFullscreen)
+      setFs(isFull)
+      if (!isFull) { try { (screen.orientation as any)?.unlock?.() } catch {} }   // release landscape lock on exit
     }
     document.addEventListener('fullscreenchange', fn)
     document.addEventListener('webkitfullscreenchange', fn)
@@ -310,7 +469,7 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
       const v = videoRef.current
       if (!v) return
       switch (e.key) {
-        case ' ': case 'k': e.preventDefault(); v.paused ? v.play() : v.pause(); break
+        case ' ': case 'k': e.preventDefault(); if (v.paused) safePlay(); else v.pause(); break
         case 'f': toggleFs(); break
         case 'm': v.muted = !v.muted; break
         case 'ArrowRight': v.currentTime = Math.min(v.currentTime + 10, v.duration); break
@@ -334,23 +493,39 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   }, [])
 
   // ── Actions ───────────────────────────────────────────────────────────────────
+  // play() returns a promise that rejects with AbortError if pause()/load() interrupts it
+  // (e.g. during an internal source switch). Always swallow it so it never surfaces as an
+  // unhandled runtime error.
+  function safePlay() {
+    const v = videoRef.current
+    if (!v) return
+    const p = v.play()
+    if (p && typeof p.catch === 'function') p.catch(() => {})
+  }
+
   function togglePlay() {
     const v = videoRef.current
     if (!v) return
-    v.paused ? v.play() : v.pause()
+    if (v.paused) safePlay(); else v.pause()
   }
 
   function toggleFs() {
     const wrap = wrapRef.current
     const v = videoRef.current as HTMLVideoElement & { webkitEnterFullscreen?: () => void; webkitExitFullscreen?: () => void; webkitDisplayingFullscreen?: boolean }
     // Exit
-    if (document.fullscreenElement) { document.exitFullscreen(); return }
+    if (document.fullscreenElement) { try { (screen.orientation as any)?.unlock?.() } catch {}; document.exitFullscreen(); return }
     if (v?.webkitDisplayingFullscreen) { v.webkitExitFullscreen?.(); return }
     // Enter — iOS (PWA + Safari) doesn't support requestFullscreen on divs
     if (document.fullscreenEnabled && wrap?.requestFullscreen) {
       wrap.requestFullscreen()
+        .then(() => {
+          // Rotate to landscape on mobile (Netflix/YouTube-style). Desktop rejects this with
+          // NotSupportedError — lock() returns a promise, so swallow the rejection, not a throw.
+          try { const p = (screen.orientation as any)?.lock?.('landscape'); if (p && typeof p.catch === 'function') p.catch(() => {}) } catch {}
+        })
+        .catch(() => {})
     } else if (v?.webkitEnterFullscreen) {
-      v.webkitEnterFullscreen()
+      v.webkitEnterFullscreen()  // iOS native fullscreen handles its own rotation
     }
   }
 
@@ -376,6 +551,17 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
   function setAudio(id: number) {
     if (hlsRef.current) hlsRef.current.audioTrack = id
     setCurAudio(id)
+    setOpenMenu(null)
+  }
+
+  // Switch to a different source (e.g. a separate-language dub) while keeping the current
+  // position + play state. Used by the Audio menu's alternate-language entries.
+  function switchToSource(i: number) {
+    if (i === activeSourceIdx) { setOpenMenu(null); return }
+    const v = videoRef.current
+    if (v) { resumeAtRef.current = v.currentTime; wasPlayingRef.current = !v.paused }
+    failedSrcRef.current = new Set()   // manual choice — clear the failover blacklist
+    selectSource(i)
     setOpenMenu(null)
   }
 
@@ -440,56 +626,95 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
     reader.readAsText(file)
   }
 
-  async function searchOpenSubtitles(lang: string) {
+  // Load every available online subtitle at once, one per language, sorted A→Z — shown as a
+  // compact list (no language dropdown / Search button needed).
+  async function searchAllSubtitles() {
     if (!tmdbId) return
-    setOsLoading(true)
-    setOsError(null)
-    setOsSearched(false)
+    setOsLoading(true); setOsError(null); setOsSearched(false); setOsResults([])
     try {
-      const params = new URLSearchParams({ tmdbId, type: mediaType, languages: lang })
+      const params = new URLSearchParams({ tmdb: tmdbId, type: mediaType, all: '1' })
       if (season)  params.set('season',  String(season))
       if (episode) params.set('episode', String(episode))
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/subtitles/search?${params}`)
+      const res = await fetch(`/api/subtitles/search?${params}`)
       if (!res.ok) throw new Error('Search failed')
-      const data: OSResult[] = await res.json()
-      setOsResults(data)
+      const data = await res.json()
+      // Keep every variant (multiple per language) so users can pick the one that matches their
+      // release — grouped by language A→Z, most-downloaded first within each language.
+      const subs = ((data.subtitles || []) as OSResult[])
+        .sort((a, b) => (a.display || '').localeCompare(b.display || '') || (b.downloads || 0) - (a.downloads || 0))
+      setOsResults(subs)
       setOsSearched(true)
     } catch {
-      setOsError('Search failed. Check your connection.')
+      setOsError('Couldn’t load subtitles. Check your connection.')
     } finally {
       setOsLoading(false)
     }
   }
 
   async function pickOsSubtitle(result: OSResult) {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/subtitles/download`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: result.fileId }),
-      })
-      if (!res.ok) throw new Error()
-      let text = await res.text()
-      if (!text.startsWith('WEBVTT')) text = srtToVtt(text)
-      const blob = new Blob([text], { type: 'text/vtt' })
-      const url = URL.createObjectURL(blob)
-      blobUrlsRef.current.push(url)
-      const langLabel = result.hearing ? `${result.langName} [SDH]` : result.langName
-      const newSub: ExtSubtitle = { label: `🌐 ${langLabel}`, language: result.language, url, default: false }
-      setLocalSubs(prev => {
-        const next = [...prev, newSub]
-        setCurExtSub((externalSubtitles?.length ?? 0) + next.length - 1)
-        return next
-      })
-      setOpenMenu(null)
-    } catch {
-      setOsError('Failed to load subtitle. Try another.')
-    }
+    // Wyzie gives a direct url; our /vtt endpoint fetches it, converts SRT→VTT and strips ads.
+    const vtt = `/api/subtitles/vtt?url=${encodeURIComponent(result.url)}`
+    // Tag with a short release token (BluRay/WEB/RARBG…) so multiple picks of one language stay distinguishable.
+    const relTag = (result.release || '').match(/\b(blu-?ray|web-?dl|webrip|hdrip|brrip|bdrip|dvdrip|hdtv|rarbg|yify|yts|amzn|nf)\b/i)?.[0]
+    const label = `🌐 ${result.display}${result.hi ? ' (HI)' : ''}${relTag ? ` · ${relTag}` : ''}`
+    const newSub: ExtSubtitle = { label, language: result.language, url: vtt, default: false }
+    setLocalSubs(prev => {
+      const next = [...prev, newSub]
+      setCurExtSub((externalSubtitles?.length ?? 0) + next.length - 1)
+      return next
+    })
+    setOpenMenu(null)
   }
+
+  // ── Netflix-style unified Audio menu ─────────────────────────────────────────
+  // Present spoken languages (never "servers") and always highlight the one playing. Combine
+  // (a) the current stream's embedded audio tracks with a *known* language, (b) an "Original"
+  // entry for the multi-audio stream's default track (ShowBox often tags it LANGUAGE="un"),
+  // and (c) alternate-language dub streams (separate Hindi/Vietnamese/… sources).
+  const activeSource = sources?.[activeSourceIdx]
+  const trackKnown = (t: AudioTrack) => {
+    const code = (t.lang || '').toLowerCase()
+    return !!code && code !== 'un' && code !== 'und' && !/unknown/i.test(t.name || '')
+  }
+  const knownEmbedded = audioTracks.filter(trackKnown)
+  const embLangs = new Set(knownEmbedded.map(t => prettyAudio(t).split(' · ')[0]))
+  const multiIdx = (sources ?? []).findIndex(s => !s.lang)   // the original multi-audio stream
+  const onMulti = !activeSource?.lang
+  const dubs = (sources ?? [])
+    .map((s, i) => ({ lang: s.lang || '', i }))
+    .filter(x => x.lang && !embLangs.has(x.lang))
+    .filter((x, idx, arr) => arr.findIndex(y => y.lang === x.lang) === idx)   // one per language
+
+  interface AudioItem { key: string; label: string; active: boolean; onClick: () => void; dub: boolean }
+  const audioItems: AudioItem[] = []
+  if (onMulti) {
+    if (knownEmbedded.length) {
+      for (const t of knownEmbedded) audioItems.push({ key: `e${t.id}`, label: prettyAudio(t), active: curAudio === t.id, onClick: () => setAudio(t.id), dub: false })
+    } else {
+      audioItems.push({ key: 'orig', label: 'Original', active: true, onClick: () => setOpenMenu(null), dub: false })
+    }
+  } else if (multiIdx >= 0) {
+    audioItems.push({ key: 'orig', label: 'Original', active: false, onClick: () => switchToSource(multiIdx), dub: false })
+  }
+  for (const d of dubs) audioItems.push({ key: `s${d.i}`, label: d.lang, active: activeSource?.lang === d.lang, onClick: () => switchToSource(d.i), dub: true })
+  const dubStart = audioItems.findIndex(it => it.dub)
+  const hasAudioMenu = audioItems.length > 1
+
+  // ── Quality menu ──────────────────────────────────────────────────────────────
+  // ShowBox exposes each resolution as its own stream, so quality = pick a source (not an
+  // HLS ABR level). Order high→low; "Original" last (raw file, least reliable to decode).
+  const QUAL_RANK: Record<string, number> = { '4K': 6, '1440p': 5, '1080p': 4, '720p': 3, '480p': 2, '360p': 1, 'Original': 0 }
+  const qualitySources = (sources ?? [])
+    .map((s, i) => ({ ...s, i }))
+    .filter(s => s.quality)
+    .filter((s, idx, arr) => arr.findIndex(x => x.quality === s.quality) === idx)   // dedupe by resolution
+    .sort((a, b) => (QUAL_RANK[b.quality!] ?? -1) - (QUAL_RANK[a.quality!] ?? -1))
+  const hasQualitySources = qualitySources.length > 1
 
   const progress    = duration > 0 ? (current / duration) * 100 : 0
   const bufPct      = duration > 0 ? (buffered / duration) * 100 : 0
   const qualLabel   = curQuality === -1 ? 'Auto' : (qualities[curQuality]?.height > 0 ? `${qualities[curQuality].height}p` : 'Auto')
+  const qualBtnLabel = hasQualitySources ? (activeSource?.quality || 'HD') : qualLabel
   const ctrlVisible = showCtrl || !playing
 
   const hasCC = allExtSubs.length > 0 || subTracks.length > 0 || !!tmdbId
@@ -520,44 +745,85 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
       {/* Video */}
       <video ref={videoRef} className="w-full h-full object-contain" poster={poster} playsInline onClick={togglePlay} />
 
-      {/* Info overlay shown when paused — centered, text only, video frame stays visible */}
-      {!playing && (title || year || runtime || rating) && (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-start">
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative z-10 text-left px-6 sm:px-10 max-w-lg">
+      {/* Netflix-style info overlay while paused — bottom-left, video stays visible */}
+      {!playing && !loading && (title || year || runtime || rating) && (
+        <div className="absolute inset-0 pointer-events-none z-[15]">
+          {/* Soft left + bottom gradient for legibility (no heavy full-screen dim) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 to-transparent" />
+
+          <div className="absolute left-0 bottom-0 px-5 sm:px-10 pb-20 sm:pb-32 max-w-[88%] sm:max-w-xl">
+            <p className="text-white/55 text-[10px] sm:text-sm font-medium mb-1 sm:mb-2 tracking-wide">You're watching</p>
             {title && (
-              <h3 className="text-white font-black drop-shadow-2xl mb-3 leading-tight"
-                style={{ fontSize: 'clamp(1.75rem, 5vw, 3rem)' }}>
+              <h3 className="text-white font-black drop-shadow-2xl mb-1.5 sm:mb-3 leading-[1.05]"
+                style={{ fontSize: 'clamp(1.4rem, 5vw, 3rem)' }}>
                 {title}
               </h3>
             )}
             {(year || runtime || rating) && (
-              <div className="flex items-center justify-start gap-2 mb-3 flex-wrap">
-                {year && <span className="text-white/70 text-sm font-medium">{year}</span>}
+              <div className="flex items-center gap-2 mb-1.5 sm:mb-3 flex-wrap">
+                {year && <span className="text-white/75 text-[11px] sm:text-sm font-medium">{year}</span>}
                 {runtime && runtime > 0 && (
                   <><span className="text-white/30">·</span>
-                  <span className="text-white/70 text-sm font-medium">{Math.floor(runtime/60) > 0 ? `${Math.floor(runtime/60)}h ${runtime%60 > 0 ? `${runtime%60}m` : ''}`.trim() : `${runtime}m`}</span></>
+                  <span className="text-white/75 text-[11px] sm:text-sm font-medium">{Math.floor(runtime/60) > 0 ? `${Math.floor(runtime/60)}h ${runtime%60 > 0 ? `${runtime%60}m` : ''}`.trim() : `${runtime}m`}</span></>
                 )}
                 {rating && rating > 0 && (
                   <><span className="text-white/30">·</span>
-                  <span className="flex items-center gap-1 text-sm font-medium text-amber-400">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <span className="flex items-center gap-1 text-[11px] sm:text-sm font-semibold text-amber-400">
+                    <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                     {rating.toFixed(1)}
                   </span></>
                 )}
               </div>
             )}
-            {synopsis && (
-              <p className="text-white/60 text-sm leading-relaxed line-clamp-2 drop-shadow">{synopsis}</p>
+            {/* TV: bold episode line — "Episode Title: Ep. N" (Netflix-style) */}
+            {episodeTitle && episode ? (
+              <p className="text-white font-bold text-sm sm:text-lg mt-2 sm:mt-4 mb-1 sm:mb-2 leading-snug drop-shadow">
+                {episodeTitle}: Ep. {episode}
+              </p>
+            ) : null}
+            {(episodeOverview || synopsis) && (
+              <p className="text-white/65 text-[11px] sm:text-sm leading-relaxed line-clamp-2 sm:line-clamp-3 drop-shadow">{episodeOverview || synopsis}</p>
             )}
+          </div>
+
+          {/* Paused indicator, bottom-right */}
+          <div className="absolute right-5 sm:right-8 bottom-20 sm:bottom-32 flex items-center gap-1.5 text-white/50 text-[11px] sm:text-sm font-medium">
+            <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            Paused
           </div>
         </div>
       )}
 
-      {/* Loading spinner */}
+      {/* Buffering overlay — premium loader like the Server 1–5 iframes.
+          Initial buffer (no frame yet): blurred backdrop + title + "Buffering…".
+          Mid-playback stall: spinner over a light scrim so the frame stays visible. */}
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-14 h-14 rounded-full border-[3px] border-white/10 border-t-[#06D6E0] animate-spin" />
+        <div className="absolute inset-0 z-[16] pointer-events-none overflow-hidden">
+          {current < 1 && poster ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105" style={{ filter: 'blur(2px)' }} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-black/25" />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-[3px] border-white/10 border-t-[#06D6E0] animate-spin" />
+          </div>
+          {current < 1 && title && (
+            <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 sm:px-7 sm:pb-7">
+              <p className="text-white font-semibold text-base sm:text-lg leading-tight mb-1 drop-shadow-lg">{title}</p>
+              <p className={`text-sm font-medium drop-shadow transition-opacity duration-300 ${loadPhase >= 3 ? 'text-amber-400' : 'text-[#06D6E0]'}`}>
+                {BUFFER_MESSAGES[loadPhase].text}
+              </p>
+              {BUFFER_MESSAGES[loadPhase].sub && (
+                <p className="text-xs text-white/50 mt-1 drop-shadow">{BUFFER_MESSAGES[loadPhase].sub}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -639,19 +905,15 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             </button>
 
             {/* Skip -10 */}
-            <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10 }} className="p-2 text-white/70 hover:text-white transition-colors">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12.5 3a9 9 0 1 0 7.56 4.11L18.4 8.77A7 7 0 1 1 12.5 5V8l-4-4 4-4v3z"/>
-                <text x="8.5" y="16" fontSize="5.5" fontWeight="bold" fontFamily="sans-serif">10</text>
-              </svg>
+            <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10 }} className="p-2 opacity-70 hover:opacity-100 transition-opacity" aria-label="Rewind 10 seconds">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/platforms/icons8-replay-10-50.png" alt="" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
             </button>
 
             {/* Skip +10 */}
-            <button onClick={() => { if (videoRef.current) videoRef.current.currentTime += 10 }} className="p-2 text-white/70 hover:text-white transition-colors">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M11.5 3a9 9 0 1 1-7.56 4.11L5.6 8.77A7 7 0 1 0 11.5 5V8l4-4-4-4v3z"/>
-                <text x="8.5" y="16" fontSize="5.5" fontWeight="bold" fontFamily="sans-serif">10</text>
-              </svg>
+            <button onClick={() => { if (videoRef.current) videoRef.current.currentTime += 10 }} className="p-2 opacity-70 hover:opacity-100 transition-opacity" aria-label="Forward 10 seconds">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/platforms/icons8-forward-10-50.png" alt="" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
             </button>
 
             {/* Volume */}
@@ -728,11 +990,30 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
                     </button>
                     {tmdbId && (
                       <button
-                        onClick={() => { setOsResults([]); setOsSearched(false); setOsError(null); setOpenMenu('ossearch') }}
+                        onClick={() => { setOpenMenu('ossearch'); searchAllSubtitles() }}
                         className="w-full text-left px-4 py-2 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
                       >
-                        <span>🔍</span> Search OpenSubtitles
+                        <span>🔍</span> Search more subtitles
                       </button>
+                    )}
+                    {/* Subtitle sync — nudge timing when captions run ahead/behind the audio */}
+                    {(curExtSub >= 0 || curSub >= 0) && (
+                      <>
+                        <div className="mx-3 my-1.5 border-t border-white/10 flex-shrink-0" />
+                        <div className="px-4 py-2 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-white/50">Sync</span>
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => setSubOffset(o => Math.round((o - 0.5) * 10) / 10)}
+                              className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center justify-center transition-colors">−</button>
+                            <button onClick={() => setSubOffset(0)}
+                              className="min-w-[52px] text-center text-[11px] font-mono text-white/70 hover:text-white tabular-nums" title="Reset sync">
+                              {subOffset > 0 ? '+' : ''}{subOffset.toFixed(1)}s
+                            </button>
+                            <button onClick={() => setSubOffset(o => Math.round((o + 0.5) * 10) / 10)}
+                              className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center justify-center transition-colors">+</button>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </Menu>
                 )}
@@ -816,19 +1097,22 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
               </div>
             )}
 
-            {/* Audio */}
-            {audioTracks.length > 1 && (
+            {/* Audio — unified language menu (embedded tracks + alternate-language streams) */}
+            {hasAudioMenu && (
               <div className="relative">
                 <button onClick={() => setOpenMenu(openMenu === 'audio' ? null : 'audio')}
-                  className="p-2 text-white/60 hover:text-white transition-colors">
+                  className="p-2 text-white/60 hover:text-white transition-colors" title="Audio language">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
                   </svg>
                 </button>
                 {openMenu === 'audio' && (
                   <Menu label="Audio" onClose={() => setOpenMenu(null)}>
-                    {audioTracks.map(t => (
-                      <MenuItem key={t.id} active={curAudio === t.id} onClick={() => setAudio(t.id)}>{t.name}</MenuItem>
+                    {audioItems.map((it, idx) => (
+                      <div key={it.key}>
+                        {idx === dubStart && dubStart > 0 && <div className="mx-3 my-1.5 border-t border-white/10" />}
+                        <MenuItem active={it.active} onClick={it.onClick}>{it.label}</MenuItem>
+                      </div>
                     ))}
                   </Menu>
                 )}
@@ -836,26 +1120,38 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
             )}
 
             {/* Quality */}
-            <div className="relative">
-              <button onClick={() => setOpenMenu(openMenu === 'quality' ? null : 'quality')}
-                className="p-2 text-white/60 hover:text-white text-xs font-semibold transition-colors min-w-[44px] text-center">
-                {qualLabel}
-              </button>
-              {openMenu === 'quality' && (
-                <Menu label="Quality" onClose={() => setOpenMenu(null)}>
-                  <MenuItem active={curQuality === -1} onClick={() => setQuality(-1)}>Auto</MenuItem>
-                  {[...qualities].reverse().map(q => (
-                    <MenuItem key={q.index} active={curQuality === q.index} onClick={() => setQuality(q.index)}>
-                      {q.height > 0 ? `${q.height}p` : `Level ${q.index}`}
-                    </MenuItem>
-                  ))}
-                </Menu>
-              )}
-            </div>
+            {(hasQualitySources || qualities.length > 1) && (
+              <div className="relative">
+                <button onClick={() => setOpenMenu(openMenu === 'quality' ? null : 'quality')}
+                  className="p-2 text-white/60 hover:text-white text-xs font-semibold transition-colors min-w-[44px] text-center" title="Quality">
+                  {qualBtnLabel}
+                </button>
+                {openMenu === 'quality' && (
+                  <Menu label="Quality" onClose={() => setOpenMenu(null)}>
+                    {hasQualitySources
+                      ? qualitySources.map(s => (
+                          <MenuItem key={`q${s.i}`} active={activeSourceIdx === s.i} onClick={() => switchToSource(s.i)}>
+                            {s.quality}{s.quality === '4K' ? ' · HDR' : ''}
+                          </MenuItem>
+                        ))
+                      : (
+                        <>
+                          <MenuItem active={curQuality === -1} onClick={() => setQuality(-1)}>Auto</MenuItem>
+                          {[...qualities].reverse().map(q => (
+                            <MenuItem key={q.index} active={curQuality === q.index} onClick={() => setQuality(q.index)}>
+                              {q.height > 0 ? `${q.height}p` : `Level ${q.index}`}
+                            </MenuItem>
+                          ))}
+                        </>
+                      )}
+                  </Menu>
+                )}
+              </div>
+            )}
 
-            {/* PiP */}
+            {/* PiP — hidden on mobile to avoid crowding the control bar */}
             <button onClick={async () => { const v = videoRef.current; if (!v) return; try { document.pictureInPictureElement ? await document.exitPictureInPicture() : await v.requestPictureInPicture() } catch {} }}
-              className="p-2 text-white/60 hover:text-white transition-colors">
+              className="hidden sm:block p-2 text-white/60 hover:text-white transition-colors">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="3" width="20" height="14" rx="2"/><rect x="12" y="11" width="9" height="6" rx="1" fill="currentColor" stroke="none"/>
               </svg>
@@ -876,75 +1172,58 @@ export default function VideoPlayer({ src, title, poster, externalSubtitles, sta
           </div>
         </div>
       </div>
-      {/* OpenSubtitles in-player search panel */}
+      {/* Online-subtitles picker — compact, auto-loaded, sorted A→Z */}
       {openMenu === 'ossearch' && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setOpenMenu(null)} />
-          <div className="absolute inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-xl">
+          <div className="absolute bottom-16 right-3 sm:right-5 z-50 w-72 max-h-[62%] bg-[#111]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 flex-shrink-0">
-              <button onClick={() => setOpenMenu(null)} className="text-white/60 hover:text-white transition-colors">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <span className="text-sm font-semibold text-white">Search OpenSubtitles</span>
-            </div>
-
-            {/* Language + Search */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 flex-shrink-0">
-              <select
-                value={osLang}
-                onChange={e => setOsLang(e.target.value)}
-                className="bg-white/10 border border-white/20 text-white/80 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#06D6E0]/60"
-              >
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-                <option value="de">German</option>
-                <option value="ar">Arabic</option>
-                <option value="pt">Portuguese</option>
-                <option value="ru">Russian</option>
-                <option value="zh-CN">Chinese (Simplified)</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="it">Italian</option>
-              </select>
-              <button
-                onClick={() => searchOpenSubtitles(osLang)}
-                disabled={osLoading}
-                className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-[#06D6E0] text-black hover:bg-[#06D6E0]/80 disabled:opacity-50 transition-colors"
-              >
-                {osLoading ? 'Searching…' : 'Search'}
-              </button>
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
+              <p className="text-[10px] text-white/30 uppercase tracking-widest">OpenSubtitles</p>
+              <div className="flex items-center gap-2">
+                <button onClick={() => searchAllSubtitles()} disabled={osLoading} title="Refresh"
+                  className="text-white/40 hover:text-white disabled:opacity-40 transition-colors">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
+                <button onClick={() => setOpenMenu('sub')} className="text-white/40 hover:text-white text-[11px] font-medium transition-colors">Back</button>
+              </div>
             </div>
 
             {/* Results */}
-            <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
-              {osError && (
-                <p className="text-red-400 text-xs text-center py-6 px-4">{osError}</p>
+            <div className="overflow-y-auto px-2 pb-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {osLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 rounded-full border-2 border-white/10 border-t-[#06D6E0] animate-spin" />
+                </div>
               )}
+              {osError && <p className="text-red-400 text-xs text-center py-6 px-4">{osError}</p>}
               {!osLoading && osSearched && osResults.length === 0 && !osError && (
                 <p className="text-white/30 text-xs text-center py-6">No subtitles found</p>
               )}
-              {!osSearched && !osLoading && !osError && (
-                <p className="text-white/20 text-xs text-center py-8">Select language and press Search</p>
-              )}
-              {osResults.map((r, i) => (
+              {!osLoading && osResults.map((r, i) => (
                 <button
                   key={i}
                   onClick={() => pickOsSubtitle(r)}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2.5"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white/90 text-xs truncate flex-1">{r.release || r.fileName}</span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {r.hearing && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1 rounded">SDH</span>}
-                      <span className="text-[9px] bg-white/10 text-white/50 border border-white/10 px-1.5 py-0.5 rounded uppercase">{r.language}</span>
+                  {r.flag ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.flag} alt="" className="w-6 h-4 rounded-sm flex-shrink-0 object-cover shadow" />
+                  ) : <span className="w-6 h-4 rounded-sm bg-white/10 flex-shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white/90 text-[13px] font-medium truncate">{r.display}</span>
+                      {r.origin && <span className="text-[7px] tracking-wide bg-[#06D6E0]/15 text-[#06D6E0] px-1 py-0.5 rounded uppercase flex-shrink-0">{r.origin}</span>}
+                      {r.hi && <span className="text-[7px] tracking-wide bg-white/10 text-white/45 px-1 py-0.5 rounded uppercase flex-shrink-0">HI</span>}
                     </div>
+                    {r.release && <p className="text-[10px] text-white/35 truncate leading-tight">{r.release}</p>}
                   </div>
-                  {r.downloads > 0 && (
-                    <p className="text-white/30 text-[10px] mt-0.5">↓ {r.downloads.toLocaleString()} downloads</p>
-                  )}
+                  {r.downloads ? (
+                    <span className="text-[9px] text-white/30 flex-shrink-0 flex items-center gap-0.5" title={`${r.downloads.toLocaleString()} downloads`}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+                      {r.downloads >= 1e6 ? `${(r.downloads / 1e6).toFixed(1)}M` : r.downloads >= 1e3 ? `${Math.round(r.downloads / 1e3)}K` : r.downloads}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>

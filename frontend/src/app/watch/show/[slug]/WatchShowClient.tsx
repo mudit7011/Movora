@@ -9,6 +9,7 @@ import { useUserData } from '@/lib/useUserData'
 import { useTV } from '@/components/TvProvider'
 import dynamic from 'next/dynamic'
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
+const MovoraStreamPlayer = dynamic(() => import('@/components/MovoraStreamPlayer'), { ssr: false })
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster, extractEpisodeNav } from '@/lib/playerProgress'
 
 interface Source {
@@ -32,7 +33,10 @@ function buildSources(tmdbId: string, season: number, episode: number): Source[]
     { serverName: 'Server 2', url: `https://vidfast.pro/tv/${rawId}/${season}/${episode}?autoPlay=true&theme=06D6E0&hideServer=true&chromecast=true&title=false&poster=false&nextButton=true&autoNext=true`, quality: 'HD' },
     { serverName: 'Server 3', url: `https://embedmaster.link/fljq7ku6ysokw3og/tv/${rawId}/${season}/${episode}`, quality: 'HD' },
     { serverName: 'Server 4', url: `https://vidlink.pro/tv/${rawId}/${season}/${episode}?primaryColor=06D6E0&autoplay=true&nextbutton=true`, quality: 'HD' },
-    { serverName: 'Server 5', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&autonext=true&audio=true&lang=English&title=true&download=true&setting=true&appearance=true&episodelist=true&watchparty=false&chromecast=true&pip=true&nextbutton=true&hidecontrols=false&hideserver=true&hideservericon=true&icons=sharp&logo=https://watchmovora.com/icon.svg&logowidth=36px&logoheight=36px&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&iconsize=1&font=Poppins&fontcolor=FFFFFF&fontsize=20&opacity=0.50&glasscolor=000000&glassopacity=65&glassblur=20&subtitle=Off&subdelay=0&subtextsize=140&subtextcolor=FFFFFF&subcapitalize=false&subbold=false&subfont=Roboto&subbgenabled=false&subbgcolor=000000&subbgopacity=0&subbgblur=0`, quality: 'HD' },
+    // Server 5 — nxsha embed (aggregates ~35 providers incl. ShowBox multi-lang + Hindi). lang=hi defaults to Hindi audio where available.
+    { serverName: 'Server 5', url: `https://nxsha.space/embed/tv/${rawId}/${season}/${episode}?lang=hi`, quality: 'HD' },
+    // Previous Server 5 (nhdapi) — kept commented in case we want it back:
+    // { serverName: 'Server 5', url: `https://nhdapi.com/embed/tv/${rawId}/${season}/${episode}?autoplay=true&autonext=true&audio=true&lang=English&title=true&download=true&setting=true&appearance=true&episodelist=true&watchparty=false&chromecast=true&pip=true&nextbutton=true&hidecontrols=false&hideserver=true&hideservericon=true&icons=sharp&logo=https://watchmovora.com/icon.svg&logowidth=36px&logoheight=36px&primarycolor=06D6E0&secondarycolor=0891B2&iconcolor=FFFFFF&iconsize=1&font=Poppins&fontcolor=FFFFFF&fontsize=20&opacity=0.50&glasscolor=000000&glassopacity=65&glassblur=20&subtitle=Off&subdelay=0&subtextsize=140&subtextcolor=FFFFFF&subcapitalize=false&subbold=false&subfont=Roboto&subbgenabled=false&subbgcolor=000000&subbgopacity=0&subbgblur=0`, quality: 'HD' },
   ]
 }
 
@@ -57,6 +61,7 @@ export default function WatchShowClient({ show, children }: Props) {
   const [displaySeason, setDisplaySeason] = useState(season)
   const [displayEpisode, setDisplayEpisode] = useState(episode)
   const [activeServerIdx, setActiveServerIdx] = useState(0)
+  const [usingMovora, setUsingMovora] = useState(true)   // custom extracted-m3u8 player is the default
 
   const [iframeKey, setIframeKey] = useState(0)
   const manualSelectAt = useRef(0)
@@ -159,6 +164,8 @@ export default function WatchShowClient({ show, children }: Props) {
   // this is a best-effort estimate. We never save on mount and only persist after genuine
   // watch time accrues, so opening/re-opening an episode can't inflate progress.
   useEffect(() => {
+    // The Movora player reports its exact position via onProgress, so skip the iframe estimator.
+    if (usingMovora) return
     const episodeDuration = 2700 // ~45 min default
     const rawId = show.tmdbId.replace(/^tv_/, '')
     const nextEp = episode < episodeCount ? episode + 1 : undefined
@@ -264,7 +271,7 @@ export default function WatchShowClient({ show, children }: Props) {
       window.removeEventListener('message', onMessage)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show._id, season, episode, episodeCount])
+  }, [show._id, season, episode, episodeCount, usingMovora])
 
   function selectEpisode(s: number, ep: number) {
     manualSelectAt.current = Date.now()
@@ -273,7 +280,8 @@ export default function WatchShowClient({ show, children }: Props) {
     setDisplaySeason(s)
     setDisplayEpisode(ep)
     setIframeKey(k => k + 1)  // force iframe reload even if season/episode unchanged
-    setActiveServerIdx(0)
+    // Keep the user on the server they were already using (Movora or Server N) across episode
+    // changes — don't reset to Server 1.
     window.history.replaceState(null, '', `/watch/show/${show.slug}?season=${s}&episode=${ep}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -336,7 +344,7 @@ export default function WatchShowClient({ show, children }: Props) {
             {active.quality}
           </span>
           <span className="hidden sm:inline text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-medium">
-            {active.serverName}
+            {usingMovora ? 'Movora Player' : active.serverName}
           </span>
         </div>
       </div>
@@ -346,7 +354,26 @@ export default function WatchShowClient({ show, children }: Props) {
         <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
           <div className="relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
-            {active.type === 'direct' ? (
+            {usingMovora ? (
+              <MovoraStreamPlayer
+                tmdb={show.tmdbId.replace(/^tv_/, '')}
+                type="tv"
+                season={season}
+                episode={episode}
+                title={show.title}
+                poster={show.backdropUrl || show.posterUrl}
+                year={show.releaseYear}
+                runtime={show.runtime}
+                rating={show.rating}
+                synopsis={show.synopsis}
+                startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
+                onProgress={(t, d) => {
+                  const nextEp = episode < episodeCount ? episode + 1 : undefined
+                  updateProgress(show, t, d, season, episode, nextEp !== undefined ? season : undefined, nextEp)
+                }}
+                onFallback={() => setUsingMovora(false)}
+              />
+            ) : active.type === 'direct' ? (
               <VideoPlayer
                 src={active.url}
                 title={`${show.title} S${season}E${episode}`}
@@ -445,24 +472,38 @@ export default function WatchShowClient({ show, children }: Props) {
             )}
           </div>
           <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setUsingMovora(true)}
+              data-focusable={isTV ? '' : undefined}
+              tabIndex={isTV ? 0 : undefined}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                usingMovora
+                  ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
+                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${usingMovora ? 'bg-background' : 'bg-white/20'}`} />
+              Movora Player
+              <span className={`text-[9px] font-bold uppercase tracking-wider ${usingMovora ? 'text-background/70' : 'text-primary'}`}>Premium</span>
+            </button>
             {sources.map((src, i) => (
               <button
                 key={i}
-                onClick={() => setActiveServerIdx(i)}
+                onClick={() => { setUsingMovora(false); setActiveServerIdx(i) }}
                 data-focusable={isTV ? '' : undefined}
                 tabIndex={isTV ? 0 : undefined}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
-                  i === activeServerIdx
+                  !usingMovora && i === activeServerIdx
                     ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
                     : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${i === activeServerIdx ? 'bg-background' : 'bg-white/20'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${!usingMovora && i === activeServerIdx ? 'bg-background' : 'bg-white/20'}`} />
                 {src.serverName}
               </button>
             ))}
           </div>
-          {activeServerIdx === 0 && (
+          {!usingMovora && activeServerIdx === 0 && (
             <div className="flex items-start gap-2 mb-4 p-3 rounded-xl bg-amber-500/[0.08] border border-amber-500/20">
               <svg className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -477,7 +518,7 @@ export default function WatchShowClient({ show, children }: Props) {
               <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
             </svg>
             <p className="text-[11px] text-white/25 leading-relaxed">
-              Audio language depends on server availability. For Hindi audio, tap <span className="text-white/40">⚙ Settings → Servers → Fade</span> inside the player (Server 1 only). Not all titles have Hindi available.
+              Hindi audio may be available on the Movora Player and Server 5 — switch the audio track inside the player. Not all titles have Hindi dubbed content.
             </p>
           </div>
         </div>

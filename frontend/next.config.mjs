@@ -21,6 +21,9 @@ const nextConfig = {
       { source: '/api/health',          destination: `${BACKEND}/api/health` },
       { source: '/api/sports/:path*',   destination: `${BACKEND}/api/sports/:path*` },
       { source: '/api/livetv/:path*',   destination: `${BACKEND}/api/livetv/:path*` },
+      { source: '/api/stream/:path*',   destination: `${BACKEND}/api/stream/:path*` },
+      { source: '/api/stream',          destination: `${BACKEND}/api/stream` },
+      { source: '/api/subtitles/:path*', destination: `${BACKEND}/api/subtitles/:path*` },
     ]
   },
   images: {

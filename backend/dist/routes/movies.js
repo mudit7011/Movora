@@ -64,7 +64,9 @@ router.get('/', async (req, res) => {
         }
         else {
             const sortMap = {
-                latest: { createdAt: -1, _id: -1 },
+                // Latest = newest releases first (by release year), best-rated within a year.
+                latest: { releaseYear: -1, rating: -1, _id: -1 },
+                added: { createdAt: -1, _id: -1 }, // newest scraped into the DB (not user-facing)
                 recent: { releaseYear: -1, rating: -1, _id: -1 },
                 rating: { rating: -1, _id: -1 },
                 year: { releaseYear: -1, _id: -1 },

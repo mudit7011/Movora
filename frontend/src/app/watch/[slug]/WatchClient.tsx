@@ -9,6 +9,7 @@ import { useTV } from '@/components/TvProvider'
 import { extractPlayback, isEndedEvent, isKnownPlayerOrigin, isEmbedMasterReady, seekEmbedMaster } from '@/lib/playerProgress'
 
 const VideoPlayer = dynamic(() => import('@/components/VideoPlayer'), { ssr: false })
+const MovoraStreamPlayer = dynamic(() => import('@/components/MovoraStreamPlayer'), { ssr: false })
 
 interface Props {
   movie: Movie
@@ -25,6 +26,7 @@ const LOAD_MESSAGES = [
 
 export default function WatchClient({ movie, sources, children }: Props) {
   const isTV = useTV()
+  const [usingMovora, setUsingMovora] = useState(true)   // custom extracted-m3u8 player is the default
   const [activeIdx, setActiveIdx]   = useState(0)
   const [showFallback, setShowFallback] = useState(false)
   const [playerLoaded, setPlayerLoaded] = useState(false)
@@ -70,6 +72,8 @@ export default function WatchClient({ movie, sources, children }: Props) {
   // servers this is a best-effort estimate. We never save on mount and only persist after
   // genuine watch time accrues, so opening a page (or re-opening it) can't inflate progress.
   useEffect(() => {
+    // The Movora player reports its exact position via onProgress, so skip the iframe estimator.
+    if (usingMovora) return
     const fallbackDuration = (movie.runtime || 120) * 60
     const rawId = movie.tmdbId.replace(/^(tv_|movie_)/, '')
 
@@ -167,7 +171,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
       window.removeEventListener('message', onMessage)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [movie._id])
+  }, [movie._id, usingMovora])
 
   // Auto-suggest fallback if server doesn't respond within 15s
   useEffect(() => {
@@ -257,7 +261,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
             {active.quality}
           </span>
           <span className="hidden sm:inline text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-medium">
-            {active.serverName}
+            {usingMovora ? 'Movora Player' : active.serverName}
           </span>
         </div>
       </div>
@@ -267,7 +271,21 @@ export default function WatchClient({ movie, sources, children }: Props) {
         <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
           <div className="relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
-            {isDirect ? (
+            {usingMovora ? (
+              <MovoraStreamPlayer
+                tmdb={movie.tmdbId.replace(/^movie_/, '')}
+                type="movie"
+                title={movie.title}
+                poster={movie.backdropUrl || movie.posterUrl}
+                year={movie.releaseYear}
+                runtime={movie.runtime}
+                rating={movie.rating}
+                synopsis={movie.synopsis}
+                startAt={savedTimestamp > 60 ? savedTimestamp : undefined}
+                onProgress={(t, d) => updateProgress(movie, t, d)}
+                onFallback={() => setUsingMovora(false)}
+              />
+            ) : isDirect ? (
               <VideoPlayer
                 src={active.url}
                 title={movie.title}
@@ -366,19 +384,33 @@ export default function WatchClient({ movie, sources, children }: Props) {
             )}
           </div>
           <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={() => setUsingMovora(true)}
+              data-focusable={isTV ? '' : undefined}
+              tabIndex={isTV ? 0 : undefined}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                usingMovora
+                  ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
+                  : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${usingMovora ? 'bg-background' : 'bg-white/20'}`} />
+              Movora Player
+              <span className={`text-[9px] font-bold uppercase tracking-wider ${usingMovora ? 'text-background/70' : 'text-primary'}`}>Premium</span>
+            </button>
             {sources.map((src, i) => (
               <button
                 key={i}
-                onClick={() => setActiveIdx(i)}
+                onClick={() => { setUsingMovora(false); setActiveIdx(i) }}
                 data-focusable={isTV ? '' : undefined}
                 tabIndex={isTV ? 0 : undefined}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
-                  i === activeIdx
+                  !usingMovora && i === activeIdx
                     ? 'bg-primary text-background shadow-[0_0_20px_rgba(6,214,224,0.3)]'
                     : 'bg-white/5 text-white/55 hover:bg-white/10 hover:text-white border border-white/10 hover:border-primary/30'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${i === activeIdx ? 'bg-background' : 'bg-white/20'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${!usingMovora && i === activeIdx ? 'bg-background' : 'bg-white/20'}`} />
                 {src.serverName}
                 {src.type === 'direct' && (
                   <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">HLS</span>
@@ -386,7 +418,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
               </button>
             ))}
           </div>
-          {activeIdx === 0 && (
+          {!usingMovora && activeIdx === 0 && (
             <div className="flex items-start gap-2 mb-4 p-3 rounded-xl bg-amber-500/[0.08] border border-amber-500/20">
               <svg className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -401,7 +433,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
               <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
             </svg>
             <p className="text-[11px] text-white/25 leading-relaxed">
-              Audio language depends on server availability. Server 4 plays Hindi audio by default where available. Not all titles have Hindi dubbed content.
+              Hindi audio may be available on the Movora Player and Server 5 — switch the audio track inside the player. Not all titles have Hindi dubbed content.
             </p>
           </div>
         </div>

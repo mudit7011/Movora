@@ -2,77 +2,80 @@ import { Router } from 'express'
 
 const router = Router()
 
-const OS_API = 'https://api.opensubtitles.com/api/v1'
-const API_KEY = process.env.OPENSUBTITLES_API_KEY ?? ''
+// Wyzie aggregates subtitles (OpenSubtitles/SubDL/…) by TMDB id. Set WYZIE_KEY in the
+// environment (local .env + Render). If unset, subtitle search simply returns nothing.
+const WYZIE_KEY = process.env.WYZIE_KEY || ''
+const WYZIE_BASE = 'https://sub.wyzie.io/search'
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
-const osHeaders = {
-  'Api-Key': API_KEY,
-  'Content-Type': 'application/json',
-  'User-Agent': 'Movora v1.0',
-}
+interface SubItem { id: string; url: string; display?: string; language?: string; format?: string; flagUrl?: string; release?: string; fileName?: string; downloadCount?: number; isHearingImpaired?: boolean; origin?: string }
+interface SubOut { lang: string; display: string; url: string; flag: string | null; release: string; downloads: number; hi: boolean; origin: string }
 
-// GET /api/subtitles/search?tmdbId=xxx&type=movie|tv&season=1&episode=1&languages=en
+// GET /api/subtitles/search?tmdb=&type=movie|tv&season=&episode=&all=1
+// all=1 → every variant (multiple per language, most-downloaded first) so users can pick the
+// one that matches their release. Otherwise → one best (most-downloaded) subtitle per language.
 router.get('/search', async (req, res) => {
-  const { tmdbId, type, season, episode, languages } = req.query as Record<string, string>
-  if (!tmdbId || !type) return res.status(400).json({ error: 'tmdbId and type required' })
-  if (!API_KEY) return res.status(503).json({ error: 'Subtitles service not configured' })
+  const tmdb = String(req.query.tmdb || req.query.tmdbId || '')
+  const type = String(req.query.type || 'movie')
+  const season = req.query.season ? String(req.query.season) : ''
+  const episode = req.query.episode ? String(req.query.episode) : ''
+  if (!tmdb) { res.status(400).json({ error: 'tmdb required' }); return }
 
-  const params = new URLSearchParams({
-    tmdb_id: tmdbId,
-    type: type === 'tv' ? 'episode' : 'movie',
-    ...(languages ? { languages } : {}),
-    ...(season  ? { season_number: season }  : {}),
-    ...(episode ? { episode_number: episode } : {}),
-    order_by: 'download_count',
-    order_direction: 'desc',
-  })
+  const p = new URLSearchParams({ id: tmdb, key: WYZIE_KEY })
+  if (type === 'tv' && season && episode) { p.set('season', season); p.set('episode', episode) }
 
-  const r = await fetch(`${OS_API}/subtitles?${params}`, { headers: osHeaders }).catch(() => null)
-  if (!r?.ok) return res.status(502).json({ error: 'OpenSubtitles search failed' })
-
-  const data = await r.json()
-  const results = (data.data ?? []).slice(0, 20).map((item: Record<string, unknown>) => {
-    const a = item.attributes as Record<string, unknown>
-    const files = (a.files as Record<string, unknown>[])?.[0]
-    return {
-      fileId:    files?.file_id,
-      fileName:  files?.file_name,
-      language:  a.language,
-      langName:  (a as Record<string, unknown>).language_name ?? a.language,
-      downloads: a.download_count,
-      rating:    a.ratings,
-      release:   a.release,
-      hearing:   a.hearing_impaired,
+  try {
+    const r = await fetch(`${WYZIE_BASE}?${p.toString()}`, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(10_000) })
+    if (!r.ok) { res.json({ subtitles: [] }); return }
+    const data = (await r.json()) as SubItem[]
+    const all = req.query.all === '1'
+    const mapped: SubOut[] = data.map(s => ({
+      lang: s.language || s.display || 'Unknown',
+      display: s.display || s.language || 'Unknown',
+      url: s.url,
+      flag: s.flagUrl || null,
+      release: s.release || s.fileName || '',
+      downloads: Number(s.downloadCount || 0),
+      hi: !!s.isHearingImpaired,
+      origin: s.origin || '',   // release type: BluRay / WEB / HDRip — helps match sync
+    }))
+    // Most-downloaded first (best sync/most trusted). For the auto-load, keep one per language.
+    mapped.sort((a, b) => b.downloads - a.downloads)
+    let subtitles: SubOut[] = mapped
+    if (!all) {
+      const seen = new Set<string>()
+      subtitles = mapped.filter(s => { if (seen.has(s.display)) return false; seen.add(s.display); return true })
     }
-  }).filter((x: Record<string, unknown>) => x.fileId)
-
-  res.json(results)
+    subtitles = subtitles.slice(0, all ? 150 : 30)
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    res.json({ subtitles })
+  } catch {
+    res.json({ subtitles: [] })
+  }
 })
 
-// POST /api/subtitles/download  body: { fileId: number }
-router.post('/download', async (req, res) => {
-  const { fileId } = req.body as { fileId: number }
-  if (!fileId) return res.status(400).json({ error: 'fileId required' })
-  if (!API_KEY) return res.status(503).json({ error: 'Subtitles service not configured' })
-
-  const r = await fetch(`${OS_API}/download`, {
-    method: 'POST',
-    headers: osHeaders,
-    body: JSON.stringify({ file_id: fileId }),
-  }).catch(() => null)
-
-  if (!r?.ok) return res.status(502).json({ error: 'Download link request failed' })
-  const data = await r.json() as { link?: string }
-  if (!data.link) return res.status(502).json({ error: 'No download link returned' })
-
-  // Proxy the actual subtitle file so the browser doesn't hit CORS
-  const sub = await fetch(data.link).catch(() => null)
-  if (!sub?.ok) return res.status(502).json({ error: 'Subtitle file fetch failed' })
-
-  const text = await sub.text()
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-  res.setHeader('Cache-Control', 'public, max-age=86400')
-  res.send(text)
+// GET /api/subtitles/vtt?url=  → fetch the SRT and serve it as WebVTT (CORS-open).
+router.get('/vtt', async (req, res) => {
+  const url = String(req.query.url || '')
+  if (!/^https?:\/\//i.test(url)) { res.status(400).json({ error: 'valid url required' }); return }
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(12_000) })
+    if (!r.ok) { res.status(502).end(); return }
+    let text = await r.text()
+    const hadHeader = /^\s*WEBVTT/.test(text)
+    text = text.replace(/\r/g, '').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')
+    // Strip common ad cues so captions look clean (premium touch).
+    const AD = /opensubtitles|osdb\.link|advertise your (product|brand)|watch online movies|api\.opensub|subscene|www\.\w+\.(org|com|link)/i
+    const body = hadHeader ? text.replace(/^\s*WEBVTT[^\n]*\n/, '') : text
+    const cleaned = body.split(/\n\s*\n/).filter(block => !AD.test(block)).join('\n\n')
+    text = 'WEBVTT\n\n' + cleaned.trim() + '\n'
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    res.send(text)
+  } catch {
+    res.status(502).end()
+  }
 })
 
 export { router as subtitlesRouter }
