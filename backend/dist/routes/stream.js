@@ -85,10 +85,10 @@ function titleMatches(expected, filename) {
 const STREAM_SECRET = crypto_1.default.createHash('sha256')
     .update(process.env.STREAM_SECRET || crypto_1.default.randomBytes(32)).digest();
 const TOKEN_TTL = 3 * 60 * 60 * 1000; // 3h — covers a full movie; segments are re-sealed live
-function seal(u, r) {
+function seal(u, r, seg = false) {
     const iv = crypto_1.default.randomBytes(12);
     const cipher = crypto_1.default.createCipheriv('aes-256-gcm', STREAM_SECRET, iv);
-    const pt = Buffer.from(JSON.stringify({ u, r, e: Date.now() + TOKEN_TTL }));
+    const pt = Buffer.from(JSON.stringify({ u, r, e: Date.now() + TOKEN_TTL, s: seg ? 1 : 0 }));
     const ct = Buffer.concat([cipher.update(pt), cipher.final()]);
     return Buffer.concat([iv, cipher.getAuthTag(), ct]).toString('base64url');
 }
@@ -102,13 +102,13 @@ function unseal(token) {
         const obj = JSON.parse(Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8'));
         if (!obj?.u || !obj?.e || Date.now() > obj.e)
             return null;
-        return { u: obj.u, r: obj.r || '' };
+        return { u: obj.u, r: obj.r || '', s: obj.s ? 1 : 0 };
     }
     catch {
         return null;
     }
 }
-const playUrl = (u, r) => `/api/stream/hls?d=${seal(u, r)}`;
+const playUrl = (u, r, seg = false) => `/api/stream/hls?d=${seal(u, r, seg)}`;
 // SSRF guard — only external https hosts, never private/loopback ranges.
 const PRIVATE_IP = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|fc|fd|169\.254\.)/i;
 function isSafeUrl(raw) {
@@ -120,11 +120,26 @@ function isSafeUrl(raw) {
         return false;
     }
 }
+// CDNs verified to serve video segments straight to the browser (CORS: *, no referer lock, honor
+// Range). For a *segment* on one of these we 302-redirect the browser directly to the CDN, so the
+// heavy bytes bypass our proxy entirely (no Render bandwidth bottleneck → full-speed playback). The
+// master + variant playlists still flow sealed through us, so the scraped source .m3u8 is never
+// exposed — only individual, short-lived chunk URLs appear, and the token still expires.
+const SAFE_DIRECT_HOSTS = /(^|\.)shegu\.net$|(^|\.)klcxm\.com$|(^|\.)wnowe\.com$/i;
+function directOk(raw) {
+    try {
+        return SAFE_DIRECT_HOSTS.test(new URL(raw).hostname);
+    }
+    catch {
+        return false;
+    }
+}
 // Rewrite an m3u8 so every child playlist / segment / key becomes a fresh sealed token —
 // the real URLs never leave the server.
 function rewriteSealed(content, baseUrl, referer) {
     const base = new URL(baseUrl);
-    const mk = (uri) => {
+    const isMedia = content.includes('#EXTINF'); // media playlist → bare lines are video segments
+    const mk = (uri, seg = false) => {
         let abs;
         try {
             abs = new URL(uri, base).href;
@@ -132,16 +147,18 @@ function rewriteSealed(content, baseUrl, referer) {
         catch {
             return uri;
         }
-        return playUrl(abs, referer);
+        return playUrl(abs, referer, seg && directOk(abs));
     };
     return content.split('\n').map(line => {
         const t = line.trim();
         if (!t)
             return line;
+        // Keys / init-segments / audio tracks always proxy (never expose a decryption key), so seg=false.
         if (t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-MAP') || t.startsWith('#EXT-X-MEDIA'))
-            return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mk(u)}"`);
+            return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mk(u, false)}"`);
+        // A bare line inside a media playlist is a video segment → eligible for direct-CDN redirect.
         if (!t.startsWith('#'))
-            return mk(t);
+            return mk(t, isMedia);
         return line;
     }).join('\n');
 }
@@ -485,6 +502,16 @@ exports.streamRouter.get('/hls', async (req, res) => {
     }
     if (!isSafeUrl(dec.u)) {
         res.status(400).end();
+        return;
+    }
+    // Direct-CDN segment offload: a sealed *segment* (s=1) on a CORS-open CDN gets redirected straight
+    // to the source so the video bytes never touch our proxy (kills the Render bandwidth bottleneck →
+    // full-speed 1080p/4K). Master/variant playlists never carry s=1, so the scraped .m3u8 stays
+    // sealed and the token still expires — the reusable source link can't be stolen or replayed.
+    if (dec.s && directOk(dec.u)) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'no-store');
+        res.redirect(302, dec.u);
         return;
     }
     try {
