@@ -132,7 +132,12 @@ function rewriteSealed(content: string, baseUrl: string, referer: string): strin
   const mk = (uri: string, seg = false) => {
     let abs: string
     try { abs = new URL(uri, base).href } catch { return uri }
-    return playUrl(abs, referer, seg && directOk(abs))
+    // Safe-host segment → emit the real CDN URL directly, so the browser fetches straight from the
+    // CDN with NO hop through our proxy at all (no Vercel rewrite, no Render). This is what lets
+    // hls.js measure your true bandwidth and hold 1080p instead of downshifting. The master/variant
+    // playlists still flow sealed through us, so the scraped source .m3u8 is never exposed.
+    if (seg && directOk(abs)) return abs
+    return playUrl(abs, referer)
   }
   return content.split('\n').map(line => {
     const t = line.trim()
