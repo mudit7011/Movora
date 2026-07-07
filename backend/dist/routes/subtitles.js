@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.subtitlesRouter = void 0;
 const express_1 = require("express");
+const stream_1 = require("./stream");
 const router = (0, express_1.Router)();
 exports.subtitlesRouter = router;
 // Official OpenSubtitles REST API. Its /download endpoint returns an authenticated CDN link
@@ -45,6 +46,17 @@ function originOf(release) {
         return 'HDRip';
     return '';
 }
+// Map one OpenSubtitles API item → our SubOut shape.
+function mapItem(item) {
+    const a = item.attributes || {};
+    const file = (a.files || [])[0] || {};
+    const lang = String(a.language || '').toLowerCase();
+    return {
+        id: String(file.file_id || ''), lang, display: displayName(lang), flag: flagUrl(lang),
+        release: a.release || file.file_name || '', downloads: Number(a.download_count || 0),
+        hi: !!a.hearing_impaired, origin: originOf(a.release || ''),
+    };
+}
 // Retry OpenSubtitles requests (its API intermittently resets/throttles); fresh timeout each try.
 async function osFetch(url, opts = {}, tries = 3) {
     for (let i = 0; i < tries; i++) {
@@ -67,6 +79,8 @@ async function osFetch(url, opts = {}, tries = 3) {
 // Cache search results per title (1h) so repeat views don't re-hit (and re-throttle) the API.
 const searchCache = new Map();
 const SEARCH_TTL = 60 * 60 * 1000;
+// Cache the byte-exact (moviehash-matched) English sub per title so we resolve it once.
+const hashSubCache = new Map();
 // GET /api/subtitles/search?tmdb=&type=movie|tv&season=&episode=&all=1
 // all=1 → every variant (most-downloaded first). Otherwise → one best per language.
 router.get('/search', async (req, res) => {
@@ -97,16 +111,7 @@ router.get('/search', async (req, res) => {
         const r = await osFetch(`${OS_BASE}/subtitles?${p.toString()}`, { headers: osHeaders() });
         if (r && r.ok) {
             const d = await r.json().catch(() => null);
-            mapped = ((d?.data) || []).map((item) => {
-                const a = item.attributes || {};
-                const file = (a.files || [])[0] || {};
-                const lang = String(a.language || '').toLowerCase();
-                return {
-                    id: String(file.file_id || ''), lang, display: displayName(lang), flag: flagUrl(lang),
-                    release: a.release || file.file_name || '', downloads: Number(a.download_count || 0),
-                    hi: !!a.hearing_impaired, origin: originOf(a.release || ''),
-                };
-            }).filter((s) => s.id);
+            mapped = ((d?.data) || []).map(mapItem).filter((s) => s.id);
             searchCache.set(cacheKey, { data: mapped, ts: Date.now() });
             if (searchCache.size > 500) {
                 const o = [...searchCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
@@ -119,9 +124,69 @@ router.get('/search', async (req, res) => {
     }
     let subtitles = mapped ?? []; // API orders by download_count desc
     if (!all) {
-        const seen = new Set();
-        subtitles = subtitles.filter(s => { if (seen.has(s.display))
-            return false; seen.add(s.display); return true; });
+        // Rank within a language: prefer WEB-DL (our ShowBox streams are WEB-DL transcodes, so these
+        // sync best), then non-hearing-impaired (cleaner default), then raw download popularity.
+        const pref = (s) => (s.origin === 'WEB' ? 2 : s.origin === 'BluRay' ? 1 : 0) * 1e12 +
+            (s.hi ? 0 : 1e11) + s.downloads;
+        const byLang = new Map();
+        for (const s of subtitles) {
+            const arr = byLang.get(s.display);
+            arr ? arr.push(s) : byLang.set(s.display, [s]);
+        }
+        const eng = [];
+        const others = [];
+        for (const [lang, arr] of byLang) {
+            arr.sort((a, b) => pref(b) - pref(a));
+            if (lang === 'English') {
+                // Keep up to 3 distinct English variants so a mis-synced auto-pick is one tap away.
+                arr.slice(0, 3).forEach((s, i) => eng.push(i === 0 ? s : { ...s, display: s.origin ? `English (${s.origin})` : `English #${i + 1}` }));
+            }
+            else {
+                others.push(arr[0]);
+            }
+        }
+        others.sort((a, b) => b.downloads - a.downloads);
+        subtitles = [...eng, ...others]; // English first — it's auto-selected on the client
+    }
+    // Byte-exact sync: if we can OSDb-hash the ORG file, pin the moviehash-matched English sub to
+    // the very top (guaranteed in-sync). Time-boxed so a slow ORG fetch never stalls the response —
+    // the hash still resolves + caches in the background for the next load. Cached per title (1h).
+    if (!all && OS_KEY) {
+        let exact;
+        const hHit = hashSubCache.get(cacheKey);
+        if (hHit && Date.now() - hHit.ts < SEARCH_TTL)
+            exact = hHit.sub;
+        if (exact === undefined) {
+            exact = null;
+            const hash = await Promise.race([
+                (0, stream_1.getMovieHash)(tmdb, type, season, episode),
+                new Promise(r => setTimeout(() => r(null), 5000)),
+            ]).catch(() => null);
+            if (hash) {
+                const hp = new URLSearchParams({ moviehash: hash, languages: 'en' });
+                if (type === 'tv' && season && episode) {
+                    hp.set('parent_tmdb_id', tmdb);
+                    hp.set('season_number', season);
+                    hp.set('episode_number', episode);
+                }
+                else
+                    hp.set('tmdb_id', tmdb);
+                const hr = await osFetch(`${OS_BASE}/subtitles?${hp.toString()}`, { headers: osHeaders() });
+                if (hr && hr.ok) {
+                    const hd = await hr.json().catch(() => null);
+                    const match = ((hd?.data) || []).filter((it) => it.attributes?.moviehash_match).map(mapItem).filter((s) => s.id)[0];
+                    if (match)
+                        exact = { ...match, display: 'English (exact sync)' };
+                }
+            }
+            hashSubCache.set(cacheKey, { sub: exact, ts: Date.now() });
+            if (hashSubCache.size > 500) {
+                const o = [...hashSubCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+                hashSubCache.delete(o[0]);
+            }
+        }
+        if (exact)
+            subtitles = [exact, ...subtitles.filter(s => s.id !== exact.id)];
     }
     subtitles = subtitles.slice(0, all ? 150 : 30);
     res.setHeader('Cache-Control', 'public, max-age=300');

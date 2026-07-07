@@ -283,6 +283,102 @@ async function getShowboxSources(tmdb: string, type: string, season: string, epi
   }
 }
 
+// ─── OSDb moviehash (for byte-exact subtitle sync) ────────────────────────────
+// OpenSubtitles tags each subtitle with the "moviehash" of the exact file it was synced to.
+// It's a cheap fingerprint: filesize + sum of the first 64KB + sum of the last 64KB (as LE
+// uint64s). FebBox exposes the untouched ORG release file, so we range-fetch just ~128KB of it
+// and compute the hash — then OpenSubtitles can hand back a subtitle guaranteed in-sync. Best
+// effort: a miss (obscure encode / no ORG) just falls back to the ranked search results.
+function osdbHash(head: Buffer, tail: Buffer, size: number): string {
+  const MASK = (1n << 64n) - 1n
+  let h = BigInt(size) & MASK
+  for (let i = 0; i + 8 <= head.length; i += 8) h = (h + head.readBigUInt64LE(i)) & MASK
+  for (let i = 0; i + 8 <= tail.length; i += 8) h = (h + tail.readBigUInt64LE(i)) & MASK
+  return h.toString(16).padStart(16, '0')
+}
+
+async function osdbHashFromUrl(url: string, cookie: string): Promise<string | null> {
+  try {
+    const hdr = { 'User-Agent': UA, Referer: FEBBOX_REFERER, Cookie: cookie }
+    const headR = await fetch(url, { headers: { ...hdr, Range: 'bytes=0-65535' }, redirect: 'follow', signal: AbortSignal.timeout(6_000) })
+    if (!headR.ok && headR.status !== 206) return null
+    const cr = headR.headers.get('content-range')             // "bytes 0-65535/12345678"
+    const size = cr ? Number(cr.split('/')[1]) : Number(headR.headers.get('content-length') || 0)
+    if (!size || size < 131072) return null                    // too small / unknown size
+    const head = Buffer.from(await headR.arrayBuffer())
+    const tailR = await fetch(url, { headers: { ...hdr, Range: `bytes=${size - 65536}-${size - 1}` }, redirect: 'follow', signal: AbortSignal.timeout(6_000) })
+    if (!tailR.ok && tailR.status !== 206) return null
+    const tail = Buffer.from(await tailR.arrayBuffer())
+    if (head.length < 65536 || tail.length < 65536) return null
+    return osdbHash(head, tail, size)
+  } catch { return null }
+}
+
+const hashCache = new Map<string, { hash: string | null; ts: number }>()
+const HASH_TTL = 6 * 60 * 60 * 1000   // cache hits and misses 6h (the ORG file rarely changes)
+
+// Resolve the FebBox ORG file for a title and return its OSDb moviehash (or null). Lean, self-
+// contained resolver (no title verification — a wrong id simply won't hash-match any subtitle).
+export async function getMovieHash(tmdb: string, type: string, season: string, episode: string): Promise<string | null> {
+  if (!FEBBOX_UI) return null
+  const key = `${type}:${tmdb}:${season}:${episode}`
+  const hit = hashCache.get(key)
+  if (hit && Date.now() - hit.ts < HASH_TTL) return hit.hash
+  const put = (h: string | null) => { hashCache.set(key, { hash: h, ts: Date.now() }); return h }
+  const cookie = FEBBOX_UI.startsWith('ui=') ? FEBBOX_UI : `ui=${FEBBOX_UI}`
+  const T = 8_000
+  try {
+    const idUrl = type === 'tv'
+      ? `${SHOWBOX_API}/tv/${tmdb}/${season}/${episode}?cookie=${encodeURIComponent(FEBBOX_UI)}`
+      : `${SHOWBOX_API}/movie/${tmdb}?cookie=${encodeURIComponent(FEBBOX_UI)}`
+    const idr = await fetch(idUrl, { headers: fbHeaders(), signal: AbortSignal.timeout(T) })
+    if (!idr.ok) return put(null)
+    const idData: any = await idr.json()
+    const showboxId = idData?.id || idData?.mid || idData?.data?.id || idData?.data?.mid
+    if (!showboxId) return put(null)
+
+    const boxType = type === 'tv' ? 2 : 1
+    const shr = await fetch(`${FEBBOX}/mbp/to_share_page?box_type=${boxType}&mid=${showboxId}&json=1`, { headers: fbHeaders(), signal: AbortSignal.timeout(T) })
+    const shData: any = await shr.json().catch(() => null)
+    const shareLink = shData?.code === 1 ? (shData.data?.share_link || shData.data?.shareLink) : null
+    if (!shareLink) return put(null)
+    const shareKey = String(shareLink).split('/').filter(Boolean).pop()
+
+    const listFiles = async (parentId?: string) => {
+      const u = `${FEBBOX}/file/file_share_list?share_key=${shareKey}${parentId ? `&parent_id=${parentId}&page=1` : ''}`
+      const r = await fetch(u, { headers: fbHeaders(cookie), signal: AbortSignal.timeout(T) })
+      const d: any = await r.json().catch(() => null)
+      return d?.code === 1 ? (d.data?.file_list || []) : []
+    }
+    let files: any[] = await listFiles()
+    if (type === 'tv') {
+      const folder = files.find((f: any) => f.file_name?.toLowerCase() === `season ${season}`)
+      if (!folder) return put(null)
+      const eps: any[] = await listFiles(folder.fid)
+      const ss = season.padStart(2, '0'), ee = episode.padStart(2, '0')
+      files = eps.filter((f: any) => {
+        const n = (f.file_name || '').toLowerCase()
+        return n.includes(`s${ss}e${ee}`) || n.includes(`s${season}e${episode}`)
+      })
+    }
+    const file = files.find((f: any) => f.fid && !f.is_dir && /\.(mp4|mkv|avi)$/i.test(f.file_name || ''))
+    if (!file) return put(null)
+
+    // ORG = the untouched release file that community subs were synced against.
+    const qr = await fetch(`${FEBBOX}/console/video_quality_list?fid=${file.fid}&share_key=${shareKey}`, { headers: fbHeaders(cookie), signal: AbortSignal.timeout(8_000) })
+    const qData: any = await qr.json().catch(() => null)
+    const html: string = qData?.code === 1 ? (qData.html || '') : ''
+    let orgUrl: string | null = null
+    for (const block of html.split('file_quality').slice(1)) {
+      const u = /data-url="([^"]+)"/.exec(block)?.[1]
+      const qual = (/data-quality="([^"]+)"/.exec(block)?.[1] || '').toUpperCase()
+      if (u && /^https?:\/\//i.test(u) && qual === 'ORG' && /\.(mp4|mkv|avi)(\?|$)/i.test(u)) { orgUrl = u; break }
+    }
+    if (!orgUrl) return put(null)
+    return put(await osdbHashFromUrl(orgUrl, cookie))
+  } catch { return put(null) }
+}
+
 // ─── Endpoint ─────────────────────────────────────────────────────────────────
 // Cache resolved sources per key for 5 min (links are time-limited but short reuse is fine).
 const srcCache = new Map<string, { data: Source[]; ts: number }>()
