@@ -269,7 +269,7 @@ export default function WatchClient({ movie, sources, children }: Props) {
       {/* ── Player ── */}
       <div className="relative z-10 w-full bg-black lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:bg-transparent">
         <div className="lg:rounded-2xl lg:overflow-hidden lg:ring-1 lg:ring-white/10 lg:shadow-2xl">
-          <div className="relative w-full touch-none" style={{ aspectRatio: '16/9' }}>
+          <div className="relative w-full touch-pan-y" style={{ aspectRatio: '16/9' }}>
             <div className="hidden lg:block absolute -inset-1 bg-primary/5 blur-xl -z-10" />
             {usingMovora ? (
               <MovoraStreamPlayer

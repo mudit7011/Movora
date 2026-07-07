@@ -264,7 +264,11 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     const t = subTrackRef.current?.track
     if (!t) return
     const v = videoRef.current as (HTMLVideoElement & { webkitDisplayingFullscreen?: boolean }) | null
-    t.mode = v?.webkitDisplayingFullscreen ? 'showing' : 'hidden'
+    // Show the native track whenever our HTML cue overlay can't be seen — i.e. any *native* video
+    // fullscreen: iOS webkit, or a TV/Android browser that fullscreens the <video> itself instead
+    // of our wrapper div. In wrapper (Fullscreen API) mode the styled HTML overlay handles it.
+    const nativeFs = !!v?.webkitDisplayingFullscreen || (!!document.fullscreenElement && document.fullscreenElement === v)
+    t.mode = nativeFs ? 'showing' : 'hidden'
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curExtSub, fs, activeSub?.url])
 
