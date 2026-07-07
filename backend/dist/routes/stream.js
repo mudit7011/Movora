@@ -241,8 +241,11 @@ async function fetchServer(sr, params, apiKey) {
 // Mumbai (bom1) proxy for the CDN-node-deciding call. FebBox picks the shegu node by the *caller's*
 // IP; Render's Singapore/US egress → a US node → Indian users buffer. Routing just the quality_list
 // through a Vercel function pinned to Mumbai makes FebBox hand back an India node close to our users.
-const FB_PROXY_URL = process.env.FB_PROXY_URL || ''; // e.g. https://watchmovora.com/api/fbproxy
+const FB_PROXY_URL = process.env.FB_PROXY_URL || ''; // Vercel .vercel.app URL (bypasses our Cloudflare)
 const FBPROXY_SECRET = process.env.FBPROXY_SECRET || '';
+// Vercel deployment protection walls the .vercel.app domain; this automation-bypass token lets our
+// server-to-server call through (Vercel: Settings → Deployment Protection → Protection Bypass for Automation).
+const VERCEL_BYPASS = process.env.VERCEL_BYPASS_SECRET || '';
 // FebBox + the id proxy intermittently rate-limit / return a 500 ThinkPHP page from datacenter
 // IPs (Render). Without retries, a single transient failure at any step drops ALL ShowBox sources
 // (→ no quality options in prod). Retry a few times with backoff; a rate-limit 500 comes back fast,
@@ -252,7 +255,9 @@ async function fbFetchJson(url, headers, tries = 3, viaProxy = false) {
     const useProxy = viaProxy && !!FB_PROXY_URL && !!FBPROXY_SECRET;
     const attempt = async (proxy) => {
         const target = proxy ? `${FB_PROXY_URL}?url=${encodeURIComponent(url)}` : url;
-        const hdr = proxy ? { 'x-fb-secret': FBPROXY_SECRET, 'x-fb-cookie': (headers?.Cookie || '') } : headers;
+        const hdr = proxy
+            ? { 'x-fb-secret': FBPROXY_SECRET, 'x-fb-cookie': (headers?.Cookie || ''), ...(VERCEL_BYPASS ? { 'x-vercel-protection-bypass': VERCEL_BYPASS } : {}) }
+            : headers;
         const r = await fetch(target, { headers: hdr, signal: AbortSignal.timeout(9000) });
         if (r.ok) {
             const j = await r.json().catch(() => null);
@@ -613,6 +618,7 @@ exports.streamRouter.get('/fbdebug', async (_req, res) => {
     const out = {
         envProxyUrl: FB_PROXY_URL || '(unset)',
         envSecretSet: !!FBPROXY_SECRET,
+        envBypassSet: !!VERCEL_BYPASS,
         febboxUiSet: !!FEBBOX_UI,
     };
     try {
@@ -631,7 +637,7 @@ exports.streamRouter.get('/fbdebug', async (_req, res) => {
     // Can Render reach the fbproxy?
     if (FB_PROXY_URL && FBPROXY_SECRET) {
         try {
-            const r = await fetch(`${FB_PROXY_URL}?url=${encodeURIComponent('https://www.febbox.com/')}`, { headers: { 'x-fb-secret': FBPROXY_SECRET }, signal: AbortSignal.timeout(9000) });
+            const r = await fetch(`${FB_PROXY_URL}?url=${encodeURIComponent('https://www.febbox.com/')}`, { headers: { 'x-fb-secret': FBPROXY_SECRET, ...(VERCEL_BYPASS ? { 'x-vercel-protection-bypass': VERCEL_BYPASS } : {}) }, signal: AbortSignal.timeout(9000) });
             out.fbproxyStatus = r.status;
             out.fbproxyBody = (await r.text()).slice(0, 80);
         }
