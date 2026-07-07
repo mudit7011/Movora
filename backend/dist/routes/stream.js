@@ -232,28 +232,43 @@ async function fetchServer(sr, params, apiKey) {
         return [];
     }
 }
+// FebBox + the id proxy intermittently rate-limit / return a 500 ThinkPHP page from datacenter
+// IPs (Render). Without retries, a single transient failure at any step drops ALL ShowBox sources
+// (→ no quality options in prod). Retry a few times with backoff; a rate-limit 500 comes back fast,
+// so retrying is cheap, and it recovers most transient failures.
+async function fbFetchJson(url, headers, tries = 3) {
+    for (let i = 0; i < tries; i++) {
+        try {
+            const r = await fetch(url, { headers, signal: AbortSignal.timeout(7000) });
+            if (r.ok) {
+                const j = await r.json().catch(() => null);
+                if (j)
+                    return j;
+            }
+        }
+        catch { /* timeout / connection reset — fall through to retry */ }
+        if (i < tries - 1)
+            await new Promise(res => setTimeout(res, 350 * (i + 1)));
+    }
+    return null;
+}
 async function getShowboxSources(tmdb, type, season, episode) {
     if (!FEBBOX_UI)
         return [];
     const cookie = FEBBOX_UI.startsWith('ui=') ? FEBBOX_UI : `ui=${FEBBOX_UI}`;
-    const T = 8000;
     const titleP = tmdbTitle(tmdb, type); // fetch expected title in parallel for verification
     try {
         // 1) TMDB → ShowBox id (proxy handles ShowBox's Cloudflare)
         const idUrl = type === 'tv'
             ? `${SHOWBOX_API}/tv/${tmdb}/${season}/${episode}?cookie=${encodeURIComponent(FEBBOX_UI)}`
             : `${SHOWBOX_API}/movie/${tmdb}?cookie=${encodeURIComponent(FEBBOX_UI)}`;
-        const idr = await fetch(idUrl, { headers: fbHeaders(), signal: AbortSignal.timeout(T) });
-        if (!idr.ok)
-            return [];
-        const idData = await idr.json();
+        const idData = await fbFetchJson(idUrl, fbHeaders());
         const showboxId = idData?.id || idData?.mid || idData?.data?.id || idData?.data?.mid;
         if (!showboxId)
             return [];
         // 2) ShowBox id → FebBox share key
         const boxType = type === 'tv' ? 2 : 1;
-        const shr = await fetch(`${FEBBOX}/mbp/to_share_page?box_type=${boxType}&mid=${showboxId}&json=1`, { headers: fbHeaders(), signal: AbortSignal.timeout(T) });
-        const shData = await shr.json().catch(() => null);
+        const shData = await fbFetchJson(`${FEBBOX}/mbp/to_share_page?box_type=${boxType}&mid=${showboxId}&json=1`, fbHeaders());
         const shareLink = shData?.code === 1 ? (shData.data?.share_link || shData.data?.shareLink) : null;
         if (!shareLink)
             return [];
@@ -261,8 +276,7 @@ async function getShowboxSources(tmdb, type, season, episode) {
         // 3) file list (auth by ui cookie); for TV, descend into the season folder
         const listFiles = async (parentId) => {
             const u = `${FEBBOX}/file/file_share_list?share_key=${shareKey}${parentId ? `&parent_id=${parentId}&page=1` : ''}`;
-            const r = await fetch(u, { headers: fbHeaders(cookie), signal: AbortSignal.timeout(T) });
-            const d = await r.json().catch(() => null);
+            const d = await fbFetchJson(u, fbHeaders(cookie));
             return d?.code === 1 ? (d.data?.file_list || []) : [];
         };
         let files = await listFiles();
@@ -294,8 +308,7 @@ async function getShowboxSources(tmdb, type, season, episode) {
         const RANK = { '2160P': 4, '4K': 4, '1080P': 3, '720P': 2, '480P': 1, '360P': 0 };
         const perFile = await Promise.all(files.map(async (f) => {
             try {
-                const qr = await fetch(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, { headers: fbHeaders(cookie), signal: AbortSignal.timeout(8000) });
-                const qData = await qr.json().catch(() => null);
+                const qData = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, fbHeaders(cookie));
                 const html = qData?.code === 1 ? (qData.html || '') : '';
                 const lang = detectLang(f.file_name);
                 // Best-first (2160/1080 → 360). Skip raw "ORG" .original downloads (often unplayable MKV).
