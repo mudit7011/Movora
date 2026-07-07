@@ -792,6 +792,8 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
   const progress    = duration > 0 ? (current / duration) * 100 : 0
   const bufPct      = duration > 0 ? (buffered / duration) * 100 : 0
+  // Paused "You're watching" info overlay is shown → hide the caption so they don't overlap.
+  const showPausedInfo = !playing && !loading && !busy && !!(title || year || runtime || rating)
   const qualLabel   = curQuality === -1 ? 'Auto' : (qualities[curQuality]?.height > 0 ? `${qualities[curQuality].height}p` : 'Auto')
   const qualBtnLabel = hasQualitySources ? (activeSource?.quality || 'HD') : qualLabel
   const ctrlVisible = showCtrl || !playing
@@ -856,7 +858,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       </video>
 
       {/* Netflix-style info overlay while paused — bottom-left, video stays visible */}
-      {!playing && !loading && !busy && (title || year || runtime || rating) && (
+      {showPausedInfo && (
         <div className="absolute inset-0 pointer-events-none z-[15]">
           {/* Soft left + bottom gradient for legibility (no heavy full-screen dim) */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent" />
@@ -954,8 +956,8 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
         )}
       </div>
 
-      {/* Subtitle — always visible, sits above controls */}
-      {currentCue && (
+      {/* Subtitle — sits above controls. Hidden while the paused info overlay is up (no overlap). */}
+      {currentCue && !showPausedInfo && (
         <div
           className={`absolute inset-x-0 z-20 pointer-events-none flex justify-center px-3 transition-all duration-200 ${ctrlVisible ? 'bottom-[90px] sm:bottom-[108px]' : 'bottom-6 sm:bottom-10'}`}
         >
