@@ -371,6 +371,8 @@ export default function WatchShowClient({ show, children }: Props) {
                   const nextEp = episode < episodeCount ? episode + 1 : undefined
                   updateProgress(show, t, d, season, episode, nextEp !== undefined ? season : undefined, nextEp)
                 }}
+                seasons={seasons.map(s => ({ seasonNumber: s.seasonNumber, episodeCount: s.episodeCount }))}
+                onEpisodeChange={selectEpisode}
                 onFallback={() => setUsingMovora(false)}
               />
             ) : active.type === 'direct' ? (

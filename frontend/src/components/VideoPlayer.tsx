@@ -51,7 +51,7 @@ interface SubPrefs {
   bold: boolean
   shadow: boolean
 }
-const DEFAULT_SUB_PREFS: SubPrefs = { size: 'lg', color: 'white', bg: 'none', bold: true, shadow: true }
+const DEFAULT_SUB_PREFS: SubPrefs = { size: '2xl', color: 'white', bg: 'none', bold: true, shadow: true }   // '2xl' = the "L" size
 
 // Progressive buffering messages (same UX as the Server 1–5 iframe loader).
 const BUFFER_MESSAGES = [
@@ -62,7 +62,7 @@ const BUFFER_MESSAGES = [
 ] as const
 const SUB_PREFS_KEY = 'movora_sub_prefs'
 
-const SUB_PREFS_VERSION = 2
+const SUB_PREFS_VERSION = 3   // bumped when default size changed to L ('2xl')
 function loadSubPrefs(): SubPrefs {
   try {
     const raw = localStorage.getItem(SUB_PREFS_KEY)
@@ -121,7 +121,14 @@ interface Props {
   episodeTitle?: string      // TV: current episode name (Netflix-style overlay)
   episodeOverview?: string   // TV: current episode synopsis
   onProgress?: (time: number, duration: number) => void   // real playback position → Continue Watching
+  episodes?: EpisodeMeta[]   // TV: current season's episodes (in-player list)
+  seasons?: { seasonNumber: number; episodeCount: number }[]   // TV: all seasons (next-episode across seasons)
+  onEpisodeChange?: (season: number, episode: number) => void   // TV: user picked / advanced an episode
+  titleLogo?: string | null  // TMDB title-treatment logo; falls back to the text title when absent
+  busy?: boolean             // parent is swapping the episode/source — show the buffering overlay, stay mounted
 }
+
+interface EpisodeMeta { episodeNumber: number; name: string; overview?: string; stillUrl?: string; runtime?: number }
 
 function fmt(s: number) {
   if (!isFinite(s)) return '0:00'
@@ -145,10 +152,10 @@ interface OSResult {
   origin?: string          // release type: BluRay / WEB / HDRip
 }
 
-type Menu = 'settings' | 'ossearch' | 'sub' | null
+type Menu = 'settings' | 'ossearch' | 'sub' | 'episodes' | null
 type SettingsTab = 'quality' | 'audio' | 'subs' | 'style' | 'speed'
 
-export default function VideoPlayer({ src, sources, activeSourceIdx: controlledSrcIdx, onSourceChange, onSourcesExhausted, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis, episodeTitle, episodeOverview, onProgress }: Props) {
+export default function VideoPlayer({ src, sources, activeSourceIdx: controlledSrcIdx, onSourceChange, onSourcesExhausted, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis, episodeTitle, episodeOverview, onProgress, episodes, seasons, onEpisodeChange, titleLogo, busy }: Props) {
   const [internalSrcIdx, setInternalSrcIdx] = useState(0)
   const activeSourceIdx = controlledSrcIdx ?? internalSrcIdx
   const selectSource = useCallback((i: number) => { if (onSourceChange) onSourceChange(i); else setInternalSrcIdx(i) }, [onSourceChange])
@@ -182,6 +189,8 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const [speed,        setSpeed]        = useState(1)
   const [openMenu,     setOpenMenu]     = useState<Menu>(null)
   const [settingsTab,  setSettingsTab]  = useState<SettingsTab>('subs')
+  const [panelSeason,  setPanelSeason]  = useState<number | undefined>(season)   // season shown in the episodes panel
+  const [panelEpisodes, setPanelEpisodes] = useState<EpisodeMeta[]>(episodes ?? [])
   const isMobile = useIsMobile()
   const [loading,      setLoading]      = useState(true)
   const [loadPhase,    setLoadPhase]    = useState(0)   // progressive buffering message index
@@ -236,6 +245,19 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curExtSub, externalSubtitles, localSubs])
 
+  // Auto-show the best English subtitle when a fresh list arrives (new title/episode). The backend
+  // returns English first, ranked by WEB-DL match, so index-of-first-English is the best pick. Fires
+  // once per list; the user stays free to switch variants or turn subs off afterwards.
+  const autoSubListRef = useRef<ExtSubtitle[] | null>(null)
+  useEffect(() => {
+    const subs = externalSubtitles ?? []
+    if (!subs.length || autoSubListRef.current === subs) return
+    autoSubListRef.current = subs
+    const enIdx = subs.findIndex(s => s.language === 'en' || /english/i.test(s.label))
+    if (enIdx >= 0) setCurExtSub(enIdx)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalSubtitles])
+
   // The native <track> should only render inside iOS's native fullscreen (where our custom HTML
   // cue overlay isn't visible). Keep it 'hidden' everywhere else so we don't get double captions.
   useEffect(() => {
@@ -250,9 +272,28 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   // Reset failover state when the title/episode changes (first source url is the signal).
   useEffect(() => {
     failedSrcRef.current = new Set()
+    resumeAtRef.current = 0        // fresh episode → start from startAt (0), not a stale resume position
     selectSource(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sources?.[0]?.src])
+
+  // Parent is swapping episode/source — pause the outgoing stream (its audio stops under the overlay)
+  // and mark it as "was playing" so the incoming episode auto-plays, Netflix-style.
+  useEffect(() => { if (busy) { wasPlayingRef.current = true; videoRef.current?.pause() } }, [busy])
+
+  // Episodes panel: default to the playing season; refetch that season's list when the user
+  // browses a different one (so they can pick from any season without leaving the player).
+  useEffect(() => { setPanelSeason(season) }, [season])
+  useEffect(() => {
+    if (panelSeason === season) { setPanelEpisodes(episodes ?? []); return }
+    if (!tmdbId || panelSeason == null) return
+    let cancelled = false
+    fetch(`/api/episodes?tmdbId=${encodeURIComponent(tmdbId)}&season=${panelSeason}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((eps: EpisodeMeta[]) => { if (!cancelled) setPanelEpisodes(Array.isArray(eps) ? eps : []) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [panelSeason, season, episodes, tmdbId])
 
   // Latest-value refs so failToNext can stay referentially stable (sources/onSourcesExhausted
   // get a new identity every render, which would otherwise reset the stall-watchdog interval).
@@ -753,6 +794,20 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
   const hasCC = allExtSubs.length > 0 || subTracks.length > 0 || !!tmdbId
 
+  // ── TV: in-player episode list + Next Episode navigation ──
+  const isTV = mediaType === 'tv' && !!onEpisodeChange && season != null && episode != null
+  const seasonEpCount = seasons?.find(s => s.seasonNumber === season)?.episodeCount ?? episodes?.length ?? 0
+  const hasNextEpisode = !!isTV && (
+    episode! < seasonEpCount ||
+    !!seasons?.some(s => s.seasonNumber === season! + 1 && s.episodeCount > 0)
+  )
+  const hasEpisodeList = !!isTV && (episodes?.length ?? 0) > 0
+  const goNextEpisode = () => {
+    if (!onEpisodeChange || season == null || episode == null) return
+    if (episode < seasonEpCount) onEpisodeChange(season, episode + 1)
+    else if (seasons?.some(s => s.seasonNumber === season + 1 && s.episodeCount > 0)) onEpisodeChange(season + 1, 1)
+  }
+
   // Tabs for the consolidated Settings modal (only show what's available).
   const settingsTabs: { id: SettingsTab; label: string }[] = [
     ...((hasQualitySources || qualities.length > 1) ? [{ id: 'quality' as SettingsTab, label: 'Quality' }] : []),
@@ -797,7 +852,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       </video>
 
       {/* Netflix-style info overlay while paused — bottom-left, video stays visible */}
-      {!playing && !loading && (title || year || runtime || rating) && (
+      {!playing && !loading && !busy && (title || year || runtime || rating) && (
         <div className="absolute inset-0 pointer-events-none z-[15]">
           {/* Soft left + bottom gradient for legibility (no heavy full-screen dim) */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent" />
@@ -805,12 +860,17 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
           <div className="absolute left-0 bottom-0 px-5 sm:px-10 pb-20 sm:pb-32 max-w-[88%] sm:max-w-xl">
             <p className="text-white/55 text-[10px] sm:text-sm font-medium mb-1 sm:mb-2 tracking-wide">You're watching</p>
-            {title && (
+            {/* Title-treatment logo (like Server 1) when available; else the plain text title. */}
+            {titleLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={titleLogo} alt={title || ''}
+                className="w-auto max-w-[70%] sm:max-w-sm max-h-16 sm:max-h-28 object-contain object-left drop-shadow-2xl mb-1.5 sm:mb-3" />
+            ) : title ? (
               <h3 className="text-white font-black drop-shadow-2xl mb-1.5 sm:mb-3 leading-[1.05]"
                 style={{ fontSize: 'clamp(1.4rem, 5vw, 3rem)' }}>
                 {title}
               </h3>
-            )}
+            ) : null}
             {(year || runtime || rating) && (
               <div className="flex items-center gap-2 mb-1.5 sm:mb-3 flex-wrap">
                 {year && <span className="text-white/75 text-[11px] sm:text-sm font-medium">{year}</span>}
@@ -849,9 +909,9 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       {/* Buffering overlay — premium loader like the Server 1–5 iframes.
           Initial buffer (no frame yet): blurred backdrop + title + "Buffering…".
           Mid-playback stall: spinner over a light scrim so the frame stays visible. */}
-      {loading && (
+      {(loading || busy) && (
         <div className="absolute inset-0 z-[16] pointer-events-none overflow-hidden">
-          {current < 1 && poster ? (
+          {(current < 1 || busy) && poster ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105" style={{ filter: 'blur(2px)' }} />
@@ -967,6 +1027,15 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
               <img src="/platforms/icons8-forward-10-50.png" alt="" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
             </button>
 
+            {/* Next Episode (TV) */}
+            {hasNextEpisode && (
+              <button onClick={goNextEpisode} className="p-2 text-white/70 hover:text-white transition-colors" title="Next episode" aria-label="Next episode">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 4 15 12 5 20 5 4" fill="currentColor" stroke="none"/><line x1="19" y1="5" x2="19" y2="19"/>
+                </svg>
+              </button>
+            )}
+
             {/* Volume */}
             <div className="flex items-center gap-1 group/vol">
               <button onClick={() => { if (videoRef.current) videoRef.current.muted = !muted }} className="p-2 text-white/70 hover:text-white transition-colors">
@@ -987,6 +1056,16 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
             </div>
 
             <div className="flex-1" />
+
+            {/* Episodes (TV) — in-player season/episode list */}
+            {hasEpisodeList && (
+              <button onClick={() => setOpenMenu(openMenu === 'episodes' ? null : 'episodes')}
+                className={`p-2 transition-colors ${openMenu === 'episodes' ? 'text-[#06D6E0]' : 'text-white/60 hover:text-white'}`} title="Episodes" aria-label="Episodes">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="14" height="10" rx="1.5"/><line x1="21" y1="8" x2="21" y2="16"/><line x1="7" y1="19" x2="17" y2="19"/>
+                </svg>
+              </button>
+            )}
 
             {/* Quality badge — shows what's playing; taps into the Quality tab */}
             {(hasQualitySources || qualities.length > 1) && (
@@ -1032,7 +1111,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       {openMenu === 'settings' && ((m: React.ReactNode) => (isMobile && typeof document !== 'undefined' ? createPortal(m, document.body) : m))(
         <>
           <div className={`fixed inset-0 ${isMobile ? 'z-[998] bg-black/80' : 'z-40'}`} onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
-          <div style={{ backgroundColor: 'rgba(14,14,17,0.9)' }} className={`${isMobile ? 'fixed inset-x-0 bottom-0 z-[999] max-h-[82vh] rounded-t-2xl border-t' : 'absolute bottom-10 right-3 sm:right-5 z-50 w-[19rem] max-h-[76%] rounded-xl border'} border-white/10 shadow-2xl flex flex-col overflow-hidden backdrop-blur-2xl backdrop-saturate-150`}>
+          <div style={{ backgroundColor: isMobile ? 'rgba(14,14,17,0.92)' : 'rgba(17,17,23,0.55)' }} className={`${isMobile ? 'fixed inset-x-0 bottom-0 z-[999] max-h-[82vh] rounded-t-2xl border-t' : 'absolute bottom-10 right-3 sm:right-5 z-50 w-[19rem] max-h-[76%] rounded-xl border'} border-white/10 shadow-2xl flex flex-col overflow-hidden backdrop-blur-2xl backdrop-saturate-150`}>
             {isMobile && <div className="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-white/20 flex-shrink-0" />}
 
             {/* Tab bar */}
@@ -1137,6 +1216,65 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
               {activeTab === 'speed' && [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
                 <MenuItem key={s} active={speed === s} onClick={() => setPlaySpeed(s)}>{s === 1 ? 'Normal' : `${s}×`}</MenuItem>
               ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Episodes panel (TV) — current season's episodes. Portaled to <body> on mobile like Settings. */}
+      {openMenu === 'episodes' && hasEpisodeList && ((m: React.ReactNode) => (isMobile && typeof document !== 'undefined' ? createPortal(m, document.body) : m))(
+        <>
+          <div className={`fixed inset-0 ${isMobile ? 'z-[998] bg-black/80' : 'z-40'}`} onPointerDown={e => { e.stopPropagation(); setOpenMenu(null) }} />
+          <div style={{ backgroundColor: isMobile ? 'rgba(14,14,17,0.92)' : 'rgba(17,17,23,0.6)' }} className={`${isMobile ? 'fixed inset-x-0 bottom-0 z-[999] max-h-[82vh] rounded-t-2xl border-t' : 'absolute bottom-10 right-3 sm:right-5 z-50 w-[24rem] max-h-[78%] rounded-xl border'} border-white/10 shadow-2xl flex flex-col overflow-hidden backdrop-blur-2xl backdrop-saturate-150`}>
+            {isMobile && <div className="mx-auto mt-2.5 mb-1 h-1 w-10 rounded-full bg-white/20 flex-shrink-0" />}
+
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
+              <p className="text-sm font-semibold text-white">Episodes</p>
+              <button onClick={() => setOpenMenu(null)} className="text-white/40 hover:text-white transition-colors" aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {/* Season selector — browse any season without leaving the player */}
+            {(seasons?.length ?? 0) > 1 && (
+              <div className="flex gap-1.5 px-3 pb-2 border-b border-white/10 flex-shrink-0 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+                {seasons!.filter(s => s.episodeCount > 0).map(s => (
+                  <button key={s.seasonNumber} onClick={() => setPanelSeason(s.seasonNumber)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${panelSeason === s.seasonNumber ? 'bg-[#06D6E0] text-black' : 'text-white/55 hover:text-white hover:bg-white/10'}`}>
+                    Season {s.seasonNumber}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="overflow-y-auto p-2 min-h-0 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {panelEpisodes.map(ep => {
+                const isCurrent = panelSeason === season && ep.episodeNumber === episode
+                return (
+                  <button key={ep.episodeNumber}
+                    onClick={() => { if (!isCurrent && panelSeason != null) onEpisodeChange?.(panelSeason, ep.episodeNumber); setOpenMenu(null) }}
+                    className={`w-full flex gap-3 p-2 rounded-xl text-left transition-colors ${isCurrent ? 'bg-[#06D6E0]/15' : 'hover:bg-white/5'}`}>
+                    <div className="relative w-24 aspect-video rounded-lg overflow-hidden bg-white/5 flex-shrink-0 flex items-center justify-center">
+                      {ep.stillUrl
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={ep.stillUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                        : <span className="text-white/30 text-xs font-semibold">E{ep.episodeNumber}</span>}
+                      {isCurrent && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="#06D6E0"><path d="M7 4.5v15L20 12 7 4.5z"/></svg>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 py-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-semibold truncate ${isCurrent ? 'text-[#06D6E0]' : 'text-white'}`}>{ep.episodeNumber}. {ep.name}</p>
+                        {ep.runtime ? <span className="text-[10px] text-white/35 flex-shrink-0 ml-auto">{ep.runtime}m</span> : null}
+                      </div>
+                      {ep.overview && <p className="text-[11px] text-white/40 leading-snug line-clamp-2 mt-0.5">{ep.overview}</p>}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         </>
