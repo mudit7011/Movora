@@ -607,3 +607,37 @@ exports.streamRouter.delete('/cache', (_req, res) => {
     apiKeyCache = null;
     res.json({ ok: true });
 });
+// TEMP diagnostic (no secrets leaked) — tells us from Render's side why the Mumbai proxy path may
+// not be kicking in. Remove after debugging.
+exports.streamRouter.get('/fbdebug', async (_req, res) => {
+    const out = {
+        envProxyUrl: FB_PROXY_URL || '(unset)',
+        envSecretSet: !!FBPROXY_SECRET,
+        febboxUiSet: !!FEBBOX_UI,
+    };
+    try {
+        out.egressIp = (await (await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(6000) })).json()).ip;
+    }
+    catch (e) {
+        out.egressIp = 'err:' + e?.message;
+    }
+    if (out.egressIp && !String(out.egressIp).startsWith('err')) {
+        try {
+            const g = await (await fetch(`http://ip-api.com/json/${out.egressIp}?fields=country,city`, { signal: AbortSignal.timeout(6000) })).json();
+            out.egressGeo = `${g.city}, ${g.country}`;
+        }
+        catch { }
+    }
+    // Can Render reach the fbproxy?
+    if (FB_PROXY_URL && FBPROXY_SECRET) {
+        try {
+            const r = await fetch(`${FB_PROXY_URL}?url=${encodeURIComponent('https://www.febbox.com/')}`, { headers: { 'x-fb-secret': FBPROXY_SECRET }, signal: AbortSignal.timeout(9000) });
+            out.fbproxyStatus = r.status;
+            out.fbproxyBody = (await r.text()).slice(0, 80);
+        }
+        catch (e) {
+            out.fbproxyStatus = 'err:' + e?.message;
+        }
+    }
+    res.json(out);
+});
