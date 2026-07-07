@@ -215,21 +215,32 @@ async function fetchServer(sr: number, params: string, apiKey: string): Promise<
   }
 }
 
+// Mumbai (bom1) proxy for the CDN-node-deciding call. FebBox picks the shegu node by the *caller's*
+// IP; Render's Singapore/US egress → a US node → Indian users buffer. Routing just the quality_list
+// through a Vercel function pinned to Mumbai makes FebBox hand back an India node close to our users.
+const FB_PROXY_URL = process.env.FB_PROXY_URL || ''       // e.g. https://watchmovora.com/api/fbproxy
+const FBPROXY_SECRET = process.env.FBPROXY_SECRET || ''
+
 // FebBox + the id proxy intermittently rate-limit / return a 500 ThinkPHP page from datacenter
 // IPs (Render). Without retries, a single transient failure at any step drops ALL ShowBox sources
 // (→ no quality options in prod). Retry a few times with backoff; a rate-limit 500 comes back fast,
-// so retrying is cheap, and it recovers most transient failures.
-async function fbFetchJson(url: string, headers: any, tries = 3): Promise<any | null> {
+// so retrying is cheap, and it recovers most transient failures. `viaProxy` routes the call through
+// the Mumbai proxy (used only for quality_list — the node-deciding call); falls back to direct.
+async function fbFetchJson(url: string, headers: any, tries = 3, viaProxy = false): Promise<any | null> {
+  const useProxy = viaProxy && !!FB_PROXY_URL && !!FBPROXY_SECRET
+  const attempt = async (proxy: boolean): Promise<any | null> => {
+    const target = proxy ? `${FB_PROXY_URL}?url=${encodeURIComponent(url)}` : url
+    const hdr = proxy ? { 'x-fb-secret': FBPROXY_SECRET, 'x-fb-cookie': (headers?.Cookie || '') } : headers
+    const r = await fetch(target, { headers: hdr, signal: AbortSignal.timeout(9_000) })
+    if (r.ok) { const j = await r.json().catch(() => null); if (j) return j }
+    return null
+  }
   for (let i = 0; i < tries; i++) {
-    try {
-      const r = await fetch(url, { headers, signal: AbortSignal.timeout(7_000) })
-      if (r.ok) {
-        const j = await r.json().catch(() => null)
-        if (j) return j
-      }
-    } catch { /* timeout / connection reset — fall through to retry */ }
+    try { const j = await attempt(useProxy); if (j) return j } catch { /* retry */ }
     if (i < tries - 1) await new Promise(res => setTimeout(res, 350 * (i + 1)))
   }
+  // If the Mumbai proxy path failed entirely, fall back to a direct call so ShowBox never breaks.
+  if (useProxy) { try { const j = await attempt(false); if (j) return j } catch { /* */ } }
   return null
 }
 
@@ -290,7 +301,8 @@ async function getShowboxSources(tmdb: string, type: string, season: string, epi
     const RANK: Record<string, number> = { '2160P': 4, '4K': 4, '1080P': 3, '720P': 2, '480P': 1, '360P': 0 }
     const perFile = await Promise.all(files.map(async (f: any): Promise<Source[]> => {
       try {
-        const qData: any = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, fbHeaders(cookie))
+        // quality_list decides the CDN node → route via the Mumbai proxy so Indian users get an India node.
+        const qData: any = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, fbHeaders(cookie), 3, true)
         const html: string = qData?.code === 1 ? (qData.html || '') : ''
         const lang = detectLang(f.file_name)
         // Best-first (2160/1080 → 360). Skip raw "ORG" .original downloads (often unplayable MKV).
