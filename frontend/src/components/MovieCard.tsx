@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useCallback } from 'react'
 import type { Movie } from '@/types/movie'
 import { useTV } from '@/components/TvProvider'
+import { useUserData } from '@/lib/useUserData'
 
 const PlayIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -16,6 +17,12 @@ const PlayIcon = () => (
 const PlusIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 5v14M5 12h14" />
+  </svg>
+)
+
+const CheckIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 6 9 17l-5-5" />
   </svg>
 )
 
@@ -114,11 +121,14 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
   const detailHref = isShow ? `/show/${movie.slug}` : `/movie/${movie.slug}`
   const watchHref  = isShow ? `/watch/show/${movie.slug}?season=1&episode=1` : `/watch/${movie.slug}`
 
-  const handleAddToWatchlist = useCallback((e: React.MouseEvent) => {
+  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useUserData()
+  const inList = isInWatchlist(movie._id)
+  const handleToggleWatchlist = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    onAddToWatchlist?.(movie)
-  }, [movie, onAddToWatchlist])
+    if (isInWatchlist(movie._id)) removeFromWatchlist(movie._id)
+    else { addToWatchlist(movie); onAddToWatchlist?.(movie) }
+  }, [movie, onAddToWatchlist, addToWatchlist, removeFromWatchlist, isInWatchlist])
 
   if (isTV) return <TvCard movie={movie} />
 
@@ -199,11 +209,11 @@ export default function MovieCard({ movie, onAddToWatchlist }: Props) {
                       <span>Play</span>
                     </button>
                     <button
-                      onClick={handleAddToWatchlist}
-                      className="p-2 rounded-lg bg-white/10 text-foreground hover:bg-white/20 transition-colors"
-                      aria-label="Add to Watch Later"
+                      onClick={handleToggleWatchlist}
+                      className={`p-2 rounded-lg transition-colors ${inList ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-white/10 text-foreground hover:bg-white/20'}`}
+                      aria-label={inList ? 'Remove from Watch Later' : 'Add to Watch Later'}
                     >
-                      <PlusIcon />
+                      {inList ? <CheckIcon /> : <PlusIcon />}
                     </button>
                   </div>
                 </motion.div>

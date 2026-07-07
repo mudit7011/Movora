@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from '@/components/Sidebar'
 import { useUserData } from '@/lib/useUserData'
@@ -25,6 +26,7 @@ const BookmarkIcon = () => (
 
 export default function WatchlistPage() {
   const { watchlist, removeFromWatchlist } = useUserData()
+  const router = useRouter()
 
   return (
     <>
@@ -97,14 +99,17 @@ export default function WatchlistPage() {
 
                         {/* Quick Actions */}
                         <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <Link
-                            href={item.type === 'tvshow' ? `/watch/show/${item.slug}?season=1&episode=1` : `/watch/${item.slug}`}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              router.push(item.type === 'tvshow' ? `/watch/show/${item.slug}?season=1&episode=1` : `/watch/${item.slug}`)
+                            }}
                             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold"
-                            onClick={(e) => e.stopPropagation()}
                           >
                             <PlayIcon />
                             <span>Play</span>
-                          </Link>
+                          </button>
                           <button
                             onClick={(e) => {
                               e.preventDefault()
