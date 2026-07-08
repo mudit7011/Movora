@@ -22,6 +22,9 @@ const MB_PROXY_URL = (process.env.MB_PROXY_URL || '').replace(/\/$/, '');
 // In prod we therefore delegate the 3 signing calls to a Vercel route (region MovieBox accepts) via
 // MB_EXTRACT_URL (e.g. https://watchmovora.com/api/moviebox). Unset locally → we extract directly.
 const MB_EXTRACT_URL = (process.env.MB_EXTRACT_URL || '').replace(/\/$/, '');
+// When MB_EXTRACT_URL points at a Vercel *.vercel.app deployment (to skip Cloudflare, which blocks
+// Render's IP), that host is SSO-protected — send Vercel's protection-bypass token to get through.
+const MB_EXTRACT_BYPASS = process.env.MB_EXTRACT_BYPASS || '';
 const md5 = (s) => crypto_1.default.createHash('md5').update(s).digest('hex');
 const b64url = (s) => Buffer.from(s, 'utf8').toString('base64url');
 function clientInfo() {
@@ -130,7 +133,8 @@ async function getMovieBoxSources(type, season, episode, title) {
                 q.set('season', season);
                 q.set('episode', episode);
             }
-            const r = await fetch(`${MB_EXTRACT_URL}?${q.toString()}`, { signal: AbortSignal.timeout(12000) });
+            const h = MB_EXTRACT_BYPASS ? { 'x-vercel-protection-bypass': MB_EXTRACT_BYPASS } : {};
+            const r = await fetch(`${MB_EXTRACT_URL}?${q.toString()}`, { headers: h, signal: AbortSignal.timeout(12000) });
             if (!r.ok)
                 return [];
             const d = await r.json().catch(() => null);

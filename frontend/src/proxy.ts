@@ -12,6 +12,11 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const host = request.headers.get('host') ?? ''
 
+  // API routes must NEVER be host-redirected. Server-to-server callers (e.g. the Render backend
+  // hitting the Mumbai-region /api/moviebox extractor) can't be bounced to the Cloudflare-fronted
+  // production domain — Cloudflare blocks the datacenter IP. Serve APIs on whatever host resolves.
+  if (pathname.startsWith('/api/')) return NextResponse.next()
+
   // Redirect preview/staging deployment URLs to production (skip in local dev)
   if (process.env.NODE_ENV !== 'development' && !host.includes(PRODUCTION_HOST)) {
     return NextResponse.redirect(`https://${PRODUCTION_HOST}${pathname}`, 301)
