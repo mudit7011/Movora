@@ -18,6 +18,10 @@ const UA = `com.community.oneroom/${VC} (Linux; U; Android 13; en_US; 23078RKD5C
 // The Cloudflare Worker that proxies the DASH streams (adds CORS + CloudFront auth). Without it we
 // can't play the streams in-browser, so MovieBox is skipped when unset.
 const MB_PROXY_URL = (process.env.MB_PROXY_URL || '').replace(/\/$/, '');
+// MovieBox's API GEO-blocks Render's US datacenter IP ("Service not available in current region").
+// In prod we therefore delegate the 3 signing calls to a Vercel route (region MovieBox accepts) via
+// MB_EXTRACT_URL (e.g. https://watchmovora.com/api/moviebox). Unset locally → we extract directly.
+const MB_EXTRACT_URL = (process.env.MB_EXTRACT_URL || '').replace(/\/$/, '');
 const md5 = (s) => crypto_1.default.createHash('md5').update(s).digest('hex');
 const b64url = (s) => Buffer.from(s, 'utf8').toString('base64url');
 function clientInfo() {
@@ -115,7 +119,28 @@ async function searchSubject(token, title, isTv) {
 }
 // Returns a MovieBox HD (DASH) source routed through our CF worker, or [] if unavailable.
 async function getMovieBoxSources(type, season, episode, title) {
-    if (!MB_PROXY_URL || !title)
+    if (!title)
+        return [];
+    // Prod path: delegate the region-blocked extraction to the Vercel endpoint, which returns the
+    // already-worker-proxied DASH source. (The video itself still streams via the CF worker.)
+    if (MB_EXTRACT_URL) {
+        try {
+            const q = new URLSearchParams({ type, title });
+            if (type === 'tv') {
+                q.set('season', season);
+                q.set('episode', episode);
+            }
+            const r = await fetch(`${MB_EXTRACT_URL}?${q.toString()}`, { signal: AbortSignal.timeout(12000) });
+            if (!r.ok)
+                return [];
+            const d = await r.json().catch(() => null);
+            return Array.isArray(d?.sources) ? d.sources : [];
+        }
+        catch {
+            return [];
+        }
+    }
+    if (!MB_PROXY_URL)
         return [];
     const isTv = type === 'tv';
     try {
@@ -134,6 +159,18 @@ async function getMovieBoxSources(type, season, episode, title) {
                 if (!r.ok)
                     continue;
                 const d = await r.json().catch(() => null);
+                if (process.env.MB_DEBUG) {
+                    try {
+                        const ru = `${host}/wefeed-mobile-bff/subject-api/resource?subjectId=${subjectId}&se=${se}&ep=${ep}`;
+                        const rr = await fetch(ru, { headers: signedHeaders('GET', ru, null, token), signal: AbortSignal.timeout(8000) });
+                        const rd = await rr.json().catch(() => null);
+                        console.error('MB_DEBUG resource status', rr.status, 'data keys:', Object.keys(rd?.data || {}));
+                        console.error('MB_DEBUG resource:', JSON.stringify(rd?.data, null, 1).slice(0, 2500));
+                    }
+                    catch (e) {
+                        console.error('dbg err', e);
+                    }
+                }
                 const stream = (d?.data?.streams || [])[0];
                 if (!stream?.url || !stream?.signCookie)
                     continue;

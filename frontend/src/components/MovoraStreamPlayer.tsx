@@ -44,7 +44,33 @@ interface Props {
   onEpisodeChange?: (season: number, episode: number) => void   // TV: user picked/advanced an episode
 }
 
-const labelOf = (s: StreamSource) => `${s.server}${s.lang && s.lang !== 'Original' ? ` · ${s.lang}` : ''}`
+// Fixed codenames per backend server (Videasy-style) — never leaks the real scraper name, and is
+// STABLE across titles so a given server always reads the same. Order is fixed too: ShowBox first
+// (most reliable + full quality ladder), then MovieBox (single HD stream), then vidzee providers.
+const SERVER_CODENAMES: Record<string, string> = {
+  showbox: 'Nova', moviebox: 'Zenith', nflix: 'Quartz', drag: 'Onyx',
+  hindiv2: 'Halo', ipcloud: 'Ember', hindi: 'Halo',
+}
+const CODENAME_POOL = ['Cobalt', 'Vertex', 'Pulse', 'Flux', 'Orbit', 'Prism', 'Slate', 'Vapor', 'Ridge', 'Cinder']
+function codenameFor(server: string): string {
+  const key = (server || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  for (const k of Object.keys(SERVER_CODENAMES)) if (key.includes(k)) return SERVER_CODENAMES[k]
+  let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+  return CODENAME_POOL[h % CODENAME_POOL.length]
+}
+// Display/auto-play order: ShowBox (0) → MovieBox (1) → everything else / vidzee (2).
+function serverPriority(server: string): number {
+  const s = (server || '').toLowerCase()
+  if (s.includes('showbox')) return 0
+  if (s.includes('moviebox')) return 1
+  return 2
+}
+// Netflix/Videasy-style second line. We can't reliably know the spoken language per stream, so
+// default to "Original audio"; name it when the source carries a clear language tag.
+function audioSublabel(s: StreamSource): string {
+  const lang = normLang(`${s.lang} ${s.server}`)
+  return lang ? `${lang} audio` : 'Original audio'
+}
 
 // Normalize a source's messy lang/server text ("Hindi_v2", "4K · Multi", "Viet") into a
 // clean spoken-language name for the Audio menu. Returns '' for multi/unknown (those rely
@@ -145,14 +171,19 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
         if (cancelled) return
         const s = (d.sources || []) as StreamSource[]
         if (!s.length) { setDead(true); onFallback(); return }
-        // Order by default-play preference (1080p H.264 first) so the player starts on a
-        // stream that actually decodes; higher/other options remain available in the menus.
+        // Order: ShowBox → MovieBox → vidzee (fixed server priority), then best-decodable variant
+        // first WITHIN each server. So the player auto-plays ShowBox's best (H.264, decodes on every
+        // device), and MovieBox/vidzee are named alternates one tap away.
         const hevcOk = hevcReliable()
-        const ordered = [...s].sort((a, b) => playPref(parseQuality(b.lang), b.type, hevcOk) - playPref(parseQuality(a.lang), a.type, hevcOk))
+        const ordered = [...s].sort((a, b) => {
+          const gp = serverPriority(a.server) - serverPriority(b.server)
+          if (gp !== 0) return gp
+          return playPref(parseQuality(b.lang), b.type, hevcOk) - playPref(parseQuality(a.lang), a.type, hevcOk)
+        })
         setSources(ordered)
         startedRef.current = true
         setSwitching(false)
-        onSourcesList?.(ordered.map(labelOf))
+        onSourcesList?.(ordered.map(s => codenameFor(s.server)))
       })
       .catch(() => { if (!cancelled) { setDead(true); onFallback() } })
 
@@ -201,10 +232,17 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
     )
   }
 
-  // Only HLS streams get a quality tag (the Quality menu switches between them). Raw ORG
-  // mp4/mkv files are excluded — they often won't decode in-browser and would clutter the list.
   // s.url is already a sealed /api/stream/hls token from the backend (the real CDN url is hidden).
-  const vpSources = sources.map(s => ({ label: labelOf(s), src: s.url, lang: normLang(`${s.lang} ${s.server}`), quality: (s.type === 'hls' || s.type === 'dash') ? parseQuality(s.lang) : '' }))
+  // label = the server's codename (Nova/Zenith/…), sublabel = the Videasy-style audio line, group =
+  // the real server name (used only internally to scope Quality/Audio to the active server).
+  const vpSources = sources.map(s => ({
+    label: codenameFor(s.server),
+    sublabel: audioSublabel(s),
+    src: s.url,
+    lang: normLang(`${s.lang} ${s.server}`),
+    quality: (s.type === 'hls' || s.type === 'dash') ? parseQuality(s.lang) : '',
+    group: s.server,
+  }))
 
   return (
     <VideoPlayer

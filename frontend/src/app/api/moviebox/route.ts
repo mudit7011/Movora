@@ -1,32 +1,29 @@
-// ─── MovieBox (aoneroom) extractor ─────────────────────────────────────────────
-// MovieBox = nxsha's "MbPly" server. It has HD (1080p) DASH streams for titles where FebBox only
-// transcoded 360p (new seasons, HEVC content). Its API is signed (MD5/HMAC-MD5 with hardcoded keys)
-// — fully doable over plain HTTP (Render-friendly). Streams are HEVC DASH on hakunaymatata behind
-// CloudFront + no CORS, so they're played via our Cloudflare Worker proxy (MB_PROXY_URL) which adds
-// CORS + the signed-URL auth. Reference: github.com/Simatwa/moviebox-api.
+import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+
+// ─── MovieBox (aoneroom) extraction — pinned to Mumbai (bom1) ────────────────────────────────────
+// MovieBox's API is GEO-fenced: it rejects our Render (US) datacenter IP with 403 "Service not
+// available in current region". This route runs the 3 signing calls from Vercel's Mumbai (bom1)
+// region — an India IP — which passes the region check. The backend delegates extraction here; the
+// video itself still streams through the Cloudflare Worker (that CDN isn't region-blocked).
+export const runtime = 'nodejs'
+export const preferredRegion = ['bom1']
+export const dynamic = 'force-dynamic'
 
 const HOSTS = ['https://api6.aoneroom.com', 'https://api5.aoneroom.com', 'https://api4.aoneroom.com', 'https://api.inmoviebox.com']
 const SECRET_KEY = '76iRl07s0xSN9jqmEWAt79EBJZulIQIsV64FZr2O'
 const VC = 50020042
 const UA = `com.community.oneroom/${VC} (Linux; U; Android 13; en_US; 23078RKD5C; Build/TQ2A.230405.003; Cronet/135.0.7012.3)`
-// The Cloudflare Worker that proxies the DASH streams (adds CORS + CloudFront auth). Without it we
-// can't play the streams in-browser, so MovieBox is skipped when unset.
 const MB_PROXY_URL = (process.env.MB_PROXY_URL || '').replace(/\/$/, '')
-// MovieBox's API GEO-blocks Render's US datacenter IP ("Service not available in current region").
-// In prod we therefore delegate the 3 signing calls to a Vercel route (region MovieBox accepts) via
-// MB_EXTRACT_URL (e.g. https://watchmovora.com/api/moviebox). Unset locally → we extract directly.
-const MB_EXTRACT_URL = (process.env.MB_EXTRACT_URL || '').replace(/\/$/, '')
 
 const md5 = (s: crypto.BinaryLike) => crypto.createHash('md5').update(s).digest('hex')
 const b64url = (s: string) => Buffer.from(s, 'utf8').toString('base64url')
 
 function clientInfo(): string {
   const deviceId = [...Array(32)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')
-  return `{"package_name":"com.community.oneroom","version_name":"3.0.03.0529.03","version_code":${VC},"os":"android","os_version":"13","install_ch":"ps","device_id":"${deviceId}","install_store":"ps","gaid":"${crypto.randomUUID()}","brand":"Redmi","model":"23078RKD5C","system_language":"en","net":"NETWORK_WIFI","region":"US","timezone":"Asia/Kolkata","sp_code":"40401","X-Play-Mode":"2"}`
+  return `{"package_name":"com.community.oneroom","version_name":"3.0.03.0529.03","version_code":${VC},"os":"android","os_version":"13","install_ch":"ps","device_id":"${deviceId}","install_store":"ps","gaid":"${crypto.randomUUID()}","brand":"Redmi","model":"23078RKD5C","system_language":"en","net":"NETWORK_WIFI","region":"IN","timezone":"Asia/Kolkata","sp_code":"40401","X-Play-Mode":"2"}`
 }
 const CLIENT_INFO = clientInfo()
-
 const xClientToken = (ts: number) => `${ts},${md5(String(ts).split('').reverse().join(''))}`
 
 function sortedQuery(url: string): string {
@@ -36,7 +33,6 @@ function sortedQuery(url: string): string {
   for (const k of keys) for (const v of u.searchParams.getAll(k)) parts.push(`${k}=${v}`)
   return parts.join('&')
 }
-
 function xTrSignature(method: string, url: string, body: string | null, ts: number): string {
   const u = new URL(url)
   const q = sortedQuery(url)
@@ -47,7 +43,6 @@ function xTrSignature(method: string, url: string, body: string | null, ts: numb
   const mac = crypto.createHmac('md5', Buffer.from(SECRET_KEY, 'base64')).update(canon, 'utf8').digest('base64')
   return `${ts}|2|${mac}`
 }
-
 function signedHeaders(method: string, url: string, body: string | null, token: string | null): Record<string, string> {
   const ts = Date.now()
   const h: Record<string, string> = {
@@ -59,11 +54,7 @@ function signedHeaders(method: string, url: string, body: string | null, token: 
   return h
 }
 
-// ── Guest bearer token (from the x-user response header on a bootstrap call). Cached ~25 min. ──
-let tokenCache: { token: string; ts: number } | null = null
-const TOKEN_TTL = 25 * 60 * 1000
 async function getToken(): Promise<string | null> {
-  if (tokenCache && Date.now() - tokenCache.ts < TOKEN_TTL) return tokenCache.token
   for (const host of HOSTS) {
     try {
       const url = `${host}/wefeed-mobile-bff/tab-operating?page=1&tabId=0&version=`
@@ -72,7 +63,7 @@ async function getToken(): Promise<string | null> {
       if (!xu) continue
       let token = ''
       try { token = JSON.parse(decodeURIComponent(xu)).token } catch { try { token = JSON.parse(xu).token } catch { /* */ } }
-      if (token) { tokenCache = { token, ts: Date.now() }; return token }
+      if (token) return token
     } catch { /* try next host */ }
   }
   return null
@@ -80,7 +71,6 @@ async function getToken(): Promise<string | null> {
 
 const norm = (s: string) => (s || '').toLowerCase().replace(/\[[^\]]*\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
 
-// Search MovieBox and pick the subject matching the expected TMDB title + type (movie=1, tv=2).
 async function searchSubject(token: string, title: string, isTv: boolean): Promise<string | null> {
   const want = norm(title)
   for (const host of HOSTS) {
@@ -92,7 +82,6 @@ async function searchSubject(token: string, title: string, isTv: boolean): Promi
       const d: any = await r.json().catch(() => null)
       const items: any[] = d?.data?.items || d?.data?.results || d?.data?.subjects || []
       const wantType = isTv ? 2 : 1
-      // Prefer exact normalized-title match of the right type; else first same-type; else first.
       const exact = items.find(x => x.subjectType === wantType && norm(x.title) === want)
       const same = items.find(x => x.subjectType === wantType && norm(x.title).includes(want.split(' ')[0]))
       const pick = exact || same
@@ -102,30 +91,22 @@ async function searchSubject(token: string, title: string, isTv: boolean): Promi
   return null
 }
 
-export interface MbSource { server: string; lang: string; url: string; type: 'dash'; referer: string }
+export async function GET(req: NextRequest) {
+  const { searchParams } = req.nextUrl
+  const type = searchParams.get('type') === 'tv' ? 'tv' : 'movie'
+  const title = searchParams.get('title') || ''
+  const season = searchParams.get('season') || ''
+  const episode = searchParams.get('episode') || ''
+  const debug = searchParams.get('debug') === '1'
 
-// Returns a MovieBox HD (DASH) source routed through our CF worker, or [] if unavailable.
-export async function getMovieBoxSources(type: string, season: string, episode: string, title: string): Promise<MbSource[]> {
-  if (!title) return []
-  // Prod path: delegate the region-blocked extraction to the Vercel endpoint, which returns the
-  // already-worker-proxied DASH source. (The video itself still streams via the CF worker.)
-  if (MB_EXTRACT_URL) {
-    try {
-      const q = new URLSearchParams({ type, title })
-      if (type === 'tv') { q.set('season', season); q.set('episode', episode) }
-      const r = await fetch(`${MB_EXTRACT_URL}?${q.toString()}`, { signal: AbortSignal.timeout(12_000) })
-      if (!r.ok) return []
-      const d: any = await r.json().catch(() => null)
-      return Array.isArray(d?.sources) ? d.sources as MbSource[] : []
-    } catch { return [] }
-  }
-  if (!MB_PROXY_URL) return []
+  if (!title) return NextResponse.json({ sources: [], region: process.env.VERCEL_REGION || null })
+
   const isTv = type === 'tv'
   try {
     const token = await getToken()
-    if (!token) return []
+    if (!token) return NextResponse.json({ sources: [], step: 'token', region: process.env.VERCEL_REGION || null })
     const subjectId = await searchSubject(token, title, isTv)
-    if (!subjectId) return []
+    if (!subjectId) return NextResponse.json({ sources: [], step: 'search', region: process.env.VERCEL_REGION || null })
     const se = isTv ? Number(season) || 0 : 0
     const ep = isTv ? Number(episode) || 0 : 0
     for (const host of HOSTS) {
@@ -134,25 +115,25 @@ export async function getMovieBoxSources(type: string, season: string, episode: 
         const r = await fetch(url, { headers: signedHeaders('GET', url, null, token), signal: AbortSignal.timeout(8_000) })
         if (!r.ok) continue
         const d: any = await r.json().catch(() => null)
-        if (process.env.MB_DEBUG) { try {
-          const ru = `${host}/wefeed-mobile-bff/subject-api/resource?subjectId=${subjectId}&se=${se}&ep=${ep}`
-          const rr = await fetch(ru, { headers: signedHeaders('GET', ru, null, token), signal: AbortSignal.timeout(8_000) })
-          const rd: any = await rr.json().catch(() => null)
-          console.error('MB_DEBUG resource status', rr.status, 'data keys:', Object.keys(rd?.data || {}))
-          console.error('MB_DEBUG resource:', JSON.stringify(rd?.data, null, 1).slice(0, 2500))
-        } catch (e) { console.error('dbg err', e) } }
         const stream = (d?.data?.streams || [])[0]
         if (!stream?.url || !stream?.signCookie) continue
-        // Parse CloudFront cookie → signed-URL query string.
         const kv: Record<string, string> = {}
         for (const p of String(stream.signCookie).split(';')) { const i = p.indexOf('='); if (i > 0) kv[p.slice(0, i).trim()] = p.slice(i + 1).trim() }
         const signedQs = `Policy=${encodeURIComponent(kv['CloudFront-Policy'] || '')}&Signature=${encodeURIComponent(kv['CloudFront-Signature'] || '')}&Key-Pair-Id=${encodeURIComponent(kv['CloudFront-Key-Pair-Id'] || '')}`
         const proxied = `${MB_PROXY_URL}/mpd?u=${encodeURIComponent(b64url(stream.url))}&s=${encodeURIComponent(b64url(signedQs))}`
-        const best = String(stream.resolutions || '').split(',')[0].trim()   // e.g. "1080"
+        const best = String(stream.resolutions || '').split(',')[0].trim()
         const qual = best ? `${best}p` : 'HD'
-        return [{ server: 'MovieBox', lang: qual, url: proxied, type: 'dash', referer: '' }]
+        // If MB_PROXY_URL isn't set (region-probe deploys), still confirm extraction reached play-info.
+        return NextResponse.json({
+          sources: MB_PROXY_URL ? [{ server: 'MovieBox', lang: qual, url: proxied, type: 'dash', referer: '' }] : [],
+          reached: 'play-info', hasProxy: !!MB_PROXY_URL,
+          region: process.env.VERCEL_REGION || null,
+          ...(debug ? { subjectId, codec: stream.codecName } : {}),
+        })
       } catch { /* try next host */ }
     }
-    return []
-  } catch { return [] }
+    return NextResponse.json({ sources: [], step: 'play-info', region: process.env.VERCEL_REGION || null })
+  } catch (e: any) {
+    return NextResponse.json({ sources: [], error: String(e?.message || e), region: process.env.VERCEL_REGION || null })
+  }
 }

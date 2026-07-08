@@ -20,7 +20,10 @@ function useIsMobile() {
 interface QualityLevel { index: number; height: number; bitrate: number }
 interface AudioTrack   { id: number; name: string; lang?: string }
 interface SubTrack     { id: number; name: string }
-interface SourceItem   { label: string; src: string; lang?: string; quality?: string }
+// `group` clusters variants that come from the same backend server (e.g. all of ShowBox's
+// quality/lang files share one group) so Quality/Audio can be scoped to "whatever THIS server
+// has" instead of a blend across every server. Never rendered — only `label`/`sublabel` are shown.
+interface SourceItem   { label: string; sublabel?: string; src: string; lang?: string; quality?: string; group?: string }
 
 // Map a BCP-47 code or short manifest name ("ko", "KOR (5.1)") to a clean spoken-language
 // name, preserving any channel hint like "(5.1)".
@@ -153,7 +156,7 @@ interface OSResult {
 }
 
 type Menu = 'settings' | 'ossearch' | 'sub' | 'episodes' | null
-type SettingsTab = 'quality' | 'audio' | 'subs' | 'style' | 'speed'
+type SettingsTab = 'server' | 'quality' | 'audio' | 'subs' | 'style' | 'speed'
 
 export default function VideoPlayer({ src, sources, activeSourceIdx: controlledSrcIdx, onSourceChange, onSourcesExhausted, title, poster, externalSubtitles, startAt, tmdbId, mediaType = 'movie', season, episode, year, runtime, rating, synopsis, episodeTitle, episodeOverview, onProgress, episodes, seasons, onEpisodeChange, titleLogo, busy }: Props) {
   const [internalSrcIdx, setInternalSrcIdx] = useState(0)
@@ -171,6 +174,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const hlsRef     = useRef<any>(null)
   const dashRef    = useRef<any>(null)   // dash.js player for MovieBox DASH (HEVC 1080p) sources
   const dashWatchdog = useRef<ReturnType<typeof setInterval>>()   // detects HEVC that plays audio but never paints video
+  const dashAudioRef = useRef<any[]>([]) // dash.js audio MediaInfo objects, indexed by the id we expose
 
   const [playing,   setPlaying]   = useState(false)
   const [current,   setCurrent]   = useState(0)
@@ -368,6 +372,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     async function init() {
       setLoading(true)
       srcErrCountRef.current = 0
+      setAudioTracks([]); setCurAudio(0); dashAudioRef.current = []   // clear the previous stream's tracks
       // MovieBox HD sources are DASH (.mpd via our CF worker) — played with dash.js. If the browser
       // can't decode HEVC, dash.js errors → we auto-fail-over to the next source (e.g. ShowBox).
       const isDash = effSrc.includes('/mpd?') || effSrc.includes('/mpd/') || /\.mpd(\?|$)/.test(effSrc)
@@ -386,6 +391,16 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
             const list = (player.getBitrateInfoListFor?.('video') || [])
             setQualities(list.map((b: any, i: number) => ({ index: b.qualityIndex ?? i, height: b.height || 0, bitrate: b.bitrate || 0 })))
           } catch { /* */ }
+          // Embedded audio tracks (MovieBox DASH can carry multiple dubs — Hindi/English/…). Expose
+          // them to the Audio menu the same way hls.js tracks are, keyed by array index.
+          try {
+            const aTracks = (player.getTracksFor?.('audio') || []) as any[]
+            dashAudioRef.current = aTracks
+            setAudioTracks(aTracks.map((t, i) => ({ id: i, name: t.lang || (t.labels?.[0]?.text) || `Audio ${i + 1}`, lang: t.lang })))
+            const cur = player.getCurrentTrackFor?.('audio')
+            const ci = aTracks.findIndex(t => cur && (t === cur || t.index === cur.index))
+            setCurAudio(ci >= 0 ? ci : 0)
+          } catch { /* */ }
           const seekTo = resumeAtRef.current > 0 ? resumeAtRef.current : (startAt && startAt > 0 ? startAt : 0)
           if (seekTo > 0) { try { videoRef.current!.currentTime = seekTo } catch { /* */ } }
           resumeAtRef.current = 0
@@ -395,21 +410,29 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
         player.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR, () => { if (!failToNext()) setLoading(false) })
         player.initialize(videoRef.current!, effSrc, wasPlayingRef.current)
         // Render watchdog: `isTypeSupported` can green-light HEVC that then never actually paints
-        // (audio plays, video stays on the poster). If the clock has advanced past 1s but ZERO video
-        // frames have decoded, this browser can't render the stream → fail over to the next source.
+        // (audio plays, video stays on the poster). We must NOT confuse that with a stream that's just
+        // slow to start (the worker adds a hop). So we only fail over after the clock has GENUINELY
+        // ADVANCED ~3s of real playback while ZERO video frames decoded — the true audio-only
+        // signature. Buffering (clock not moving) never triggers it; the moment any frame decodes we
+        // stop watching. This is deliberately patient so a working HEVC stream is never killed early.
         if (dashWatchdog.current) clearInterval(dashWatchdog.current)
+        let playedNoFrames = 0
+        let lastT = -1
         dashWatchdog.current = setInterval(() => {
           const v = videoRef.current
           if (!v) return
           let frames = 0
           try { frames = v.getVideoPlaybackQuality?.().totalVideoFrames ?? (v as any).webkitDecodedFrameCount ?? 0 } catch { /* */ }
-          if (frames > 0) { clearInterval(dashWatchdog.current); dashWatchdog.current = undefined; return }  // rendering fine
-          if (v.currentTime > 1 && frames === 0) {
+          if (frames > 0) { clearInterval(dashWatchdog.current); dashWatchdog.current = undefined; return }  // decoding fine
+          const t = v.currentTime
+          if (!v.paused && lastT >= 0 && t > lastT) playedNoFrames += t - lastT   // count only real progress
+          lastT = t
+          if (playedNoFrames > 3) {
             clearInterval(dashWatchdog.current); dashWatchdog.current = undefined
-            console.warn('[DASH] HEVC not rendering (0 frames) — failing over to next source')
+            console.warn('[DASH] video not rendering after ~3s of playback — failing over to next source')
             if (!failToNext()) setLoading(false)
           }
-        }, 700)
+        }, 500)
         return
       }
       // Our sealed proxy urls (/api/stream/hls?d=…) and the sports proxy serve HLS — treat them
@@ -689,6 +712,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
   function setAudio(id: number) {
     if (hlsRef.current) hlsRef.current.audioTrack = id
+    else if (dashRef.current && dashAudioRef.current[id]) { try { dashRef.current.setCurrentTrack(dashAudioRef.current[id]) } catch { /* */ } }
     setCurAudio(id)
     setOpenMenu(null)
   }
@@ -816,24 +840,31 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   }
   const knownEmbedded = audioTracks.filter(trackKnown)
   const embLangs = new Set(knownEmbedded.map(t => prettyAudio(t).split(' · ')[0]))
-  const multiIdx = (sources ?? []).findIndex(s => !s.lang)   // the original multi-audio stream
+  // Scope to sources from the SAME server as what's currently playing — e.g. once MovieBox (HD 2) is
+  // active, the Audio menu should offer only what MovieBox itself has, not ShowBox's other dubs.
+  const sameGroup = (sources ?? []).map((s, i) => ({ ...s, i })).filter(s => s.group === activeSource?.group)
+  const multiIdx = sameGroup.find(s => !s.lang)?.i ?? -1   // the original multi-audio stream
   const onMulti = !activeSource?.lang
-  const dubs = (sources ?? [])
-    .map((s, i) => ({ lang: s.lang || '', i }))
+  // Cross-source language dubs = separate per-language streams in the SAME server (ShowBox style).
+  // `lang` is already the clean spoken language upstream ('' for quality-only/MovieBox tags), so a
+  // resolution is never mistaken for a language. Skip any language the current stream already carries.
+  const dubs = sameGroup
+    .map(s => ({ lang: s.lang || '', i: s.i }))
     .filter(x => x.lang && !embLangs.has(x.lang))
     .filter((x, idx, arr) => arr.findIndex(y => y.lang === x.lang) === idx)   // one per language
 
   interface AudioItem { key: string; label: string; active: boolean; onClick: () => void; dub: boolean }
   const audioItems: AudioItem[] = []
-  if (onMulti) {
-    if (knownEmbedded.length) {
-      for (const t of knownEmbedded) audioItems.push({ key: `e${t.id}`, label: prettyAudio(t), active: curAudio === t.id, onClick: () => setAudio(t.id), dub: false })
-    } else {
-      audioItems.push({ key: 'orig', label: 'Original', active: true, onClick: () => setOpenMenu(null), dub: false })
-    }
+  // (1) The CURRENT stream's own embedded audio tracks (hls.js OR dash.js/MovieBox) with a known
+  // language — these are the real switchable audio. Always show them.
+  if (knownEmbedded.length) {
+    for (const t of knownEmbedded) audioItems.push({ key: `e${t.id}`, label: prettyAudio(t), active: curAudio === t.id, onClick: () => setAudio(t.id), dub: false })
+  } else if (onMulti) {
+    audioItems.push({ key: 'orig', label: 'Original', active: true, onClick: () => setOpenMenu(null), dub: false })
   } else if (multiIdx >= 0) {
     audioItems.push({ key: 'orig', label: 'Original', active: false, onClick: () => switchToSource(multiIdx), dub: false })
   }
+  // (2) Cross-source dubs (separate-language streams in this server).
   for (const d of dubs) audioItems.push({ key: `s${d.i}`, label: d.lang, active: activeSource?.lang === d.lang, onClick: () => switchToSource(d.i), dub: true })
   const dubStart = audioItems.findIndex(it => it.dub)
   const hasAudioMenu = audioItems.length > 1
@@ -842,8 +873,9 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   // ShowBox exposes each resolution as its own stream, so quality = pick a source (not an
   // HLS ABR level). Order high→low; "Original" last (raw file, least reliable to decode).
   const QUAL_RANK: Record<string, number> = { '4K': 6, '1440p': 5, '1080p': 4, '720p': 3, '480p': 2, '360p': 1, 'Original': 0 }
-  const qualitySources = (sources ?? [])
-    .map((s, i) => ({ ...s, i }))
+  // Scoped to the ACTIVE server only — see `sameGroup` above (Quality shouldn't mix in another
+  // server's resolutions once you've picked one).
+  const qualitySources = sameGroup
     .filter(s => s.quality)
     .filter((s, idx, arr) => arr.findIndex(x => x.quality === s.quality) === idx)   // dedupe by resolution
     .sort((a, b) => (QUAL_RANK[b.quality!] ?? -1) - (QUAL_RANK[a.quality!] ?? -1))
@@ -873,8 +905,13 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     else if (seasons?.some(s => s.seasonNumber === season + 1 && s.episodeCount > 0)) onEpisodeChange(season + 1, 1)
   }
 
+  // Only show the Server tab when there's more than one distinct SERVER (not just multiple
+  // quality/lang variants of the same one — those belong in Quality/Audio instead).
+  const hasServerMenu = new Set((sources ?? []).map(s => s.group)).size > 1
+
   // Tabs for the consolidated Settings modal (only show what's available).
   const settingsTabs: { id: SettingsTab; label: string }[] = [
+    ...(hasServerMenu ? [{ id: 'server' as SettingsTab, label: 'Server' }] : []),
     ...((hasQualitySources || qualities.length > 1) ? [{ id: 'quality' as SettingsTab, label: 'Quality' }] : []),
     ...(hasAudioMenu ? [{ id: 'audio' as SettingsTab, label: 'Audio' }] : []),
     ...(hasCC ? [{ id: 'subs' as SettingsTab, label: 'Subtitles' }, { id: 'style' as SettingsTab, label: 'Aa' }] : []),
@@ -1191,16 +1228,47 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
             {/* Content */}
             <div className="overflow-y-auto py-1.5 min-h-0 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
-              {activeTab === 'quality' && (hasQualitySources
-                ? qualitySources.map(s => (
-                    <MenuItem key={`q${s.i}`} active={activeSourceIdx === s.i} onClick={() => switchToSource(s.i)}>{s.quality}{s.quality === '4K' ? ' · HDR' : ''}</MenuItem>
-                  ))
-                : <>
+              {/* One entry per SERVER (group), not per quality/lang variant — picking one jumps to
+                  that server's first (best-ranked) variant; Quality/Audio then scope to it.
+                  Videasy-style two-line rows: flag + codename + audio line. */}
+              {activeTab === 'server' && (sources ?? [])
+                .map((s, i) => ({ ...s, i }))
+                .filter((s, idx, arr) => arr.findIndex(x => x.group === s.group) === idx)
+                .map(s => {
+                  const on = activeSource?.group === s.group
+                  return (
+                    <button key={`srv${s.i}`} onClick={() => switchToSource(s.i)}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${on ? 'bg-[#06D6E0]/10' : 'hover:bg-white/5'}`}>
+                      <span className="flex-1 min-w-0">
+                        <span className={`block text-sm font-semibold leading-tight ${on ? 'text-[#06D6E0]' : 'text-white'}`}>{s.label}</span>
+                        {s.sublabel && <span className="block text-[11px] text-white/45 truncate">{s.sublabel}</span>}
+                      </span>
+                      {on && (
+                        <svg className="flex-shrink-0 text-[#06D6E0]" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6 9 17l-5-5"/>
+                        </svg>
+                      )}
+                    </button>
+                  )
+                })}
+
+              {/* The CURRENTLY PLAYING stream's own internal bitrate ladder takes priority (MovieBox's
+                  single DASH manifest packs 1080/720/480 into ONE stream — hls.js/dash.js already
+                  know its rungs). Only fall back to switching between distinct quality-labeled
+                  SOURCES (e.g. ShowBox 360p vs MovieBox) when the active stream has no ladder of
+                  its own — otherwise a source with an internal ladder would never expose it. */}
+              {activeTab === 'quality' && (qualities.length > 1
+                ? <>
                     <MenuItem active={curQuality === -1} onClick={() => setQuality(-1)}>Auto</MenuItem>
                     {[...qualities].reverse().map(q => (
                       <MenuItem key={q.index} active={curQuality === q.index} onClick={() => setQuality(q.index)}>{q.height > 0 ? `${q.height}p` : `Level ${q.index}`}</MenuItem>
                     ))}
                   </>
+                : hasQualitySources
+                ? qualitySources.map(s => (
+                    <MenuItem key={`q${s.i}`} active={activeSourceIdx === s.i} onClick={() => switchToSource(s.i)}>{s.quality}{s.quality === '4K' ? ' · HDR' : ''}</MenuItem>
+                  ))
+                : null
               )}
 
               {activeTab === 'audio' && audioItems.map((it, idx) => (

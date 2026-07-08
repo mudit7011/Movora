@@ -10,6 +10,9 @@
 //        → fetch <dir><segment>?<signed qs>, stream back with CORS + Range support.
 
 const ALLOWED = /(^|\.)hakunaymatata\.com$/i
+// MovieBox's signed API. Render's datacenter IP is blocked by it, so the backend signs the request
+// in Node and forwards it here — Cloudflare's edge IP isn't blocked, so the call goes through.
+const API_ALLOWED = /(^|\.)aoneroom\.com$|(^|\.)inmoviebox\.com$/i
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 const b64urlEncode = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -28,13 +31,44 @@ function corsHeaders(extra = {}) {
 function hostOk(u) {
   try { return ALLOWED.test(new URL(u).hostname) } catch { return false }
 }
+function apiHostOk(u) {
+  try { return API_ALLOWED.test(new URL(u).hostname) } catch { return false }
+}
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders() })
 
     const url = new URL(request.url)
     const path = url.pathname
+
+    // ── Signed API forward ─────────────────────────────────────────────────
+    // The backend POSTs { url, method, headers, body } already signed. We just re-issue it from the
+    // edge (so aoneroom sees a Cloudflare IP, not the blocked Render IP) and hand back the response
+    // plus the x-user header (which carries MovieBox's guest bearer token).
+    if (path === '/api') {
+      if (request.method !== 'POST') return new Response('method', { status: 405, headers: corsHeaders() })
+      if (env && env.MB_PROXY_SECRET && request.headers.get('x-mb-auth') !== env.MB_PROXY_SECRET) {
+        return new Response('forbidden', { status: 403, headers: corsHeaders() })
+      }
+      let p
+      try { p = await request.json() } catch { return new Response('bad json', { status: 400, headers: corsHeaders() }) }
+      const target = p && p.url
+      if (!apiHostOk(target)) return new Response('bad host', { status: 400, headers: corsHeaders() })
+      const upstream = await fetch(target, {
+        method: p.method || 'GET',
+        headers: p.headers || {},
+        body: p.body != null ? p.body : undefined,
+      })
+      const buf = await upstream.arrayBuffer()
+      const h = corsHeaders({
+        'Content-Type': upstream.headers.get('content-type') || 'application/json',
+        'x-mb-status': String(upstream.status),
+      })
+      const xu = upstream.headers.get('x-user')
+      if (xu) h['x-mb-user'] = xu
+      return new Response(buf, { status: upstream.status, headers: h })
+    }
 
     // ── Manifest ──────────────────────────────────────────────────────────
     if (path === '/mpd') {

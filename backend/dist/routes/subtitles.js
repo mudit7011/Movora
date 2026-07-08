@@ -179,7 +179,7 @@ router.get('/search', async (req, res) => {
                         exact = { ...match, display: 'English (exact sync)' };
                 }
             }
-            hashSubCache.set(cacheKey, { sub: exact, ts: Date.now() });
+            hashSubCache.set(cacheKey, { sub: exact ?? null, ts: Date.now() });
             if (hashSubCache.size > 500) {
                 const o = [...hashSubCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
                 hashSubCache.delete(o[0]);
