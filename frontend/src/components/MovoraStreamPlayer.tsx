@@ -7,9 +7,19 @@ const VideoPlayer = dynamic(() => import('./VideoPlayer'), { ssr: false })
 
 interface StreamSource { server: string; lang: string; url: string; type: 'hls' | 'mp4' | 'dash'; referer?: string }
 
-// MovieBox HD is HEVC DASH — only worth defaulting to if the browser can actually decode HEVC.
-function canPlayHevc(): boolean {
-  try { return typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L120.90"') } catch { return false }
+// MovieBox HD is HEVC DASH. `isTypeSupported` LIES on desktop Chromium (returns true, then fails to
+// actually paint frames → audio plays over a stuck poster). HEVC only renders *reliably* on Apple
+// (Safari/iOS) and Android — both have real hardware decoders. So we only auto-DEFAULT to MovieBox
+// there; on desktop Chromium it stays a one-tap option in the Quality menu (and the player's render
+// watchdog fails it over if the user picks it and it still won't decode).
+function hevcReliable(): boolean {
+  try {
+    if (typeof navigator === 'undefined' || typeof MediaSource === 'undefined') return false
+    const ua = navigator.userAgent.toLowerCase()
+    const isApple = /iphone|ipad|ipod/.test(ua) || (/safari/.test(ua) && !/chrome|crios|chromium|android|edg|fxios/.test(ua))
+    const isAndroid = /android/.test(ua)
+    return (isApple || isAndroid) && MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L120.90"')
+  } catch { return false }
 }
 interface EpisodeMeta { episodeNumber: number; name: string; overview: string; stillUrl?: string; runtime?: number }
 
@@ -137,7 +147,7 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
         if (!s.length) { setDead(true); onFallback(); return }
         // Order by default-play preference (1080p H.264 first) so the player starts on a
         // stream that actually decodes; higher/other options remain available in the menus.
-        const hevcOk = canPlayHevc()
+        const hevcOk = hevcReliable()
         const ordered = [...s].sort((a, b) => playPref(parseQuality(b.lang), b.type, hevcOk) - playPref(parseQuality(a.lang), a.type, hevcOk))
         setSources(ordered)
         startedRef.current = true

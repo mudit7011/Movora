@@ -170,6 +170,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const hideTimer  = useRef<ReturnType<typeof setTimeout>>()
   const hlsRef     = useRef<any>(null)
   const dashRef    = useRef<any>(null)   // dash.js player for MovieBox DASH (HEVC 1080p) sources
+  const dashWatchdog = useRef<ReturnType<typeof setInterval>>()   // detects HEVC that plays audio but never paints video
 
   const [playing,   setPlaying]   = useState(false)
   const [current,   setCurrent]   = useState(0)
@@ -362,6 +363,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   useEffect(() => {
     const video = videoRef.current
     if (!video || !effSrc) return
+    let cancelled = false   // set on cleanup — guards the async init against a torn-down effect run
 
     async function init() {
       setLoading(true)
@@ -371,8 +373,13 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       const isDash = effSrc.includes('/mpd?') || effSrc.includes('/mpd/') || /\.mpd(\?|$)/.test(effSrc)
       if (isDash) {
         const dashjs = (await import('dashjs')).default as any
+        // If the effect was cleaned up during the dynamic import (React StrictMode double-mount in
+        // dev), bail BEFORE creating a player — otherwise it's orphaned and spams the console
+        // polling a detached SourceBuffer forever.
+        if (cancelled) return
         const player = dashjs.MediaPlayer().create()
         dashRef.current = player
+        try { player.updateSettings({ debug: { logLevel: dashjs.Debug?.LOG_LEVEL_FATAL ?? 2 } }) } catch { /* */ }
         player.updateSettings({ streaming: { buffer: { fastSwitchEnabled: true }, abr: { initialBitrate: { video: 3000 } } } })
         player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
           try {
@@ -387,6 +394,22 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
         player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => { console.error('[DASH] error', e?.error || e); if (!failToNext()) setLoading(false) })
         player.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR, () => { if (!failToNext()) setLoading(false) })
         player.initialize(videoRef.current!, effSrc, wasPlayingRef.current)
+        // Render watchdog: `isTypeSupported` can green-light HEVC that then never actually paints
+        // (audio plays, video stays on the poster). If the clock has advanced past 1s but ZERO video
+        // frames have decoded, this browser can't render the stream → fail over to the next source.
+        if (dashWatchdog.current) clearInterval(dashWatchdog.current)
+        dashWatchdog.current = setInterval(() => {
+          const v = videoRef.current
+          if (!v) return
+          let frames = 0
+          try { frames = v.getVideoPlaybackQuality?.().totalVideoFrames ?? (v as any).webkitDecodedFrameCount ?? 0 } catch { /* */ }
+          if (frames > 0) { clearInterval(dashWatchdog.current); dashWatchdog.current = undefined; return }  // rendering fine
+          if (v.currentTime > 1 && frames === 0) {
+            clearInterval(dashWatchdog.current); dashWatchdog.current = undefined
+            console.warn('[DASH] HEVC not rendering (0 frames) — failing over to next source')
+            if (!failToNext()) setLoading(false)
+          }
+        }, 700)
         return
       }
       // Our sealed proxy urls (/api/stream/hls?d=…) and the sports proxy serve HLS — treat them
@@ -395,6 +418,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
       if (isHls) {
         const Hls = (await import('hls.js')).default
+        if (cancelled) return   // torn down during the import — don't attach an orphaned hls instance
         if (Hls.isSupported()) {
           const hls = new Hls({
             enableWorker: true,
@@ -478,6 +502,8 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
     init()
     return () => {
+      cancelled = true
+      if (dashWatchdog.current) { clearInterval(dashWatchdog.current); dashWatchdog.current = undefined }
       hlsRef.current?.destroy(); hlsRef.current = null
       try { dashRef.current?.destroy() } catch { /* */ } dashRef.current = null
     }
