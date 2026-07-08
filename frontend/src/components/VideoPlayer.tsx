@@ -418,18 +418,25 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
         if (dashWatchdog.current) clearInterval(dashWatchdog.current)
         let playedNoFrames = 0
         let lastT = -1
+        let baseFrames = -1               // decoded-frame count when THIS stream started (may carry over)
+        const wdStart = Date.now()
         dashWatchdog.current = setInterval(() => {
           const v = videoRef.current
           if (!v) return
           let frames = 0
           try { frames = v.getVideoPlaybackQuality?.().totalVideoFrames ?? (v as any).webkitDecodedFrameCount ?? 0 } catch { /* */ }
-          if (frames > 0) { clearInterval(dashWatchdog.current); dashWatchdog.current = undefined; return }  // decoding fine
+          if (baseFrames < 0) baseFrames = frames
+          if (frames - baseFrames > 0) { clearInterval(dashWatchdog.current); dashWatchdog.current = undefined; return }  // a frame decoded → all good, stop
           const t = v.currentTime
-          if (!v.paused && lastT >= 0 && t > lastT) playedNoFrames += t - lastT   // count only real progress
+          // Count only SMALL forward steps (real playback); a big jump is a seek/resume, not stalled video.
+          if (!v.paused && lastT >= 0 && t > lastT && t - lastT < 2) playedNoFrames += t - lastT
           lastT = t
-          if (playedNoFrames > 3) {
+          // Fail over only when it has genuinely PLAYED ~5s with zero new frames AND had a fair
+          // wall-clock window (worker hop + HEVC startup can legitimately take a few seconds after a
+          // resume-seek). A stream that can actually decode paints a frame well before this.
+          if (playedNoFrames > 5 && Date.now() - wdStart > 6000) {
             clearInterval(dashWatchdog.current); dashWatchdog.current = undefined
-            console.warn('[DASH] video not rendering after ~3s of playback — failing over to next source')
+            console.warn('[DASH] no video decoded after ~5s of playback — failing over to next source')
             if (!failToNext()) setLoading(false)
           }
         }, 500)

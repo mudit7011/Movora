@@ -65,9 +65,11 @@ function serverPriority(server: string): number {
   if (s.includes('moviebox')) return 1
   return 2
 }
-// Netflix/Videasy-style second line. We can't reliably know the spoken language per stream, so
-// default to "Original audio"; name it when the source carries a clear language tag.
+// Netflix/Videasy-style second line. MovieBox (Zenith) streams commonly carry several dub tracks
+// (switchable in the Audio tab once playing), so advertise that; others name their language, else
+// fall back to "Original audio".
 function audioSublabel(s: StreamSource): string {
+  if (/moviebox/i.test(s.server)) return 'Multiple languages'
   const lang = normLang(`${s.lang} ${s.server}`)
   return lang ? `${lang} audio` : 'Original audio'
 }
