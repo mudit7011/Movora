@@ -6,6 +6,28 @@ import Fuse from 'fuse.js'
 
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300'
 
+// Our stored seasonData is captured at scrape time and goes stale when a new season airs (e.g. a
+// show has S2 on TMDB/embeds but our DB only knows S1). Fetch the current season list from TMDB
+// live (cached 6h) so the season/episode selector always reflects what's actually released.
+const seasonCache = new Map<string, { data: { seasonData: any[]; seasons: number }; ts: number }>()
+const SEASON_TTL = 6 * 60 * 60 * 1000
+async function freshSeasons(rawId: string) {
+  const hit = seasonCache.get(rawId)
+  if (hit && Date.now() - hit.ts < SEASON_TTL) return hit.data
+  try {
+    const d: any = await tmdbFetch(`/tv/${rawId}?language=en-US`)
+    if (!Array.isArray(d?.seasons)) return null
+    const seasonData = d.seasons
+      .filter((s: any) => s.season_number > 0 && s.episode_count > 0)   // skip specials + unaired-empty seasons
+      .map((s: any) => ({ seasonNumber: s.season_number, episodeCount: s.episode_count, name: s.name || `Season ${s.season_number}` }))
+    if (!seasonData.length) return null
+    const data = { seasonData, seasons: seasonData.length }
+    seasonCache.set(rawId, { data, ts: Date.now() })
+    if (seasonCache.size > 500) { const o = [...seasonCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]; seasonCache.delete(o[0]) }
+    return data
+  } catch { return null }
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -385,7 +407,11 @@ router.get('/:slug', async (req, res) => {
   try {
     const show = await Movie.findOne({ slug: req.params.slug, type: 'tvshow' })
     if (!show) return res.status(404).json({ error: 'Show not found' })
-    res.json(show)
+    const obj: any = show.toObject()
+    // Override stale stored seasons with the current TMDB season list (so new seasons show up).
+    const fresh = await freshSeasons(String(show.tmdbId).replace(/^tv_/, ''))
+    if (fresh) { obj.seasonData = fresh.seasonData; obj.seasons = fresh.seasons }
+    res.json(obj)
   } catch {
     res.status(500).json({ error: 'Server error' })
   }
