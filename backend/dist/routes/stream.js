@@ -85,10 +85,10 @@ function titleMatches(expected, filename) {
 const STREAM_SECRET = crypto_1.default.createHash('sha256')
     .update(process.env.STREAM_SECRET || crypto_1.default.randomBytes(32)).digest();
 const TOKEN_TTL = 3 * 60 * 60 * 1000; // 3h — covers a full movie; segments are re-sealed live
-function seal(u, r, seg = false) {
+function seal(u, r) {
     const iv = crypto_1.default.randomBytes(12);
     const cipher = crypto_1.default.createCipheriv('aes-256-gcm', STREAM_SECRET, iv);
-    const pt = Buffer.from(JSON.stringify({ u, r, e: Date.now() + TOKEN_TTL, s: seg ? 1 : 0 }));
+    const pt = Buffer.from(JSON.stringify({ u, r, e: Date.now() + TOKEN_TTL }));
     const ct = Buffer.concat([cipher.update(pt), cipher.final()]);
     return Buffer.concat([iv, cipher.getAuthTag(), ct]).toString('base64url');
 }
@@ -102,13 +102,13 @@ function unseal(token) {
         const obj = JSON.parse(Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString('utf8'));
         if (!obj?.u || !obj?.e || Date.now() > obj.e)
             return null;
-        return { u: obj.u, r: obj.r || '', s: obj.s ? 1 : 0 };
+        return { u: obj.u, r: obj.r || '' };
     }
     catch {
         return null;
     }
 }
-const playUrl = (u, r, seg = false) => `/api/stream/hls?d=${seal(u, r, seg)}`;
+const playUrl = (u, r) => `/api/stream/hls?d=${seal(u, r)}`;
 // SSRF guard — only external https hosts, never private/loopback ranges.
 const PRIVATE_IP = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|fc|fd|169\.254\.)/i;
 function isSafeUrl(raw) {
@@ -120,26 +120,11 @@ function isSafeUrl(raw) {
         return false;
     }
 }
-// CDNs verified to serve video segments straight to the browser (CORS: *, no referer lock, honor
-// Range). For a *segment* on one of these we 302-redirect the browser directly to the CDN, so the
-// heavy bytes bypass our proxy entirely (no Render bandwidth bottleneck → full-speed playback). The
-// master + variant playlists still flow sealed through us, so the scraped source .m3u8 is never
-// exposed — only individual, short-lived chunk URLs appear, and the token still expires.
-const SAFE_DIRECT_HOSTS = /(^|\.)shegu\.net$|(^|\.)klcxm\.com$|(^|\.)wnowe\.com$/i;
-function directOk(raw) {
-    try {
-        return SAFE_DIRECT_HOSTS.test(new URL(raw).hostname);
-    }
-    catch {
-        return false;
-    }
-}
 // Rewrite an m3u8 so every child playlist / segment / key becomes a fresh sealed token —
-// the real URLs never leave the server.
+// the real CDN URLs never leave the server (hidden behind our proxy).
 function rewriteSealed(content, baseUrl, referer) {
     const base = new URL(baseUrl);
-    const isMedia = content.includes('#EXTINF'); // media playlist → bare lines are video segments
-    const mk = (uri, seg = false) => {
+    const mk = (uri) => {
         let abs;
         try {
             abs = new URL(uri, base).href;
@@ -147,24 +132,16 @@ function rewriteSealed(content, baseUrl, referer) {
         catch {
             return uri;
         }
-        // Safe-host segment → emit the real CDN URL directly, so the browser fetches straight from the
-        // CDN with NO hop through our proxy at all (no Vercel rewrite, no Render). This is what lets
-        // hls.js measure your true bandwidth and hold 1080p instead of downshifting. The master/variant
-        // playlists still flow sealed through us, so the scraped source .m3u8 is never exposed.
-        if (seg && directOk(abs))
-            return abs;
         return playUrl(abs, referer);
     };
     return content.split('\n').map(line => {
         const t = line.trim();
         if (!t)
             return line;
-        // Keys / init-segments / audio tracks always proxy (never expose a decryption key), so seg=false.
         if (t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-MAP') || t.startsWith('#EXT-X-MEDIA'))
-            return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mk(u, false)}"`);
-        // A bare line inside a media playlist is a video segment → eligible for direct-CDN redirect.
+            return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mk(u)}"`);
         if (!t.startsWith('#'))
-            return mk(t, isMedia);
+            return mk(t);
         return line;
     }).join('\n');
 }
@@ -238,52 +215,23 @@ async function fetchServer(sr, params, apiKey) {
         return [];
     }
 }
-// Mumbai (bom1) proxy for the CDN-node-deciding call. FebBox picks the shegu node by the *caller's*
-// IP; Render's Singapore/US egress → a US node → Indian users buffer. Routing just the quality_list
-// through a Vercel function pinned to Mumbai makes FebBox hand back an India node close to our users.
-const FB_PROXY_URL = process.env.FB_PROXY_URL || ''; // Vercel .vercel.app URL (bypasses our Cloudflare)
-const FBPROXY_SECRET = process.env.FBPROXY_SECRET || '';
-// Vercel deployment protection walls the .vercel.app domain; this automation-bypass token lets our
-// server-to-server call through (Vercel: Settings → Deployment Protection → Protection Bypass for Automation).
-const VERCEL_BYPASS = process.env.VERCEL_BYPASS_SECRET || '';
 // FebBox + the id proxy intermittently rate-limit / return a 500 ThinkPHP page from datacenter
 // IPs (Render). Without retries, a single transient failure at any step drops ALL ShowBox sources
 // (→ no quality options in prod). Retry a few times with backoff; a rate-limit 500 comes back fast,
-// so retrying is cheap, and it recovers most transient failures. `viaProxy` routes the call through
-// the Mumbai proxy (used only for quality_list — the node-deciding call); falls back to direct.
-async function fbFetchJson(url, headers, tries = 3, viaProxy = false) {
-    const useProxy = viaProxy && !!FB_PROXY_URL && !!FBPROXY_SECRET;
-    const attempt = async (proxy) => {
-        const target = proxy ? `${FB_PROXY_URL}?url=${encodeURIComponent(url)}` : url;
-        const hdr = proxy
-            ? { 'x-fb-secret': FBPROXY_SECRET, 'x-fb-cookie': (headers?.Cookie || ''), ...(VERCEL_BYPASS ? { 'x-vercel-protection-bypass': VERCEL_BYPASS } : {}) }
-            : headers;
-        const r = await fetch(target, { headers: hdr, signal: AbortSignal.timeout(9000) });
-        if (r.ok) {
-            const j = await r.json().catch(() => null);
-            if (j)
-                return j;
-        }
-        return null;
-    };
+// so retrying is cheap, and it recovers most transient failures.
+async function fbFetchJson(url, headers, tries = 3) {
     for (let i = 0; i < tries; i++) {
         try {
-            const j = await attempt(useProxy);
-            if (j)
-                return j;
+            const r = await fetch(url, { headers, signal: AbortSignal.timeout(7000) });
+            if (r.ok) {
+                const j = await r.json().catch(() => null);
+                if (j)
+                    return j;
+            }
         }
-        catch { /* retry */ }
+        catch { /* timeout / connection reset — fall through to retry */ }
         if (i < tries - 1)
             await new Promise(res => setTimeout(res, 350 * (i + 1)));
-    }
-    // If the Mumbai proxy path failed entirely, fall back to a direct call so ShowBox never breaks.
-    if (useProxy) {
-        try {
-            const j = await attempt(false);
-            if (j)
-                return j;
-        }
-        catch { /* */ }
     }
     return null;
 }
@@ -343,8 +291,7 @@ async function getShowboxSources(tmdb, type, season, episode) {
         const RANK = { '2160P': 4, '4K': 4, '1080P': 3, '720P': 2, '480P': 1, '360P': 0 };
         const perFile = await Promise.all(files.map(async (f) => {
             try {
-                // quality_list decides the CDN node → route via the Mumbai proxy so Indian users get an India node.
-                const qData = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, fbHeaders(cookie), 3, true);
+                const qData = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, fbHeaders(cookie));
                 const html = qData?.code === 1 ? (qData.html || '') : '';
                 const lang = detectLang(f.file_name);
                 // Best-first (2160/1080 → 360). Skip raw "ORG" .original downloads (often unplayable MKV).
@@ -553,16 +500,6 @@ exports.streamRouter.get('/hls', async (req, res) => {
         res.status(400).end();
         return;
     }
-    // Direct-CDN segment offload: a sealed *segment* (s=1) on a CORS-open CDN gets redirected straight
-    // to the source so the video bytes never touch our proxy (kills the Render bandwidth bottleneck →
-    // full-speed 1080p/4K). Master/variant playlists never carry s=1, so the scraped .m3u8 stays
-    // sealed and the token still expires — the reusable source link can't be stolen or replayed.
-    if (dec.s && directOk(dec.u)) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Cache-Control', 'no-store');
-        res.redirect(302, dec.u);
-        return;
-    }
     try {
         const range = req.headers.range;
         const upstream = await fetch(dec.u, {
@@ -611,39 +548,4 @@ exports.streamRouter.delete('/cache', (_req, res) => {
     srcCache.clear();
     apiKeyCache = null;
     res.json({ ok: true });
-});
-// TEMP diagnostic (no secrets leaked) — tells us from Render's side why the Mumbai proxy path may
-// not be kicking in. Remove after debugging.
-exports.streamRouter.get('/fbdebug', async (_req, res) => {
-    const out = {
-        envProxyUrl: FB_PROXY_URL || '(unset)',
-        envSecretSet: !!FBPROXY_SECRET,
-        envBypassSet: !!VERCEL_BYPASS,
-        febboxUiSet: !!FEBBOX_UI,
-    };
-    try {
-        out.egressIp = (await (await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(6000) })).json()).ip;
-    }
-    catch (e) {
-        out.egressIp = 'err:' + e?.message;
-    }
-    if (out.egressIp && !String(out.egressIp).startsWith('err')) {
-        try {
-            const g = await (await fetch(`http://ip-api.com/json/${out.egressIp}?fields=country,city`, { signal: AbortSignal.timeout(6000) })).json();
-            out.egressGeo = `${g.city}, ${g.country}`;
-        }
-        catch { }
-    }
-    // Can Render reach the fbproxy?
-    if (FB_PROXY_URL && FBPROXY_SECRET) {
-        try {
-            const r = await fetch(`${FB_PROXY_URL}?url=${encodeURIComponent('https://www.febbox.com/')}`, { headers: { 'x-fb-secret': FBPROXY_SECRET, ...(VERCEL_BYPASS ? { 'x-vercel-protection-bypass': VERCEL_BYPASS } : {}) }, signal: AbortSignal.timeout(9000) });
-            out.fbproxyStatus = r.status;
-            out.fbproxyBody = (await r.text()).slice(0, 80);
-        }
-        catch (e) {
-            out.fbproxyStatus = 'err:' + e?.message;
-        }
-    }
-    res.json(out);
 });
