@@ -5,7 +5,12 @@ import dynamic from 'next/dynamic'
 
 const VideoPlayer = dynamic(() => import('./VideoPlayer'), { ssr: false })
 
-interface StreamSource { server: string; lang: string; url: string; type: 'hls' | 'mp4'; referer?: string }
+interface StreamSource { server: string; lang: string; url: string; type: 'hls' | 'mp4' | 'dash'; referer?: string }
+
+// MovieBox HD is HEVC DASH — only worth defaulting to if the browser can actually decode HEVC.
+function canPlayHevc(): boolean {
+  try { return typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L120.90"') } catch { return false }
+}
 interface EpisodeMeta { episodeNumber: number; name: string; overview: string; stillUrl?: string; runtime?: number }
 
 interface Props {
@@ -66,9 +71,10 @@ function parseQuality(raw: string): string {
   if (/\borg\b|original/.test(s)) return 'Original'
   return ''
 }
-// Default-play preference: 1080p H.264 is the sweet spot — universally decodable, unlike
-// 4K (usually HEVC/HDR that Chrome can't play). mp4/mkv direct files rank lowest.
-function playPref(quality: string, type: string): number {
+// Default-play preference: MovieBox HD (DASH) first *if* the device can decode HEVC (else skip it so
+// we don't stall then fail over). Then 1080p H.264 (universally decodable), then the rest. mp4 last.
+function playPref(quality: string, type: string, hevcOk: boolean): number {
+  if (type === 'dash') return hevcOk ? 7 : -50
   if (type === 'mp4') return -100
   return { '1080p': 6, '720p': 5, '480p': 4, '4K': 3, '1440p': 3, '360p': 2, 'Original': 1 }[quality] ?? 0
 }
@@ -131,7 +137,8 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
         if (!s.length) { setDead(true); onFallback(); return }
         // Order by default-play preference (1080p H.264 first) so the player starts on a
         // stream that actually decodes; higher/other options remain available in the menus.
-        const ordered = [...s].sort((a, b) => playPref(parseQuality(b.lang), b.type) - playPref(parseQuality(a.lang), a.type))
+        const hevcOk = canPlayHevc()
+        const ordered = [...s].sort((a, b) => playPref(parseQuality(b.lang), b.type, hevcOk) - playPref(parseQuality(a.lang), a.type, hevcOk))
         setSources(ordered)
         startedRef.current = true
         setSwitching(false)
@@ -187,7 +194,7 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
   // Only HLS streams get a quality tag (the Quality menu switches between them). Raw ORG
   // mp4/mkv files are excluded — they often won't decode in-browser and would clutter the list.
   // s.url is already a sealed /api/stream/hls token from the backend (the real CDN url is hidden).
-  const vpSources = sources.map(s => ({ label: labelOf(s), src: s.url, lang: normLang(`${s.lang} ${s.server}`), quality: s.type === 'hls' ? parseQuality(s.lang) : '' }))
+  const vpSources = sources.map(s => ({ label: labelOf(s), src: s.url, lang: normLang(`${s.lang} ${s.server}`), quality: (s.type === 'hls' || s.type === 'dash') ? parseQuality(s.lang) : '' }))
 
   return (
     <VideoPlayer

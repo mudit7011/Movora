@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import crypto from 'crypto'
 import { tmdbFetch } from '../utils/tmdb'
+import { getMovieBoxSources } from './moviebox'
 
 export const streamRouter = Router()
 
@@ -73,7 +74,7 @@ function titleMatches(expected: string, filename: string): boolean {
   return words.some(w => fn.includes(w))
 }
 
-interface Source { server: string; lang: string; url: string; referer: string; type: 'hls' | 'mp4' }
+interface Source { server: string; lang: string; url: string; referer: string; type: 'hls' | 'mp4' | 'dash' }
 
 // ─── Hardened play tokens (encrypted, short-lived) ────────────────────────────
 // The real CDN URL + referer are sealed inside an AES-256-GCM token, so the browser
@@ -426,13 +427,16 @@ streamRouter.get('/', async (req, res) => {
   // Run ShowBox/FebBox and all vidzee servers fully concurrently (previously ShowBox THEN
   // vidzee ran sequentially → ~7s cold). ShowBox starts immediately; vidzee needs the api key.
   const showboxP = getShowboxSources(tmdb, type, season, episode)
+  // MovieBox (HD DASH) — fills the gap where FebBox only has 360p (new seasons / HEVC titles).
+  const mbP = tmdbTitle(tmdb, type).then(t => getMovieBoxSources(type, season, episode, t)).catch(() => [])
   const apiKey = await getApiKey()
   const vidzeeP = apiKey ? Promise.all(SERVER_IDS.map(sr => fetchServer(sr, params, apiKey))) : Promise.resolve([] as Source[][])
-  const [showboxSources, vidzeeResults] = await Promise.all([showboxP, vidzeeP])
+  const [showboxSources, vidzeeResults, mbSources] = await Promise.all([showboxP, vidzeeP, mbP])
 
   const seen = new Set<string>()
   const sources: Source[] = []
   for (const s of showboxSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }        // ShowBox first
+  for (const s of mbSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s as Source) } }   // MovieBox HD
   for (const list of vidzeeResults) for (const s of list) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }
 
   if (sources.length === 0) { res.status(502).json({ error: 'no sources', sources: [] }); return }
@@ -445,9 +449,10 @@ streamRouter.get('/', async (req, res) => {
   res.json({ sources: sealAll(sources) })
 })
 
-// Only expose sealed play tokens to the client — never the real CDN url/referer.
+// Only expose sealed play tokens to the client — never the real CDN url/referer. MovieBox 'dash'
+// urls already point at our CF worker (which handles CORS + auth), so they pass through unsealed.
 const sealAll = (list: Source[]) =>
-  list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: playUrl(s.url, s.referer) }))
+  list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: s.type === 'dash' ? s.url : playUrl(s.url, s.referer) }))
 
 // ─── Hardened HLS/segment proxy ───────────────────────────────────────────────
 // Resolves a sealed token → real url (server-side only), fetches it with the right

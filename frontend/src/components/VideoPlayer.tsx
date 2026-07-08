@@ -169,6 +169,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const seekRef    = useRef<HTMLDivElement>(null)
   const hideTimer  = useRef<ReturnType<typeof setTimeout>>()
   const hlsRef     = useRef<any>(null)
+  const dashRef    = useRef<any>(null)   // dash.js player for MovieBox DASH (HEVC 1080p) sources
 
   const [playing,   setPlaying]   = useState(false)
   const [current,   setCurrent]   = useState(0)
@@ -365,6 +366,29 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     async function init() {
       setLoading(true)
       srcErrCountRef.current = 0
+      // MovieBox HD sources are DASH (.mpd via our CF worker) — played with dash.js. If the browser
+      // can't decode HEVC, dash.js errors → we auto-fail-over to the next source (e.g. ShowBox).
+      const isDash = effSrc.includes('/mpd?') || effSrc.includes('/mpd/') || /\.mpd(\?|$)/.test(effSrc)
+      if (isDash) {
+        const dashjs = (await import('dashjs')).default as any
+        const player = dashjs.MediaPlayer().create()
+        dashRef.current = player
+        player.updateSettings({ streaming: { buffer: { fastSwitchEnabled: true }, abr: { initialBitrate: { video: 3000 } } } })
+        player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+          try {
+            const list = (player.getBitrateInfoListFor?.('video') || [])
+            setQualities(list.map((b: any, i: number) => ({ index: b.qualityIndex ?? i, height: b.height || 0, bitrate: b.bitrate || 0 })))
+          } catch { /* */ }
+          const seekTo = resumeAtRef.current > 0 ? resumeAtRef.current : (startAt && startAt > 0 ? startAt : 0)
+          if (seekTo > 0) { try { videoRef.current!.currentTime = seekTo } catch { /* */ } }
+          resumeAtRef.current = 0
+          setLoading(false)
+        })
+        player.on(dashjs.MediaPlayer.events.ERROR, (e: any) => { console.error('[DASH] error', e?.error || e); if (!failToNext()) setLoading(false) })
+        player.on(dashjs.MediaPlayer.events.PLAYBACK_ERROR, () => { if (!failToNext()) setLoading(false) })
+        player.initialize(videoRef.current!, effSrc, wasPlayingRef.current)
+        return
+      }
       // Our sealed proxy urls (/api/stream/hls?d=…) and the sports proxy serve HLS — treat them
       // as HLS even though the token url has no .m3u8 in it.
       const isHls = effSrc.includes('.m3u8') || effSrc.includes('/hls') || effSrc.includes('/api/stream/hls') || effSrc.includes('/api/sports/proxy') || effSrc.includes('master')
@@ -453,7 +477,10 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     }
 
     init()
-    return () => { hlsRef.current?.destroy(); hlsRef.current = null }
+    return () => {
+      hlsRef.current?.destroy(); hlsRef.current = null
+      try { dashRef.current?.destroy() } catch { /* */ } dashRef.current = null
+    }
   }, [effSrc])
 
   // ── Video events ─────────────────────────────────────────────────────────────
@@ -624,6 +651,12 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
 
   function setQuality(idx: number) {
     if (hlsRef.current) hlsRef.current.currentLevel = idx
+    else if (dashRef.current) {
+      try {
+        if (idx < 0) { dashRef.current.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: true } } } }) }
+        else { dashRef.current.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: false } } } }); dashRef.current.setQualityFor('video', idx) }
+      } catch { /* */ }
+    }
     setCurQuality(idx)
     setOpenMenu(null)
   }

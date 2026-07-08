@@ -1,0 +1,7 @@
+name = "movora-mb-proxy"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+# MovieBox (hakunaymatata) DASH proxy — adds CORS + CloudFront auth so the browser's dash.js can
+# play the HEVC 1080p streams that FebBox only has in 360p. Runs at Cloudflare's edge (scales),
+# so heavy video never touches Render. Deploy: `wrangler login` then `wrangler deploy`.

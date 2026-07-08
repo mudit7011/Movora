@@ -8,6 +8,7 @@ exports.getMovieHash = getMovieHash;
 const express_1 = require("express");
 const crypto_1 = __importDefault(require("crypto"));
 const tmdb_1 = require("../utils/tmdb");
+const moviebox_1 = require("./moviebox");
 exports.streamRouter = (0, express_1.Router)();
 // ─── VidZee m3u8 extractor ────────────────────────────────────────────────────
 // Two-stage AES: (1) fetch an encrypted dynamic key from core.vidzee.wtf/api-key and
@@ -476,9 +477,11 @@ exports.streamRouter.get('/', async (req, res) => {
     // Run ShowBox/FebBox and all vidzee servers fully concurrently (previously ShowBox THEN
     // vidzee ran sequentially → ~7s cold). ShowBox starts immediately; vidzee needs the api key.
     const showboxP = getShowboxSources(tmdb, type, season, episode);
+    // MovieBox (HD DASH) — fills the gap where FebBox only has 360p (new seasons / HEVC titles).
+    const mbP = tmdbTitle(tmdb, type).then(t => (0, moviebox_1.getMovieBoxSources)(type, season, episode, t)).catch(() => []);
     const apiKey = await getApiKey();
     const vidzeeP = apiKey ? Promise.all(SERVER_IDS.map(sr => fetchServer(sr, params, apiKey))) : Promise.resolve([]);
-    const [showboxSources, vidzeeResults] = await Promise.all([showboxP, vidzeeP]);
+    const [showboxSources, vidzeeResults, mbSources] = await Promise.all([showboxP, vidzeeP, mbP]);
     const seen = new Set();
     const sources = [];
     for (const s of showboxSources) {
@@ -487,6 +490,12 @@ exports.streamRouter.get('/', async (req, res) => {
             sources.push(s);
         }
     } // ShowBox first
+    for (const s of mbSources) {
+        if (!seen.has(s.url)) {
+            seen.add(s.url);
+            sources.push(s);
+        }
+    } // MovieBox HD
     for (const list of vidzeeResults)
         for (const s of list) {
             if (!seen.has(s.url)) {
@@ -505,8 +514,9 @@ exports.streamRouter.get('/', async (req, res) => {
     }
     res.json({ sources: sealAll(sources) });
 });
-// Only expose sealed play tokens to the client — never the real CDN url/referer.
-const sealAll = (list) => list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: playUrl(s.url, s.referer) }));
+// Only expose sealed play tokens to the client — never the real CDN url/referer. MovieBox 'dash'
+// urls already point at our CF worker (which handles CORS + auth), so they pass through unsealed.
+const sealAll = (list) => list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: s.type === 'dash' ? s.url : playUrl(s.url, s.referer) }));
 // ─── Hardened HLS/segment proxy ───────────────────────────────────────────────
 // Resolves a sealed token → real url (server-side only), fetches it with the right
 // referer, and re-seals any child URLs. The browser only ever sees opaque tokens.
