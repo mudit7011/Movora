@@ -114,21 +114,36 @@ function isSafeUrl(raw: string): boolean {
   } catch { return false }
 }
 
-// Rewrite an m3u8 so every child playlist / segment / key becomes a fresh sealed token —
-// the real CDN URLs never leave the server (hidden behind our proxy).
+// CDNs verified to serve video segments straight to the browser (CORS: *, no referer lock, honor
+// Range). Emitting their real URL directly in the media playlist means the heavy video bytes go
+// browser→CDN and NEVER through our proxy — so playback is smooth AND it scales to thousands of
+// concurrent viewers (our server only ever serves tiny text playlists). The master + variant
+// playlists still flow sealed, so the scraped source .m3u8 stays hidden; only individual, short-
+// lived chunk URLs are exposed (the same trade every streaming site makes).
+const SAFE_DIRECT_HOSTS = /(^|\.)shegu\.net$|(^|\.)klcxm\.com$|(^|\.)wnowe\.com$/i
+function directOk(raw: string): boolean {
+  try { return SAFE_DIRECT_HOSTS.test(new URL(raw).hostname) } catch { return false }
+}
+
+// Rewrite an m3u8: child playlists + keys become sealed tokens (hidden), but video segments on a
+// safe CDN are emitted as their real URL so the browser fetches them directly (smooth + scalable).
 function rewriteSealed(content: string, baseUrl: string, referer: string): string {
   const base = new URL(baseUrl)
-  const mk = (uri: string) => {
+  const isMedia = content.includes('#EXTINF')   // media playlist → bare lines are video segments
+  const mk = (uri: string, seg = false) => {
     let abs: string
     try { abs = new URL(uri, base).href } catch { return uri }
+    if (seg && directOk(abs)) return abs        // direct-to-CDN segment (no proxy hop)
     return playUrl(abs, referer)
   }
   return content.split('\n').map(line => {
     const t = line.trim()
     if (!t) return line
+    // Keys / init-segments / audio tracks always proxy (never expose a decryption key).
     if (t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-MAP') || t.startsWith('#EXT-X-MEDIA'))
-      return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mk(u)}"`)
-    if (!t.startsWith('#')) return mk(t)
+      return line.replace(/URI="([^"]+)"/, (_, u) => `URI="${mk(u, false)}"`)
+    // A bare line inside a media playlist is a video segment → eligible for direct-CDN.
+    if (!t.startsWith('#')) return mk(t, isMedia)
     return line
   }).join('\n')
 }
