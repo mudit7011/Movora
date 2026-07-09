@@ -84,6 +84,11 @@ export default {
       const dir = mpdUrl.slice(0, mpdUrl.lastIndexOf('/') + 1)
       const base = `${url.origin}/seg/${b64urlEncode(dir)}/${sig}/`
       mpd = mpd.replace(/(<MPD\b[^>]*>)/, `$1<BaseURL>${base}</BaseURL>`)
+      // Chrome's MSE accepts HEVC only as `hvc1` (params in the sample entry), not `hev1` (params
+      // in-band). Some MovieBox encodes declare hev1 → Chrome plays audio only + shows the poster.
+      // Rewrite the codec string to hvc1 here (and the init-segment box type in /seg below); the
+      // HEVC bitstream is identical, so this repackaging lets Chrome decode it.
+      mpd = mpd.replace(/(codecs=")hev1/g, '$1hvc1')
       return new Response(mpd, { status: 200, headers: corsHeaders({ 'Content-Type': 'application/dash+xml', 'Cache-Control': 'no-store' }) })
     }
 
@@ -100,6 +105,17 @@ export default {
       const h = new Headers(upstream.headers)
       for (const [k, v] of Object.entries(corsHeaders())) h.set(k, v)
       h.set('Cache-Control', 'public, max-age=86400')
+      // Init segments carry the sample-entry box type. Match the /mpd hev1→hvc1 rewrite by flipping
+      // the `hev1` fourCC to `hvc1` in the init bytes so the declared codec and the box agree (Chrome
+      // rejects a mismatch). Only touch init segments; media chunks stream through untouched.
+      if (/init[-_]/i.test(seg) && upstream.ok && upstream.status === 200) {
+        const buf = new Uint8Array(await upstream.arrayBuffer())
+        for (let i = 0; i + 3 < buf.length; i++) {
+          if (buf[i] === 0x68 && buf[i + 1] === 0x65 && buf[i + 2] === 0x76 && buf[i + 3] === 0x31) { buf[i + 1] = 0x76; buf[i + 2] = 0x63 } // 'hev1' → 'hvc1'
+        }
+        h.delete('content-length')
+        return new Response(buf, { status: 200, headers: h })
+      }
       return new Response(upstream.body, { status: upstream.status, headers: h })
     }
 
