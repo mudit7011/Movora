@@ -84,11 +84,15 @@ export default {
       const dir = mpdUrl.slice(0, mpdUrl.lastIndexOf('/') + 1)
       const base = `${url.origin}/seg/${b64urlEncode(dir)}/${sig}/`
       mpd = mpd.replace(/(<MPD\b[^>]*>)/, `$1<BaseURL>${base}</BaseURL>`)
-      // Chrome's MSE accepts HEVC only as `hvc1` (params in the sample entry), not `hev1` (params
-      // in-band). Some MovieBox encodes declare hev1 → Chrome plays audio only + shows the poster.
-      // Rewrite the codec string to hvc1 here (and the init-segment box type in /seg below); the
-      // HEVC bitstream is identical, so this repackaging lets Chrome decode it.
-      mpd = mpd.replace(/(codecs=")hev1/g, '$1hvc1')
+      // Chrome's MSE accepts HEVC only as `hvc1` (params in the sample entry), not `hev1`; it also
+      // REJECTS a bare fourCC with no profile ("hev1"/"hvc1") — it needs the full
+      // profile.compat.tier.level string. Some MovieBox encodes declare a bare `hev1`, so Chrome
+      // plays audio only + shows the poster. Fix both: swap hev1→hvc1 (keeping any real profile
+      // suffix) and fill a bare codec with the Main/L5.0 string these 1080p HEVC streams use (the
+      // bitstream is identical; /seg rewrites the matching init-segment box type below).
+      mpd = mpd
+        .replace(/codecs="hev1(\.[^"]*)"/g, 'codecs="hvc1$1"')
+        .replace(/codecs="(?:hev1|hvc1)"/g, 'codecs="hvc1.1.6.L150.90"')
       return new Response(mpd, { status: 200, headers: corsHeaders({ 'Content-Type': 'application/dash+xml', 'Cache-Control': 'no-store' }) })
     }
 
