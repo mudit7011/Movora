@@ -58,20 +58,20 @@ function codenameFor(server: string): string {
   let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
   return CODENAME_POOL[h % CODENAME_POOL.length]
 }
-// Display/auto-play order: ShowBox (0) → MovieBox (1) → everything else / vidzee (2).
+// Display/auto-play order: MovieBox/Zenith (0, HD default) → ShowBox/Nova (1) → vidzee (2).
 function serverPriority(server: string): number {
   const s = (server || '').toLowerCase()
-  if (s.includes('showbox')) return 0
-  if (s.includes('moviebox')) return 1
+  if (s.includes('moviebox')) return 0
+  if (s.includes('showbox')) return 1
   return 2
 }
 // Netflix/Videasy-style second line. MovieBox (Zenith) streams commonly carry several dub tracks
 // (switchable in the Audio tab once playing), so advertise that; others name their language, else
-// fall back to "Original audio".
+// fall back to "Original audio" (ShowBox packs several resolutions incl. up to 4K on some titles).
 function audioSublabel(s: StreamSource): string {
   if (/moviebox/i.test(s.server)) return 'Multiple languages'
   const lang = normLang(`${s.lang} ${s.server}`)
-  return lang ? `${lang} audio` : 'Original audio'
+  return lang ? `${lang} audio` : 'Original audio, may contain 4K'
 }
 
 // Normalize a source's messy lang/server text ("Hindi_v2", "4K · Multi", "Viet") into a
