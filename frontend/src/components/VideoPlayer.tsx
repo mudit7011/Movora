@@ -947,7 +947,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   return (
     <div
       ref={wrapRef}
-      className="relative bg-black w-full h-full select-none overflow-hidden group/player"
+      className={`relative bg-black w-full h-full select-none overflow-hidden group/player ${ctrlVisible ? '' : 'cursor-none'}`}
       onMouseMove={resetHide}
       onMouseLeave={() => { if (playing && !openMenu) setShowCtrl(false) }}
     >
@@ -1062,7 +1062,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       {/* Subtitle — sits above controls. Hidden while the paused info overlay is up (no overlap). */}
       {currentCue && !showPausedInfo && (
         <div
-          className={`absolute inset-x-0 z-20 pointer-events-none flex justify-center px-3 transition-all duration-200 ${ctrlVisible ? 'bottom-[90px] sm:bottom-[108px]' : 'bottom-6 sm:bottom-10'}`}
+          className="absolute inset-x-0 z-20 pointer-events-none flex justify-center px-3 bottom-[84px] sm:bottom-[100px]"
         >
           <span className={`${subBgClass} ${subTextClass} px-2 py-1 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl leading-snug text-center w-full sm:max-w-[80%] whitespace-pre-line`}>
             {currentCue}
