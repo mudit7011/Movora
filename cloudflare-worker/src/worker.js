@@ -96,6 +96,26 @@ export default {
       return new Response(mpd, { status: 200, headers: corsHeaders({ 'Content-Type': 'application/dash+xml', 'Cache-Control': 'no-store' }) })
     }
 
+    // ── H5 direct-MP4 (H.264 fallback) ──────────────────────────────────────
+    // MovieBox's H5/web API serves H.264 MP4s on hakunaymatata that need `Referer: moviebox.ph`
+    // (a browser <video> can't set that → 403). Proxy the file, add the referer, pass Range through,
+    // add CORS. Used as the HEVC fallback (720p H.264 plays where Zenith's HEVC can't decode).
+    if (path === '/mp4') {
+      const mp4Url = b64urlDecode(url.searchParams.get('u') || '')
+      if (!hostOk(mp4Url)) return new Response('bad url', { status: 400 })
+      const range = request.headers.get('Range')
+      // Bypass CF's cache — a cached full-file object ignores Range (breaks seeking + downloads the
+      // whole movie). No cache = Range is forwarded and the CDN answers 206 partial.
+      const upstream = await fetch(mp4Url, {
+        headers: { 'User-Agent': UA, 'Referer': 'https://moviebox.ph/', 'Origin': 'https://moviebox.ph', ...(range ? { Range: range } : {}) },
+        cf: { cacheEverything: false, cacheTtl: 0 },
+      })
+      const h = new Headers(upstream.headers)
+      for (const [k, v] of Object.entries(corsHeaders())) h.set(k, v)
+      h.set('Cache-Control', 'no-store')
+      return new Response(upstream.body, { status: upstream.status, headers: h })
+    }
+
     // ── Segments / init ───────────────────────────────────────────────────
     if (path.startsWith('/seg/')) {
       const parts = path.slice(5).split('/')

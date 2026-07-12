@@ -105,7 +105,7 @@ async function searchSubject(token: string, title: string, isTv: boolean): Promi
   return null
 }
 
-export interface MbSource { server: string; lang: string; url: string; type: 'dash'; referer: string }
+export interface MbSource { server: string; lang: string; url: string; type: 'dash' | 'mp4'; referer: string }
 
 // Returns a MovieBox HD (DASH) source routed through our CF worker, or [] if unavailable.
 export async function getMovieBoxSources(type: string, season: string, episode: string, title: string): Promise<MbSource[]> {
