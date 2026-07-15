@@ -1,4 +1,4 @@
-import type { Movie, PaginatedMovies, MovieFilters, EpisodeInfo } from '@/types/movie'
+import type { Movie, PaginatedMovies, MovieFilters, EpisodeInfo, Review } from '@/types/movie'
 
 // In the browser, use relative URL so requests go through the Next.js rewrite proxy
 // (avoids mixed-content blocking when backend is HTTP and frontend is HTTPS).
@@ -88,6 +88,8 @@ export const api = {
   getMovie: (slug: string) => apiFetch<Movie>(`/api/movies/${slug}`, undefined, CACHE.MOVIE),
   getRelated: (slug: string) =>
     apiFetch<{ similar: Movie[]; youMayLove: Movie[] }>(`/api/movies/related/${slug}`, undefined, CACHE.RELATED),
+  getMovieReviews: (slug: string) =>
+    apiFetch<{ reviews: Review[] }>(`/api/movies/reviews/${slug}`, undefined, CACHE.RELATED),
 
   // TV Shows — realtime homepage
   getTrendingShows:  () => realtimeFetch('/api/realtime/shows/trending').then(d => d.results),
@@ -110,6 +112,8 @@ export const api = {
   getShow: (slug: string) => apiFetch<Movie>(`/api/shows/${slug}`, undefined, CACHE.SHOW),
   getRelatedShows: (slug: string) =>
     apiFetch<{ similar: Movie[]; youMayLove: Movie[] }>(`/api/shows/related/${slug}`, undefined, CACHE.RELATED),
+  getShowReviews: (slug: string) =>
+    apiFetch<{ reviews: Review[] }>(`/api/shows/reviews/${slug}`, undefined, CACHE.RELATED),
   getEpisodes: (slug: string, season: number) =>
     apiFetch<EpisodeInfo[]>(`/api/shows/${slug}/season/${season}`, undefined, CACHE.EPISODES),
   getNew: () => apiFetch<Movie[]>('/api/new', undefined, CACHE.NEW),

@@ -27,6 +27,16 @@ export interface EpisodeInfo {
   airDate: string
 }
 
+export interface Review {
+  id: string
+  author: string
+  avatar: string
+  rating: number | null
+  content: string
+  createdAt: string
+  url: string
+}
+
 export interface Movie {
   _id: string
   tmdbId: string

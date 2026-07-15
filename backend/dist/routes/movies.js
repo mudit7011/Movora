@@ -392,6 +392,43 @@ router.get('/check-collection', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+// User reviews from TMDB (the only free review source we have). Sparse for many
+// non-English/smaller titles — the client hides the section when empty.
+const reviewsCache = new Map();
+const REVIEWS_TTL = 6 * 60 * 60 * 1000; // 6h
+router.get('/reviews/:slug', async (req, res) => {
+    try {
+        const cached = reviewsCache.get(req.params.slug);
+        if (cached && Date.now() - cached.ts < REVIEWS_TTL)
+            return res.json(cached.data);
+        const movie = await Movie_1.Movie.findOne({ slug: req.params.slug, type: 'movie' }).select('tmdbId');
+        if (!movie)
+            return res.json({ reviews: [] });
+        const rawId = String(movie.tmdbId ?? '').replace(/^movie_/, '');
+        if (!rawId)
+            return res.json({ reviews: [] });
+        const data = await (0, tmdb_1.tmdbFetch)(`/movie/${rawId}/reviews?language=en-US&page=1`).catch(() => null);
+        const reviews = (data?.results || []).slice(0, 8).map((r) => ({
+            id: String(r.id),
+            author: r.author || r.author_details?.username || 'Anonymous',
+            avatar: r.author_details?.avatar_path
+                ? (String(r.author_details.avatar_path).startsWith('/http')
+                    ? String(r.author_details.avatar_path).slice(1)
+                    : `https://image.tmdb.org/t/p/w90_and_h90_face${r.author_details.avatar_path}`)
+                : '',
+            rating: typeof r.author_details?.rating === 'number' ? r.author_details.rating : null,
+            content: String(r.content || '').trim(),
+            createdAt: r.created_at || '',
+            url: r.url || '',
+        })).filter((r) => r.content);
+        const result = { reviews };
+        (0, boundedCache_1.cacheSet)(reviewsCache, req.params.slug, { data: result, ts: Date.now() }, RELATED_MAX);
+        res.json(result);
+    }
+    catch {
+        res.json({ reviews: [] });
+    }
+});
 router.get('/:slug', async (req, res) => {
     try {
         const movie = await Movie_1.Movie.findOne({ slug: req.params.slug, type: 'movie' });
