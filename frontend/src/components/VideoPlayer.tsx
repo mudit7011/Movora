@@ -202,6 +202,9 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const [loadPhase,    setLoadPhase]    = useState(0)   // progressive buffering message index
   const [curExtSub,    setCurExtSub]    = useState<number>(-1)  // always off by default
   const [currentCue,   setCurrentCue]   = useState<string>('')
+  const [nextEpIn,     setNextEpIn]     = useState<number | null>(null)  // Netflix-style auto-advance countdown (seconds remaining), null = hidden
+  const nextEpRef      = useRef<{ has: boolean; go: () => void; contentEndSec: number }>({ has: false, go: () => {}, contentEndSec: 0 })  // latest next-ep info for the video events (contentEndSec = TMDB episode runtime, 0 = unknown)
+  const nextEpDismissedRef = useRef(false)   // user hit Cancel → don't re-show until the episode changes
   const [subOffset,    setSubOffset]    = useState(0)          // subtitle sync offset in seconds (+ = later)
   const subOffsetRef   = useRef(0)
   useEffect(() => { subOffsetRef.current = subOffset }, [subOffset])
@@ -373,6 +376,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       setLoading(true)
       srcErrCountRef.current = 0
       setAudioTracks([]); setCurAudio(0); dashAudioRef.current = []   // clear the previous stream's tracks
+      setNextEpIn(null); nextEpDismissedRef.current = false   // reset next-episode countdown for the new episode
       // MovieBox HD sources are DASH (.mpd via our CF worker) — played with dash.js. If the browser
       // can't decode HEVC, dash.js errors → we auto-fail-over to the next source (e.g. ShowBox).
       const isDash = effSrc.includes('/mpd?') || effSrc.includes('/mpd/') || /\.mpd(\?|$)/.test(effSrc)
@@ -385,7 +389,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
         const player = dashjs.MediaPlayer().create()
         dashRef.current = player
         try { player.updateSettings({ debug: { logLevel: dashjs.Debug?.LOG_LEVEL_FATAL ?? 2 } }) } catch { /* */ }
-        player.updateSettings({ streaming: { buffer: { fastSwitchEnabled: true }, abr: { initialBitrate: { video: 3000 } } } })
+        player.updateSettings({ streaming: { buffer: { fastSwitchEnabled: true, bufferTimeAtTopQuality: 30, bufferTimeAtTopQualityLongForm: 30, bufferToKeep: 20, bufferPruningInterval: 5 }, abr: { initialBitrate: { video: 3000 } } } })
         player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
           try {
             const list = (player.getBitrateInfoListFor?.('video') || [])
@@ -555,6 +559,19 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       if (!v) return
       setCurrent(v.currentTime)
       if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1))
+      // Netflix-style next-episode card. Video-driven (counts down with playback, pauses when the
+      // video pauses, hides if you seek back out). We advance at the CONTENT end, not the file end:
+      // if TMDB's episode runtime is notably shorter than the file, the extra tail is credits — so we
+      // trigger there (skips a long outro) instead of sitting through it. Otherwise, near the file end.
+      const dur = v.duration
+      if (nextEpRef.current.has && !nextEpDismissedRef.current && dur > 0 && isFinite(dur)) {
+        const ce = nextEpRef.current.contentEndSec
+        const advanceAt = (ce > 0 && dur - ce > 45) ? Math.min(ce + 8, dur - 0.6) : dur - 1
+        const until = advanceAt - v.currentTime
+        if (until <= 0.4) nextEpRef.current.go()
+        else if (until <= 8) setNextEpIn(Math.ceil(until))
+        else setNextEpIn(null)   // before the window (or seeked back)
+      }
       // Report real playback position to Continue Watching, throttled to ~5s.
       if (onProgressRef.current && v.duration > 0) {
         const now = Date.now()
@@ -576,6 +593,8 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     }
     const onDuration   = () => { if (v) setDuration(v.duration) }
     const onVolume     = () => { if (v) { setVolume(v.volume); setMuted(v.muted) } }
+    // Safety net: if playback reaches the very end (timeupdate near-end may miss the last tick), advance.
+    const onEnded      = () => { if (nextEpRef.current.has && !nextEpDismissedRef.current) nextEpRef.current.go() }
 
     v.addEventListener('play', onPlay)
     v.addEventListener('pause', onPause)
@@ -584,6 +603,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
     v.addEventListener('timeupdate', onTimeUpdate)
     v.addEventListener('durationchange', onDuration)
     v.addEventListener('volumechange', onVolume)
+    v.addEventListener('ended', onEnded)
 
     window.addEventListener('pagehide', reportProgress)
 
@@ -597,6 +617,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
       v.removeEventListener('timeupdate', onTimeUpdate)
       v.removeEventListener('durationchange', onDuration)
       v.removeEventListener('volumechange', onVolume)
+      v.removeEventListener('ended', onEnded)
     }
   }, [])
 
@@ -891,7 +912,7 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const progress    = duration > 0 ? (current / duration) * 100 : 0
   const bufPct      = duration > 0 ? (buffered / duration) * 100 : 0
   // Paused "You're watching" info overlay is shown → hide the caption so they don't overlap.
-  const showPausedInfo = !playing && !loading && !busy && !!(title || year || runtime || rating)
+  const showPausedInfo = !playing && !loading && !busy && nextEpIn === null && !!(title || year || runtime || rating)
   const qualLabel   = curQuality === -1 ? 'Auto' : (qualities[curQuality]?.height > 0 ? `${qualities[curQuality].height}p` : 'Auto')
   const qualBtnLabel = hasQualitySources ? (activeSource?.quality || 'HD') : qualLabel
   const ctrlVisible = showCtrl || !playing
@@ -908,9 +929,22 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
   const hasEpisodeList = !!isTV && (episodes?.length ?? 0) > 0
   const goNextEpisode = () => {
     if (!onEpisodeChange || season == null || episode == null) return
+    setNextEpIn(null)
     if (episode < seasonEpCount) onEpisodeChange(season, episode + 1)
     else if (seasons?.some(s => s.seasonNumber === season + 1 && s.episodeCount > 0)) onEpisodeChange(season + 1, 1)
   }
+  // The next episode's metadata (for the auto-advance card) — same-season next, else nothing (S+1E1 has no local still).
+  const nextEpisodeInfo = (isTV && episode! < seasonEpCount)
+    ? (episodes ?? []).find(e => e.episodeNumber === episode! + 1) ?? null
+    : null
+
+  // Keep the video events' ref current so they trigger the countdown + advance without stale closures.
+  // contentEndSec = this episode's TMDB runtime (seconds) — used to detect where the actual content
+  // ends and the credits begin (the file often runs several minutes longer).
+  useEffect(() => {
+    const curEp = (episodes ?? []).find(e => e.episodeNumber === episode)
+    nextEpRef.current = { has: hasNextEpisode, go: goNextEpisode, contentEndSec: curEp?.runtime ? curEp.runtime * 60 : 0 }
+  })
 
   // Only show the Server tab when there's more than one distinct SERVER (not just multiple
   // quality/lang variants of the same one — those belong in Quality/Audio instead).
@@ -1058,6 +1092,34 @@ export default function VideoPlayer({ src, sources, activeSourceIdx: controlledS
           </div>
         )}
       </div>
+
+      {/* Netflix-style auto-advance card — appears when an episode ends, counts down, then jumps to the next. */}
+      {nextEpIn !== null && (
+        <div className="absolute z-30 bottom-20 sm:bottom-24 right-3 sm:right-6 w-[270px] sm:w-[330px] rounded-xl overflow-hidden bg-[#0e0e11]/95 backdrop-blur-xl border border-white/10 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex gap-3 p-3">
+            {nextEpisodeInfo?.stillUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={nextEpisodeInfo.stillUrl} alt="" className="w-24 sm:w-28 aspect-video object-cover rounded-lg flex-shrink-0 bg-white/5" />
+            ) : null}
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <p className="text-[#06D6E0] text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">Next episode in {nextEpIn}s</p>
+              {nextEpisodeInfo ? (
+                <p className="text-white text-xs sm:text-sm font-semibold leading-tight line-clamp-2 mt-0.5">E{nextEpisodeInfo.episodeNumber} · {nextEpisodeInfo.name}</p>
+              ) : (
+                <p className="text-white text-xs sm:text-sm font-semibold mt-0.5">Next Episode</p>
+              )}
+            </div>
+          </div>
+          {/* draining progress bar (8s auto-advance window) */}
+          <div className="h-0.5 bg-white/10"><div className="h-full bg-[#06D6E0]" style={{ width: `${Math.min(100, (nextEpIn / 8) * 100)}%` }} /></div>
+          <div className="flex border-t border-white/10">
+            <button onClick={() => { setNextEpIn(null); nextEpDismissedRef.current = true }} className="flex-1 py-2.5 text-white/55 hover:text-white text-xs font-semibold hover:bg-white/5 transition-colors">Cancel</button>
+            <button onClick={goNextEpisode} className="flex-1 py-2.5 text-black bg-[#06D6E0] hover:bg-[#05c2cb] text-xs font-bold transition-colors flex items-center justify-center gap-1.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>Play Now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Subtitle — sits above controls. Hidden while the paused info overlay is up (no overlap). */}
       {currentCue && !showPausedInfo && (

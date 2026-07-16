@@ -28,7 +28,19 @@ const H = { 'User-Agent': UA, 'Referer': REFERER, 'Accept': 'application/json, t
 // ─── ShowBox / FebBox extractor (high quality + original & dubbed audio) ───────
 // TMDB → ShowBox id (via CF-bypass proxy) → FebBox share → file list → per-file
 // quality links (up to 4K, one file per audio language). Needs a FebBox `ui` token.
-const FEBBOX_UI = process.env.FEBBOX_UI_TOKEN || '';
+// FEBBOX_UI_TOKEN accepts a COMMA-SEPARATED pool of tokens. A single FebBox account gets throttled
+// to 360p-only under load (per-account), so when a token returns only 360p for an HD-capable file we
+// cool it down and rotate to the next. Combined with a short result-cache (below), this keeps HD
+// alive far longer without babysitting one token.
+const FEBBOX_TOKENS = (process.env.FEBBOX_UI_TOKEN || '').split(',').map(t => t.trim().replace(/^ui=/, '')).filter(Boolean);
+const FEBBOX_UI = FEBBOX_TOKENS[0] || ''; // primary token (single-token callers, e.g. id-mapping/moviehash)
+const tokenCooldownUntil = new Map(); // token → ts until which it's considered throttled
+const THROTTLE_COOLDOWN = 30 * 60 * 1000;
+function liveTokens() {
+    const now = Date.now();
+    const live = FEBBOX_TOKENS.filter(t => (tokenCooldownUntil.get(t) ?? 0) < now);
+    return live.length ? live : FEBBOX_TOKENS; // all cooled → still try them (better than nothing)
+}
 const SHOWBOX_API = 'https://id-mapping-api-showbox-proxy.hf.space/api/media';
 const FEBBOX = 'https://www.febbox.com';
 const FEBBOX_REFERER = 'https://www.febbox.com/';
@@ -256,9 +268,37 @@ async function fbFetchJson(url, headers, tries = 3) {
     }
     return null;
 }
+// Short result-cache: repeat loads / server-switches / re-renders of the same title reuse this
+// extraction instead of re-hitting FebBox's quality_list — the #1 thing that burns a token toward the
+// 360p throttle. TTL is well under the CDN sign lifetime so cached urls still play.
+const showboxCache = new Map();
+const SHOWBOX_CACHE_TTL = 20 * 60 * 1000;
+// video_quality_list across the token POOL: return the first token's HD result; if a token returns
+// only 360p for an HD-capable file it's throttled → cool it down and try the next token.
+async function fbQualityListPooled(fid, shareKey, fileName) {
+    const hdExpected = /\b(1080|2160|4k|720|blu-?ray|web-?dl|remux|hdr)\b/i.test(fileName);
+    let bestHtml = '';
+    for (const tok of liveTokens()) {
+        const qData = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${fid}&share_key=${shareKey}`, fbHeaders(`ui=${tok}`));
+        const html = qData?.code === 1 ? (qData.html || '') : '';
+        if (!html)
+            continue;
+        const quals = [...html.matchAll(/data-quality="([^"]+)"/g)].map(m => m[1].toUpperCase());
+        const hasHd = quals.some(q => /1080|2160|4K|720|ORG/.test(q));
+        bestHtml = html;
+        if (hasHd || !hdExpected)
+            break; // got HD, or genuinely low-res → done
+        tokenCooldownUntil.set(tok, Date.now() + THROTTLE_COOLDOWN); // only-360p on an HD file → throttled
+    }
+    return bestHtml;
+}
 async function getShowboxSources(tmdb, type, season, episode) {
     if (!FEBBOX_UI)
         return [];
+    const cacheKey = `${type}:${tmdb}:${season}:${episode}`;
+    const cached = showboxCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < SHOWBOX_CACHE_TTL)
+        return cached.sources;
     const cookie = FEBBOX_UI.startsWith('ui=') ? FEBBOX_UI : `ui=${FEBBOX_UI}`;
     const titleP = tmdbTitle(tmdb, type); // fetch expected title in parallel for verification
     try {
@@ -312,8 +352,7 @@ async function getShowboxSources(tmdb, type, season, episode) {
         const RANK = { '2160P': 4, '4K': 4, '1080P': 3, '720P': 2, '480P': 1, '360P': 0 };
         const perFile = await Promise.all(files.map(async (f) => {
             try {
-                const qData = await fbFetchJson(`${FEBBOX}/console/video_quality_list?fid=${f.fid}&share_key=${shareKey}`, fbHeaders(cookie));
-                const html = qData?.code === 1 ? (qData.html || '') : '';
+                const html = await fbQualityListPooled(f.fid, shareKey || '', f.file_name || ''); // pooled → rotates off a throttled token
                 const lang = detectLang(f.file_name);
                 // Best-first (2160/1080 → 360). Skip raw "ORG" .original downloads (often unplayable MKV).
                 const fileSources = [];
@@ -334,7 +373,12 @@ async function getShowboxSources(tmdb, type, season, episode) {
                 return [];
             }
         }));
-        return perFile.flat();
+        const sources = perFile.flat();
+        // Cache only a HD result — never lock in a throttled 360p-only extraction (so it recovers once a
+        // token frees up / a fresh one is added, instead of serving 360p for the whole TTL).
+        if (sources.some(s => /1080|2160|4K|720|ORG/i.test(s.lang)))
+            showboxCache.set(cacheKey, { sources, ts: Date.now() });
+        return sources;
     }
     catch {
         return [];

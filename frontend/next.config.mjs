@@ -18,6 +18,7 @@ const nextConfig = {
       { source: '/api/realtime/:path*', destination: `${BACKEND}/api/realtime/:path*` },
       { source: '/api/new',             destination: `${BACKEND}/api/new` },
       { source: '/api/search/:path*',   destination: `${BACKEND}/api/search/:path*` },
+      { source: '/api/stream',          destination: `${BACKEND}/api/stream` },
       { source: '/api/health',          destination: `${BACKEND}/api/health` },
       { source: '/api/sports/:path*',   destination: `${BACKEND}/api/sports/:path*` },
       { source: '/api/livetv/:path*',   destination: `${BACKEND}/api/livetv/:path*` },

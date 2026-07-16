@@ -336,9 +336,11 @@ export default function WatchShowClient({ show, children }: Props) {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full font-semibold">
-            {active.quality}
-          </span>
+          {!usingMovora && (
+            <span className="text-xs text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full font-semibold">
+              {active.quality}
+            </span>
+          )}
           <span className="hidden sm:inline text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-medium">
             {usingMovora ? 'Movora Player' : active.serverName}
           </span>

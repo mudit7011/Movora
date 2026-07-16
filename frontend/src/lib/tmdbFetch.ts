@@ -3,19 +3,28 @@ import zlib from 'zlib'
 import { Resolver } from 'dns'
 
 let cachedIP: string | null = null
+let cacheTime = 0
+const IP_TTL = 5 * 60 * 1000 // refresh resolved IP every 5 minutes
 
 async function resolveTmdbIP(): Promise<string> {
-  if (cachedIP) return cachedIP
+  if (cachedIP && Date.now() - cacheTime < IP_TTL) return cachedIP
   return new Promise((resolve) => {
     const resolver = new Resolver()
     resolver.setServers(['8.8.8.8', '8.8.4.4'])
+    const timer = setTimeout(() => {
+      // DNS took too long — fall back to hostname and let Node resolve it
+      resolve(cachedIP || 'api.themoviedb.org')
+    }, 3000)
     resolver.resolve4('api.themoviedb.org', (err, addresses) => {
-      cachedIP = (!err && addresses[0]) ? addresses[0] : 'api.themoviedb.org'
-      resolve(cachedIP!)
+      clearTimeout(timer)
+      if (!err && addresses[0]) {
+        cachedIP = addresses[0]
+        cacheTime = Date.now()
+      }
+      resolve(cachedIP || 'api.themoviedb.org')
     })
   })
 }
-
 export async function tmdbFetch(path: string): Promise<any> {
   const bearer = process.env.TMDB_BEARER
   if (!bearer) throw new Error('TMDB_BEARER not set')
@@ -31,7 +40,7 @@ export async function tmdbFetch(path: string): Promise<any> {
         Accept: 'application/json',
         Host: 'api.themoviedb.org',
       },
-      timeout: 12000,
+      timeout: 8000,
     }, (res) => {
       if (res.statusCode && res.statusCode >= 400) {
         reject(new Error(`TMDB ${res.statusCode}`))

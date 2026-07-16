@@ -82,9 +82,16 @@ async function searchSubject(token: string, title: string, isTv: boolean): Promi
       const d: any = await r.json().catch(() => null)
       const items: any[] = d?.data?.items || d?.data?.results || d?.data?.subjects || []
       const wantType = isTv ? 2 : 1
-      const exact = items.find(x => x.subjectType === wantType && norm(x.title) === want)
-      const same = items.find(x => x.subjectType === wantType && norm(x.title).includes(want.split(' ')[0]))
-      const pick = exact || same
+      // Progressive match, safest first: exact → ignore leading article → bidirectional full-string
+      // (catches year/subtitle suffixes) → distinctive first word. More matches → more Zenith HD.
+      const strip = (s: string) => s.replace(/^(the|a|an) /, '')
+      const w = strip(want), first = want.split(' ')[0]
+      const st = (x: any) => x.subjectType === wantType
+      const pick =
+        items.find(x => st(x) && norm(x.title) === want) ||
+        items.find(x => st(x) && strip(norm(x.title)) === w) ||
+        items.find(x => st(x) && w.length > 3 && (strip(norm(x.title)).includes(w) || w.includes(strip(norm(x.title))))) ||
+        items.find(x => st(x) && first.length > 3 && norm(x.title).includes(first))
       if (pick?.subjectId) return String(pick.subjectId)
     } catch { /* try next host */ }
   }
