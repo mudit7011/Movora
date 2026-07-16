@@ -103,11 +103,12 @@ export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSel
                     : 'bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.07] hover:border-white/20'
                 }`}
               >
-                {/* Thumbnail */}
+                {/* Thumbnail — fall back to the show's backdrop/poster when TMDB
+                    has no per-episode still (common for new/unreleased seasons) */}
                 <div className="relative w-32 h-[72px] rounded-lg overflow-hidden bg-card flex-shrink-0">
-                  {ep.stillUrl ? (
+                  {(ep.stillUrl || show.backdropUrl || show.posterUrl) ? (
                     <img
-                      src={ep.stillUrl}
+                      src={ep.stillUrl || show.backdropUrl || show.posterUrl}
                       alt={ep.name}
                       className="absolute inset-0 w-full h-full object-cover"
                     />
