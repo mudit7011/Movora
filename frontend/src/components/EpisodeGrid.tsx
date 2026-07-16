@@ -23,14 +23,15 @@ export default function EpisodeGrid({ show, currentSeason, currentEpisode, onSel
   const activeSeason = seasons.find(s => s.seasonNumber === selectedSeason)
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
     setEpisodes([])
-    fetch(`/api/episodes?tmdbId=${encodeURIComponent(show.tmdbId)}&season=${selectedSeason}`)
-      .then(r => r.json())
-      .then(data => setEpisodes(Array.isArray(data) ? data : []))
-      .catch(() => setEpisodes([]))
-      .finally(() => setLoading(false))
-  }, [show.tmdbId, selectedSeason])
+    api.getEpisodes(show.slug, selectedSeason)
+      .then(data => { if (!cancelled) setEpisodes(Array.isArray(data) ? data : []) })
+      .catch(() => { if (!cancelled) setEpisodes([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [show.slug, selectedSeason])
 
   const handleSeasonChange = (s: number) => {
     setSelectedSeason(s)

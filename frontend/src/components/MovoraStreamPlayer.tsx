@@ -26,6 +26,7 @@ interface EpisodeMeta { episodeNumber: number; name: string; overview: string; s
 interface Props {
   tmdb: string
   type: 'movie' | 'tv'
+  slug?: string
   season?: number
   episode?: number
   title?: string
@@ -118,7 +119,7 @@ function playPref(quality: string, type: string, hevcOk: boolean): number {
 }
 
 // Extracts direct m3u8 sources + subtitles and plays them in the premium VideoPlayer.
-export default function MovoraStreamPlayer({ tmdb, type, season, episode, title, poster, year, runtime, rating, synopsis, sourceIdx, onSourceIdxChange, onSourcesList, onFallback, startAt, onProgress, seasons, onEpisodeChange }: Props) {
+export default function MovoraStreamPlayer({ tmdb, type, slug, season, episode, title, poster, year, runtime, rating, synopsis, sourceIdx, onSourceIdxChange, onSourcesList, onFallback, startAt, onProgress, seasons, onEpisodeChange }: Props) {
   const [sources, setSources] = useState<StreamSource[] | null>(null)
   const [subs, setSubs] = useState<{ label: string; language: string; url: string; default: boolean }[]>([])
   const [dead, setDead] = useState(false)
@@ -143,12 +144,14 @@ export default function MovoraStreamPlayer({ tmdb, type, season, episode, title,
   useEffect(() => {
     if (type !== 'tv' || !season) { setEpisodes([]); return }
     let cancelled = false
-    fetch(`/api/episodes?tmdbId=${encodeURIComponent(tmdb)}&season=${season}`)
-      .then(r => r.ok ? r.json() : [])
+    const loadEpisodes = slug
+      ? fetch(`/api/shows/${encodeURIComponent(slug)}/season/${season}`).then(r => r.ok ? r.json() : [])
+      : fetch(`/api/episodes?tmdbId=${encodeURIComponent(tmdb)}&season=${season}`).then(r => r.ok ? r.json() : [])
+    loadEpisodes
       .then((eps: EpisodeMeta[]) => { if (!cancelled) setEpisodes(Array.isArray(eps) ? eps : []) })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setEpisodes([]) })
     return () => { cancelled = true }
-  }, [tmdb, type, season])
+  }, [slug, tmdb, type, season])
 
   const episodeInfo = useMemo(() => {
     const ep = episodes.find(e => e.episodeNumber === episode)

@@ -356,6 +356,7 @@ export default function WatchShowClient({ show, children }: Props) {
               <MovoraStreamPlayer
                 tmdb={show.tmdbId.replace(/^tv_/, '')}
                 type="tv"
+                slug={show.slug}
                 season={season}
                 episode={episode}
                 title={show.title}
