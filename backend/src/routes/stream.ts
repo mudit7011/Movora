@@ -2,6 +2,7 @@ import { Router } from 'express'
 import crypto from 'crypto'
 import { tmdbFetch } from '../utils/tmdb'
 import { getMovieBoxSources } from './moviebox'
+import { getAnimeSources } from './anime'
 
 export const streamRouter = Router()
 
@@ -471,13 +472,18 @@ streamRouter.get('/', async (req, res) => {
   const showboxP = getShowboxSources(tmdb, type, season, episode)
   // MovieBox (HD DASH) — fills the gap where FebBox only has 360p (new seasons / HEVC titles).
   const mbP = tmdbTitle(tmdb, type).then(t => getMovieBoxSources(type, season, episode, t)).catch(() => [])
+  // Anime (Sakura) — gated to anime only (TMDB→AniList map); returns [] for everything else, so it
+  // adds no latency/sources to non-anime titles. Direct H.264 HLS from a multi-provider aggregator.
+  const animeP = getAnimeSources(type, season, episode, tmdb).catch(() => [])
   const apiKey = await getApiKey()
   const vidzeeP = apiKey ? Promise.all(SERVER_IDS.map(sr => fetchServer(sr, params, apiKey))) : Promise.resolve([] as Source[][])
-  const [showboxSources, vidzeeResults, mbSources] = await Promise.all([showboxP, vidzeeP, mbP])
+  const [showboxSources, vidzeeResults, mbSources, animeSources] = await Promise.all([showboxP, vidzeeP, mbP, animeP])
 
   const seen = new Set<string>()
   const sources: Source[] = []
-  for (const s of showboxSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }        // ShowBox first
+  // Anime first (it's the best themed source for anime; empty for non-anime → no effect there)
+  for (const s of animeSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push({ server: s.server, lang: s.lang, url: s.url, referer: s.referer, type: s.type }) } }
+  for (const s of showboxSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }        // ShowBox
   for (const s of mbSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s as Source) } }   // MovieBox HD
   for (const list of vidzeeResults) for (const s of list) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }
 
