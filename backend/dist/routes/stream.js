@@ -536,7 +536,7 @@ exports.streamRouter.get('/', async (req, res) => {
     for (const s of animeSources) {
         if (!seen.has(s.url)) {
             seen.add(s.url);
-            sources.push({ server: s.server, lang: s.lang, url: s.url, referer: s.referer, type: s.type });
+            sources.push({ server: s.server, lang: s.lang, url: s.url, referer: s.referer, type: s.type, subtitles: s.subtitles });
         }
     }
     for (const s of showboxSources) {
@@ -571,7 +571,7 @@ exports.streamRouter.get('/', async (req, res) => {
 });
 // Only expose sealed play tokens to the client — never the real CDN url/referer. MovieBox 'dash'
 // urls already point at our CF worker (which handles CORS + auth), so they pass through unsealed.
-const sealAll = (list) => list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: s.type === 'dash' ? s.url : playUrl(s.url, s.referer) }));
+const sealAll = (list) => list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: s.type === 'dash' ? s.url : playUrl(s.url, s.referer), ...(s.subtitles?.length ? { subtitles: s.subtitles } : {}) }));
 // ─── Hardened HLS/segment proxy ───────────────────────────────────────────────
 // Resolves a sealed token → real url (server-side only), fetches it with the right
 // referer, and re-seals any child URLs. The browser only ever sees opaque tokens.

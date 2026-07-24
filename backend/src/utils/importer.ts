@@ -78,7 +78,7 @@ export async function importMovie(id: number, opts?: { bypassGate?: boolean }): 
   }
 }
 
-export async function importShow(id: number): Promise<ImportResult> {
+export async function importShow(id: number, opts?: { bypassGate?: boolean }): Promise<ImportResult> {
   try {
     const blocked = await BlockedContent.exists({ tmdbId: `tv_${id}` })
     if (blocked) return { status: 'skipped' }
@@ -93,10 +93,12 @@ export async function importShow(id: number): Promise<ImportResult> {
     const title       = detail.name
     const year        = parseInt((detail.first_air_date || '0').slice(0, 4)) || 0
 
-    // Quality gate — never persist content the site doesn't surface anyway.
-    if (!detail.poster_path) return { status: 'skipped' }
-    if (year && year < 2000) return { status: 'skipped' }
-    if ((detail.vote_average || 0) <= 0 || (detail.vote_count || 0) < 5) return { status: 'skipped' }
+    // Quality gate — never persist content the site doesn't surface anyway. bypassGate (anime search):
+    // skip the year/vote/soap cutoffs so classic (pre-2000) and long-running (>100 ep) anime import.
+    const gate = !opts?.bypassGate
+    if (!detail.poster_path) return { status: 'skipped' }   // no poster → no card, always skip
+    if (gate && year && year < 2000) return { status: 'skipped' }
+    if (gate && ((detail.vote_average || 0) <= 0 || (detail.vote_count || 0) < 5)) return { status: 'skipped' }
     const trailer     = (videos.results || []).find((v: any) => v.type === 'Trailer' && v.site === 'YouTube')
     const cast        = (credits.cast || []).slice(0, 15).map((c: any) => ({
       name: c.name, character: c.character || '',
@@ -104,9 +106,10 @@ export async function importShow(id: number): Promise<ImportResult> {
     }))
     const validSeasons = (detail.seasons || []).filter((s: any) => s.season_number > 0)
 
-    // Skip daily soaps: any season with >100 episodes
+    // Skip daily soaps: any season with >100 episodes (bypassed for anime — One Piece etc. legitimately
+    // pack 1000+ episodes into one "season" and would otherwise be rejected as a soap).
     const isDailySoap = validSeasons.some((s: any) => s.episode_count > 100)
-    if (isDailySoap) return { status: 'skipped' }
+    if (!opts?.bypassGate && isDailySoap) return { status: 'skipped' }
 
     await Movie.create({
       tmdbId:    `tv_${id}`,

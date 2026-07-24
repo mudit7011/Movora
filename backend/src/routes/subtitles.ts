@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getMovieHash } from './stream'
+import { tmdbToAnilist } from './anime'
 
 const router = Router()
 
@@ -104,7 +105,19 @@ router.get('/search', async (req, res) => {
     const r = await osFetch(`${OS_BASE}/subtitles?${p.toString()}`, { headers: osHeaders() })
     if (r && r.ok) {
       const d: any = await r.json().catch(() => null)
-      mapped = ((d?.data) || []).map(mapItem).filter((s: SubOut) => s.id)
+      let first: SubOut[] = ((d?.data) || []).map(mapItem).filter((s: SubOut) => s.id)
+      // Anime absolute-episode fallback: long-running anime (One Piece etc.) are indexed on
+      // OpenSubtitles by ABSOLUTE episode with no season (e.g. "S01E1089"), so parent+season+episode
+      // returns 0. If this is anime and the normal search found nothing, retry without season_number.
+      if (first.length === 0 && type === 'tv' && season && episode && await tmdbToAnilist(tmdb, 'tv', Number(season)).catch(() => null)) {
+        const p2 = new URLSearchParams({ parent_tmdb_id: tmdb, episode_number: episode, order_by: 'download_count', order_direction: 'desc' })
+        const r2 = await osFetch(`${OS_BASE}/subtitles?${p2.toString()}`, { headers: osHeaders() })
+        if (r2 && r2.ok) {
+          const d2: any = await r2.json().catch(() => null)
+          first = ((d2?.data) || []).map(mapItem).filter((s: SubOut) => s.id)
+        }
+      }
+      mapped = first
       searchCache.set(cacheKey, { data: mapped!, ts: Date.now() })
       if (searchCache.size > 500) { const o = [...searchCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]; searchCache.delete(o[0]) }
     } else {
@@ -222,6 +235,60 @@ router.get('/vtt', async (req, res) => {
   } catch {
     res.status(502).end()
   }
+})
+
+// ── Anime subtitle proxy+convert ──────────────────────────────────────────────
+// Anime providers (AniZone) return per-episode-matched subtitles as .ass (Advanced SubStation) or
+// .srt — the browser <track> element only renders WebVTT. This route fetches the external sub and
+// converts it, so anime that OpenSubtitles doesn't cover still gets accurate, in-sync subtitles.
+function assToVtt(raw: string): string {
+  const lines = raw.replace(/\r/g, '').split('\n')
+  const pad = (t: string) => {
+    // ASS time "H:MM:SS.cc" (centiseconds) → VTT "HH:MM:SS.mmm"
+    const m = t.trim().match(/(\d+):(\d{2}):(\d{2})[.,](\d{2,3})/)
+    if (!m) return '00:00:00.000'
+    const ms = m[4].length === 2 ? m[4] + '0' : m[4].slice(0, 3)
+    return `${m[1].padStart(2, '0')}:${m[2]}:${m[3]}.${ms}`
+  }
+  const cues: string[] = []
+  for (const line of lines) {
+    if (!line.startsWith('Dialogue:')) continue
+    const parts = line.slice(9).split(',')
+    if (parts.length < 10) continue
+    const start = pad(parts[1]), end = pad(parts[2])
+    const text = parts.slice(9).join(',')
+      .replace(/\{[^}]*\}/g, '')       // strip ASS override tags {\i1} etc
+      .replace(/\\N|\\n/g, '\n')       // ASS line breaks
+      .replace(/\\h/g, ' ').trim()
+    if (text) cues.push(`${start} --> ${end}\n${text}`)
+  }
+  return 'WEBVTT\n\n' + cues.join('\n\n') + '\n'
+}
+const animeSubCache = new Map<string, { vtt: string; ts: number }>()
+router.get('/anime', async (req, res) => {
+  const u = String(req.query.u || '')
+  let url = ''
+  try { url = Buffer.from(u, 'base64url').toString('utf8') } catch { /* */ }
+  if (!/^https:\/\//i.test(url)) { res.status(400).end(); return }
+  const serve = (vtt: string) => {
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    res.send(vtt)
+  }
+  const hit = animeSubCache.get(url)
+  if (hit && Date.now() - hit.ts < VTT_TTL) { serve(hit.vtt); return }
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(12_000) })
+    if (!r.ok) { res.status(502).end(); return }
+    const raw = await r.text()
+    const vtt = /\bDialogue:/.test(raw) ? assToVtt(raw)          // .ass
+              : /^\s*WEBVTT/.test(raw) ? raw                     // already vtt
+              : srtToVtt(raw)                                    // .srt
+    animeSubCache.set(url, { vtt, ts: Date.now() })
+    if (animeSubCache.size > 800) { const o = [...animeSubCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]; animeSubCache.delete(o[0]) }
+    serve(vtt)
+  } catch { res.status(502).end() }
 })
 
 export { router as subtitlesRouter }

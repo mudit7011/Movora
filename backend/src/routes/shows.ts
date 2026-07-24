@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { Movie } from '../models/Movie'
 import { tmdbFetch } from '../utils/tmdb'
 import { cacheSet } from '../utils/boundedCache'
+import { importShow } from '../utils/importer'
 import Fuse from 'fuse.js'
 
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300'
@@ -302,6 +303,30 @@ router.get('/search', async (req, res) => {
       seenKeys.add(key)
       return true
     })
+
+    // Sparse DB results (anime/titles not yet indexed, or a variant/native title the user typed):
+    // augment with a live TMDB search + on-demand import so search isn't limited to the local catalog.
+    if (deduped.length < 4) {
+      try {
+        const td: any = await tmdbFetch(`/search/tv?query=${encodeURIComponent(raw)}&language=en-US&page=1`)
+        const results: any[] = (td?.results || []).filter((r: any) => r.poster_path).slice(0, 8)
+        const ids = results.map(r => `tv_${r.id}`)
+        const have = new Set((await Movie.find({ tmdbId: { $in: ids } }).select('tmdbId').lean()).map((m: any) => String(m.tmdbId)))
+        const missing = results.filter(r => !have.has(`tv_${r.id}`))
+        for (let i = 0; i < missing.length; i += 5) {
+          await Promise.allSettled(missing.slice(i, i + 5).map(r =>
+            importShow(r.id, { bypassGate: r.genre_ids?.includes(16) })))   // anime (genre 16) → skip gate
+        }
+        const docs = await Movie.find({ tmdbId: { $in: ids }, type: 'tvshow' }).select('-sources').lean()
+        const byId = new Map(docs.map((d: any) => [String(d.tmdbId), d]))
+        for (const r of results) {                                   // append in TMDB relevance order
+          const key = String(r.id)
+          if (seenKeys.has(key)) continue
+          const d = byId.get(`tv_${r.id}`)
+          if (d?.posterUrl) { seenKeys.add(key); deduped.push(d) }
+        }
+      } catch { /* live search is best-effort */ }
+    }
 
     res.json(deduped)
   } catch {

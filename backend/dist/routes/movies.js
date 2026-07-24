@@ -286,6 +286,33 @@ router.get('/search', async (req, res) => {
             seenKeys.add(key);
             return true;
         });
+        // Sparse DB results → augment with live TMDB search + on-demand import (anime movies bypass the
+        // quality gate: genre 16 catches classics like Ghibli/Akira that predate the year>=2000 cutoff).
+        if (deduped.length < 4) {
+            try {
+                const td = await (0, tmdb_1.tmdbFetch)(`/search/movie?query=${encodeURIComponent(raw)}&language=en-US&page=1`);
+                const found = (td?.results || []).filter((r) => r.poster_path).slice(0, 8);
+                const ids = found.map(r => String(r.id));
+                const have = new Set((await Movie_1.Movie.find({ tmdbId: { $in: ids } }).select('tmdbId').lean()).map((m) => String(m.tmdbId).replace(/^movie_/, '')));
+                const missing = found.filter(r => !have.has(String(r.id)));
+                for (let i = 0; i < missing.length; i += 5) {
+                    await Promise.allSettled(missing.slice(i, i + 5).map(r => (0, importer_1.importMovie)(r.id, { bypassGate: r.genre_ids?.includes(16) }))); // anime → skip gate
+                }
+                const docs = await Movie_1.Movie.find({ tmdbId: { $in: ids }, type: 'movie' }).select('-sources').lean();
+                const byId = new Map(docs.map((d) => [String(d.tmdbId).replace(/^movie_/, ''), d]));
+                for (const r of found) {
+                    const key = String(r.id);
+                    if (seenKeys.has(key))
+                        continue;
+                    const d = byId.get(key);
+                    if (d?.posterUrl) {
+                        seenKeys.add(key);
+                        deduped.push(d);
+                    }
+                }
+            }
+            catch { /* best-effort */ }
+        }
         res.json(deduped.slice(0, 20));
     }
     catch {

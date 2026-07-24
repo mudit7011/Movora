@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 
 const VideoPlayer = dynamic(() => import('./VideoPlayer'), { ssr: false })
 
-interface StreamSource { server: string; lang: string; url: string; type: 'hls' | 'mp4' | 'dash'; referer?: string }
+interface StreamSource { server: string; lang: string; url: string; type: 'hls' | 'mp4' | 'dash'; referer?: string; subtitles?: { url: string; label: string; lang: string }[] }
 
 // MovieBox HD is HEVC DASH. `isTypeSupported` LIES on desktop Chromium (returns true, then fails to
 // actually paint frames → audio plays over a stuck poster). HEVC only renders *reliably* on Apple
@@ -49,7 +49,7 @@ interface Props {
 // STABLE across titles so a given server always reads the same. Order is fixed too: ShowBox first
 // (most reliable + full quality ladder), then MovieBox (single HD stream), then vidzee providers.
 const SERVER_CODENAMES: Record<string, string> = {
-  showbox: 'Nova', moviebox: 'Zenith', nflix: 'Quartz', drag: 'Onyx',
+  showbox: 'Nova', moviebox: 'Zenith', sakura: 'Sakura', nflix: 'Quartz', drag: 'Onyx',
   hindiv2: 'Halo', ipcloud: 'Ember', hindi: 'Halo',
 }
 const CODENAME_POOL = ['Cobalt', 'Vertex', 'Pulse', 'Flux', 'Orbit', 'Prism', 'Slate', 'Vapor', 'Ridge', 'Cinder']
@@ -62,14 +62,16 @@ function codenameFor(server: string): string {
 // Display/auto-play order: MovieBox/Zenith (0, HD default) → ShowBox/Nova (1) → vidzee (2).
 function serverPriority(server: string): number {
   const s = (server || '').toLowerCase()
-  if (s.includes('moviebox')) return 0
-  if (s.includes('showbox')) return 1
-  return 2
+  if (s.includes('sakura')) return 0   // anime source (present only on anime) — plays first, Zenith is fallback
+  if (s.includes('moviebox')) return 1
+  if (s.includes('showbox')) return 2
+  return 3
 }
 // Netflix/Videasy-style second line. MovieBox (Zenith) streams commonly carry several dub tracks
 // (switchable in the Audio tab once playing), so advertise that; others name their language, else
 // fall back to "Original audio" (ShowBox packs several resolutions incl. up to 4K on some titles).
 function audioSublabel(s: StreamSource): string {
+  if (/sakura|anime/i.test(`${s.server} ${s.lang}`)) return 'Sub & Dub · anime'
   if (/moviebox/i.test(s.server)) return 'Multiple languages'
   const lang = normLang(`${s.lang} ${s.server}`)
   return lang ? `${lang} audio` : 'Original audio, may contain 4K'
@@ -189,6 +191,11 @@ export default function MovoraStreamPlayer({ tmdb, type, slug, season, episode, 
         startedRef.current = true
         setSwitching(false)
         onSourcesList?.(ordered.map(s => codenameFor(s.server)))
+        // Anime sources (Sakura) carry their own per-episode-matched subtitles — prefer these (set
+        // default) over the generic OpenSubtitles search, which often misses anime episodes.
+        const withSubs = ordered.find(x => x.subtitles?.length)
+        const aniSubs = (withSubs?.subtitles || []).map((t, i) => ({ label: t.label, language: t.lang, default: i === 0, url: t.url }))
+        if (aniSubs.length) setSubs(prev => [...aniSubs, ...prev.filter(p => !aniSubs.some(a => a.url === p.url))])
       })
       .catch(() => { if (!cancelled) { setDead(true); onFallback() } })
 
@@ -196,10 +203,12 @@ export default function MovoraStreamPlayer({ tmdb, type, slug, season, episode, 
       .then(r => r.ok ? r.json() : { subtitles: [] })
       .then(d => {
         if (cancelled) return
-        setSubs((d.subtitles || []).map((x: { display: string; lang: string; id: string }) => ({
+        const os = (d.subtitles || []).map((x: { display: string; lang: string; id: string }) => ({
           label: x.display, language: x.lang, default: false,
           url: `/api/subtitles/vtt?id=${encodeURIComponent(x.id)}`,
-        })))
+        }))
+        // Append (don't replace) so anime subs already set from the source aren't wiped by this race.
+        setSubs(prev => [...prev, ...os.filter((o: { url: string }) => !prev.some(p => p.url === o.url))])
       })
       .catch(() => {})
 

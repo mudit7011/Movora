@@ -67,8 +67,11 @@ const PROVIDER_PRIORITY = ['anizone', 'anikoto', 'animegg', 'reanime', 'anineko'
 
 function normalize(provider: string, raw: any): AnimeSource | null {
   if (!raw) return null
+  // Route each sub through our proxy — it fetches the provider's .ass/.srt and converts to WebVTT
+  // (the only format the browser <track> renders). Relative path → resolves against the frontend origin.
+  const proxy = (u: string) => `/api/subtitles/anime?u=${Buffer.from(u, 'utf8').toString('base64url')}`
   const subsOf = (arr: any[]): SubTrack[] =>
-    (arr || []).filter(s => s?.url).map(s => ({ url: s.url, label: s.label || s.lang || 'Subs', lang: s.srclang || s.lang || 'en' }))
+    (arr || []).filter(s => s?.url).map(s => ({ url: proxy(s.url), label: s.label || s.lang || 'Subs', lang: s.srclang || s.lang || 'en' }))
   // anizone: { streams:[{url,type:'hls',server,subtitles:[...]}] }
   // anikoto: { ssub:{streams:[{url,referer,server}]}, sdub?:{...} }
   // reanime: { stream_url, server, subtitles? }

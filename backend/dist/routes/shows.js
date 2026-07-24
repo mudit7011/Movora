@@ -5,6 +5,7 @@ const express_1 = require("express");
 const Movie_1 = require("../models/Movie");
 const tmdb_1 = require("../utils/tmdb");
 const boundedCache_1 = require("../utils/boundedCache");
+const importer_1 = require("../utils/importer");
 const IMG_STILL = 'https://image.tmdb.org/t/p/w300';
 // Our stored seasonData is captured at scrape time and goes stale when a new season airs (e.g. a
 // show has S2 on TMDB/embeds but our DB only knows S1). Fetch the current season list from TMDB
@@ -306,6 +307,33 @@ router.get('/search', async (req, res) => {
             seenKeys.add(key);
             return true;
         });
+        // Sparse DB results (anime/titles not yet indexed, or a variant/native title the user typed):
+        // augment with a live TMDB search + on-demand import so search isn't limited to the local catalog.
+        if (deduped.length < 4) {
+            try {
+                const td = await (0, tmdb_1.tmdbFetch)(`/search/tv?query=${encodeURIComponent(raw)}&language=en-US&page=1`);
+                const results = (td?.results || []).filter((r) => r.poster_path).slice(0, 8);
+                const ids = results.map(r => `tv_${r.id}`);
+                const have = new Set((await Movie_1.Movie.find({ tmdbId: { $in: ids } }).select('tmdbId').lean()).map((m) => String(m.tmdbId)));
+                const missing = results.filter(r => !have.has(`tv_${r.id}`));
+                for (let i = 0; i < missing.length; i += 5) {
+                    await Promise.allSettled(missing.slice(i, i + 5).map(r => (0, importer_1.importShow)(r.id, { bypassGate: r.genre_ids?.includes(16) }))); // anime (genre 16) → skip gate
+                }
+                const docs = await Movie_1.Movie.find({ tmdbId: { $in: ids }, type: 'tvshow' }).select('-sources').lean();
+                const byId = new Map(docs.map((d) => [String(d.tmdbId), d]));
+                for (const r of results) { // append in TMDB relevance order
+                    const key = String(r.id);
+                    if (seenKeys.has(key))
+                        continue;
+                    const d = byId.get(`tv_${r.id}`);
+                    if (d?.posterUrl) {
+                        seenKeys.add(key);
+                        deduped.push(d);
+                    }
+                }
+            }
+            catch { /* live search is best-effort */ }
+        }
         res.json(deduped);
     }
     catch {

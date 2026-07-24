@@ -87,7 +87,7 @@ function titleMatches(expected: string, filename: string): boolean {
   return words.some(w => fn.includes(w))
 }
 
-interface Source { server: string; lang: string; url: string; referer: string; type: 'hls' | 'mp4' | 'dash' }
+interface Source { server: string; lang: string; url: string; referer: string; type: 'hls' | 'mp4' | 'dash'; subtitles?: { url: string; label: string; lang: string }[] }
 
 // ─── Hardened play tokens (encrypted, short-lived) ────────────────────────────
 // The real CDN URL + referer are sealed inside an AES-256-GCM token, so the browser
@@ -482,7 +482,7 @@ streamRouter.get('/', async (req, res) => {
   const seen = new Set<string>()
   const sources: Source[] = []
   // Anime first (it's the best themed source for anime; empty for non-anime → no effect there)
-  for (const s of animeSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push({ server: s.server, lang: s.lang, url: s.url, referer: s.referer, type: s.type }) } }
+  for (const s of animeSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push({ server: s.server, lang: s.lang, url: s.url, referer: s.referer, type: s.type, subtitles: s.subtitles }) } }
   for (const s of showboxSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }        // ShowBox
   for (const s of mbSources) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s as Source) } }   // MovieBox HD
   for (const list of vidzeeResults) for (const s of list) { if (!seen.has(s.url)) { seen.add(s.url); sources.push(s) } }
@@ -500,7 +500,7 @@ streamRouter.get('/', async (req, res) => {
 // Only expose sealed play tokens to the client — never the real CDN url/referer. MovieBox 'dash'
 // urls already point at our CF worker (which handles CORS + auth), so they pass through unsealed.
 const sealAll = (list: Source[]) =>
-  list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: s.type === 'dash' ? s.url : playUrl(s.url, s.referer) }))
+  list.map(s => ({ server: s.server, lang: s.lang, type: s.type, url: s.type === 'dash' ? s.url : playUrl(s.url, s.referer), ...(s.subtitles?.length ? { subtitles: s.subtitles } : {}) }))
 
 // ─── Hardened HLS/segment proxy ───────────────────────────────────────────────
 // Resolves a sealed token → real url (server-side only), fetches it with the right
